@@ -11,6 +11,7 @@ import { ChatInterface } from "./components/ChatInterface";
 import { DocumentEditor } from "./components/DocumentEditor";
 import { DocumentsList } from "./pages/documents-list";
 import { DocumentDetail } from "./pages/document-detail";
+import { PeopleList } from "./pages/people-list";
 import NotFound from "@/pages/not-found";
 import { useState } from "react";
 import { useParams } from "wouter";
@@ -36,6 +37,10 @@ function ConversationDetailPage() {
 
 function DocumentsPage() {
   return <DocumentsList />;
+}
+
+function PeoplePage() {
+  return <PeopleList />;
 }
 
 function SettingsPage() {
@@ -79,6 +84,8 @@ function Router() {
       <Route path="/conversations/:id" component={ConversationDetailPage} />
       <Route path="/documents" component={DocumentsPage} />
       <Route path="/documents/:id" component={DocumentDetail} />
+      <Route path="/people" component={PeoplePage} />
+      <Route path="/people/:id" component={DocumentDetail} />
       <Route path="/settings" component={SettingsPage} />
       <Route component={NotFound} />
     </Switch>

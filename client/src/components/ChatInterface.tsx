@@ -296,7 +296,9 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
       }
       
       // Remove the empty assistant message on error
-      setMessages(prev => prev.filter(msg => msg.id !== assistantMessageId));
+      if (streamingMessageId) {
+        setMessages(prev => prev.filter(msg => msg.id !== streamingMessageId));
+      }
       
       toast({
         title: '錯誤',
