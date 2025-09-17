@@ -53,10 +53,10 @@ export function ChatInterface() {
     }
   });
 
-  // Chat mutation
+  // Chat mutation with function calling
   const chatMutation = useMutation({
     mutationFn: async ({ messages, contextDocumentIds }: { messages: any[], contextDocumentIds: string[] }) => {
-      const response = await fetch('/api/chat', {
+      const response = await fetch('/api/chat/functions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messages, contextDocumentIds })

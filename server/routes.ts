@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertDocumentSchema, updateDocumentSchema, insertConversationSchema, insertMessageSchema, parseMentionsSchema } from "@shared/schema";
 import { chatWithGemini, extractTextFromPDF, extractTextFromWord, generateTextEmbedding } from "./gemini-simple";
+import { chatWithGeminiFunctions } from "./gemini-functions";
 import { embeddingService } from "./embedding-service";
 import { chunkingService } from "./chunking-service";
 import { z } from "zod";
@@ -272,6 +273,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Chat error:', error);
       res.status(500).json({ error: "Failed to process chat request" });
+    }
+  });
+
+  // Enhanced chat with function calling
+  app.post("/api/chat/functions", async (req, res) => {
+    try {
+      const { messages, contextDocumentIds = [] } = req.body;
+      
+      // Fetch context documents if provided
+      const contextDocuments = [];
+      for (const docId of contextDocumentIds) {
+        const doc = await storage.getDocument(docId);
+        if (doc) contextDocuments.push(doc);
+      }
+      
+      console.log('Function calling chat request:', { 
+        messageCount: messages?.length, 
+        contextDocumentIds: contextDocumentIds.length 
+      });
+      
+      const response = await chatWithGeminiFunctions({
+        messages,
+        contextDocuments
+      });
+      
+      res.json({ response });
+    } catch (error) {
+      console.error('Function calling chat error:', error);
+      res.status(500).json({ error: "Failed to process function calling chat request" });
     }
   });
 

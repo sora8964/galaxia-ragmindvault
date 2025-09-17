@@ -1,5 +1,5 @@
 // Gemini Function Calling Service
-import { GoogleGenAI, type FunctionDeclaration, type Schema } from "@google/genai";
+import { GoogleGenAI } from "@google/genai";
 import { storage } from "./storage";
 import { embeddingService } from "./embedding-service";
 import { generateTextEmbedding } from "./gemini-simple";
@@ -8,23 +8,23 @@ import type { Document, MentionItem, SearchResult } from "@shared/schema";
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
 
 // Function definitions for Gemini
-const functions: Record<string, FunctionDeclaration> = {
+const functions = {
   searchDocuments: {
     name: "searchDocuments",
     description: "Search for documents and people in the knowledge base using keywords",
     parameters: {
-      type: "OBJECT",
+      type: "object",
       properties: {
         query: {
-          type: "STRING",
+          type: "string",
           description: "Search query keywords"
         },
         type: {
-          type: "STRING",
+          type: "string",
           description: "Filter by document type (optional)"
         },
         limit: {
-          type: "NUMBER",
+          type: "number",
           description: "Maximum number of results to return (default: 10)"
         }
       },
@@ -36,10 +36,10 @@ const functions: Record<string, FunctionDeclaration> = {
     name: "getDocumentDetails",
     description: "Get the full content and details of a specific document or person",
     parameters: {
-      type: "OBJECT",
+      type: "object",
       properties: {
         documentId: {
-          type: "STRING",
+          type: "string",
           description: "The ID of the document to retrieve"
         }
       },
@@ -51,23 +51,23 @@ const functions: Record<string, FunctionDeclaration> = {
     name: "createDocument",
     description: "Create a new document or person profile in the knowledge base",
     parameters: {
-      type: "OBJECT",
+      type: "object",
       properties: {
         name: {
-          type: "STRING",
+          type: "string",
           description: "The name/title of the document or person"
         },
         type: {
-          type: "STRING",
+          type: "string",
           description: "Whether this is a person profile or document"
         },
         content: {
-          type: "STRING",
+          type: "string",
           description: "The main content/description"
         },
         aliases: {
-          type: "ARRAY",
-          items: { type: "STRING" },
+          type: "array",
+          items: { type: "string" },
           description: "Alternative names or aliases (optional)"
         }
       },
@@ -79,23 +79,23 @@ const functions: Record<string, FunctionDeclaration> = {
     name: "updateDocument",
     description: "Update an existing document or person profile",
     parameters: {
-      type: "OBJECT",
+      type: "object",
       properties: {
         documentId: {
-          type: "STRING",
+          type: "string",
           description: "The ID of the document to update"
         },
         name: {
-          type: "STRING",
+          type: "string",
           description: "New name/title (optional)"
         },
         content: {
-          type: "STRING",
+          type: "string",
           description: "New content (optional)"
         },
         aliases: {
-          type: "ARRAY",
-          items: { type: "STRING" },
+          type: "array",
+          items: { type: "string" },
           description: "New aliases (optional)"
         }
       },
@@ -107,18 +107,18 @@ const functions: Record<string, FunctionDeclaration> = {
     name: "findSimilarDocuments",
     description: "Find documents similar to a given text using semantic search (vector similarity)",
     parameters: {
-      type: "OBJECT",
+      type: "object",
       properties: {
         text: {
-          type: "STRING",
+          type: "string",
           description: "The text to find similar documents for"
         },
         limit: {
-          type: "NUMBER",
+          type: "number",
           description: "Maximum number of similar documents to return (default: 5)"
         },
         threshold: {
-          type: "NUMBER",
+          type: "number",
           description: "Similarity threshold between 0-1 (default: 0.7)"
         }
       },
@@ -130,10 +130,10 @@ const functions: Record<string, FunctionDeclaration> = {
     name: "parseMentions",
     description: "Parse @mentions in text and resolve them to actual documents/people",
     parameters: {
-      type: "OBJECT",
+      type: "object",
       properties: {
         text: {
-          type: "STRING",
+          type: "string",
           description: "Text containing @mentions to parse"
         }
       },
@@ -421,7 +421,7 @@ Use @mentions like @[person:習近平] or @[document:項目計劃書] when refer
       config: {
         systemInstruction,
         tools: [{
-          functionDeclarations: Object.values(functions)
+          functionDeclarations: Object.values(functions) as any[]
         }]
       },
       contents: geminiMessages
@@ -436,7 +436,7 @@ Use @mentions like @[person:習近平] or @[document:項目計劃書] when refer
           const { name: functionName, args } = part.functionCall;
           console.log(`Calling function: ${functionName}`, args);
           
-          const functionResult = await callFunction(functionName, args);
+          const functionResult = await callFunction(functionName || "", args);
           finalResponse += functionResult + "\n\n";
         } else if (part.text) {
           finalResponse += part.text;
@@ -446,7 +446,7 @@ Use @mentions like @[person:習近平] or @[document:項目計劃書] when refer
       return finalResponse.trim() || "I apologize, but I couldn't generate a response. Please try again.";
     }
 
-    return response.text() || "I apologize, but I couldn't generate a response. Please try again.";
+    return response.text || "I apologize, but I couldn't generate a response. Please try again.";
   } catch (error) {
     console.error('Gemini function calling error:', error);
     throw new Error(`Failed to chat with Gemini functions: ${error}`);
