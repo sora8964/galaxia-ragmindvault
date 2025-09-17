@@ -310,13 +310,23 @@ export class MemStorage implements IStorage {
 
   async createMessage(insertMessage: InsertMessage): Promise<Message> {
     const id = randomUUID();
+    const now = new Date();
     const message: Message = {
       id,
       conversationId: insertMessage.conversationId,
       role: insertMessage.role,
       content: insertMessage.content,
       contextDocuments: (insertMessage.contextDocuments as string[]) || [],
-      createdAt: new Date()
+      thinking: insertMessage.thinking || null,
+      functionCalls: insertMessage.functionCalls ? insertMessage.functionCalls as Array<{name: string; arguments: any; result?: any}> : null,
+      status: insertMessage.status || "completed",
+      contextMetadata: insertMessage.contextMetadata ? insertMessage.contextMetadata as {
+        mentionedPersons?: Array<{ id: string; name: string; alias?: string }>;
+        mentionedDocuments?: Array<{ id: string; name: string; alias?: string }>;
+        originalPrompt?: string;
+      } : null,
+      createdAt: now,
+      updatedAt: now
     };
     this.messages.set(id, message);
     
@@ -460,7 +470,7 @@ export class MemStorage implements IStorage {
   async getChunksByDocumentId(documentId: string): Promise<Chunk[]> {
     return Array.from(this.chunks.values())
       .filter(chunk => chunk.documentId === documentId)
-      .sort((a, b) => parseInt(a.chunkIndex) - parseInt(b.chunkIndex));
+      .sort((a, b) => a.chunkIndex - b.chunkIndex);
   }
 
   async createChunk(insertChunk: InsertChunk): Promise<Chunk> {

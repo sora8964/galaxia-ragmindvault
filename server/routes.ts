@@ -305,6 +305,89 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Streaming chat with function calling
+  app.post("/api/chat/stream", async (req, res) => {
+    try {
+      const { messages, contextDocumentIds = [], conversationId } = req.body;
+      
+      // Fetch context documents if provided
+      const contextDocuments = [];
+      for (const docId of contextDocumentIds) {
+        const doc = await storage.getDocument(docId);
+        if (doc) contextDocuments.push(doc);
+      }
+      
+      // Set SSE headers
+      res.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'Cache-Control'
+      });
+
+      let fullResponse = '';
+      let thinking = '';
+      let functionCalls: Array<{name: string; arguments: any; result?: any}> = [];
+
+      try {
+        // For now, use the regular function calling and simulate streaming
+        const response = await chatWithGeminiFunctions({
+          messages,
+          contextDocuments
+        });
+
+        // Send thinking if available
+        if (response.thinking) {
+          thinking = response.thinking;
+          res.write(`data: ${JSON.stringify({ type: 'thinking', content: response.thinking })}\n\n`);
+        }
+
+        // Send function calls if available
+        if (response.functionCalls) {
+          for (const fc of response.functionCalls) {
+            functionCalls.push(fc);
+            res.write(`data: ${JSON.stringify({ type: 'function_call', content: fc })}\n\n`);
+          }
+        }
+
+        // Stream content token by token
+        const content = response.content || '';
+        const words = content.split(' ');
+        for (let i = 0; i < words.length; i++) {
+          const token = (i === 0 ? '' : ' ') + words[i];
+          fullResponse += token;
+          res.write(`data: ${JSON.stringify({ type: 'token', content: token })}\n\n`);
+          
+          // Small delay to simulate streaming
+          await new Promise(resolve => setTimeout(resolve, 30));
+        }
+
+        // Save complete message if conversationId provided
+        if (conversationId) {
+          await storage.createMessage({
+            conversationId,
+            role: "assistant",
+            content: fullResponse,
+            contextDocuments: contextDocumentIds,
+            thinking: response.thinking || null,
+            functionCalls: response.functionCalls || null,
+            status: "completed"
+          });
+        }
+
+        res.write(`data: ${JSON.stringify({ type: 'complete' })}\n\n`);
+      } catch (streamError) {
+        res.write(`data: ${JSON.stringify({ type: 'error', content: streamError.message })}\n\n`);
+      }
+
+      res.end();
+    } catch (error) {
+      console.error('Error in streaming chat:', error);
+      res.status(500).json({ error: "Failed to process streaming chat request" });
+    }
+  });
+
   // PDF OCR endpoint
   app.post("/api/pdf/extract", async (req, res) => {
     try {

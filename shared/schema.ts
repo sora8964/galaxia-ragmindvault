@@ -36,10 +36,26 @@ export const conversations = pgTable("conversations", {
 export const messages = pgTable("messages", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   conversationId: varchar("conversation_id").notNull().references(() => conversations.id, { onDelete: "cascade" }),
-  role: text("role", { enum: ["user", "assistant"] }).notNull(),
+  role: text("role", { enum: ["user", "assistant", "system"] }).notNull(),
   content: text("content").notNull(),
   contextDocuments: json("context_documents").$type<string[]>().notNull().default([]),
+  // AI response metadata
+  thinking: text("thinking"),
+  functionCalls: json("function_calls").$type<Array<{
+    name: string;
+    arguments: any;
+    result?: any;
+  }>>(),
+  // Message status for streaming
+  status: text("status", { enum: ["pending", "streaming", "completed", "error"] }).notNull().default("completed"),
+  // Additional context information
+  contextMetadata: json("context_metadata").$type<{
+    mentionedPersons?: Array<{ id: string; name: string; alias?: string }>;
+    mentionedDocuments?: Array<{ id: string; name: string; alias?: string }>;
+    originalPrompt?: string;
+  }>(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
 export const chunks = pgTable("chunks", {
@@ -79,6 +95,7 @@ export const insertConversationSchema = createInsertSchema(conversations).omit({
 export const insertMessageSchema = createInsertSchema(messages).omit({
   id: true,
   createdAt: true,
+  updatedAt: true,
 });
 
 export const insertChunkSchema = createInsertSchema(chunks).omit({
