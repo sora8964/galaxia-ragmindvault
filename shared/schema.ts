@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, json, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, json, boolean, integer } from "drizzle-orm/pg-core";
 import { vector } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -46,9 +46,9 @@ export const chunks = pgTable("chunks", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   documentId: varchar("document_id").notNull().references(() => documents.id, { onDelete: "cascade" }),
   content: text("content").notNull(),
-  chunkIndex: text("chunk_index").notNull(), // 0, 1, 2... for ordering
-  startPosition: text("start_position").notNull(), // Start character position in original content
-  endPosition: text("end_position").notNull(), // End character position in original content
+  chunkIndex: integer("chunk_index").notNull(), // 0, 1, 2... for ordering
+  startPosition: integer("start_position").notNull(), // Start character position in original content
+  endPosition: integer("end_position").notNull(), // End character position in original content
   embedding: vector("embedding", { dimensions: 2000 }),
   hasEmbedding: boolean("has_embedding").notNull().default(false),
   embeddingStatus: text("embedding_status", { enum: ["pending", "completed", "failed"] }).notNull().default("pending"),

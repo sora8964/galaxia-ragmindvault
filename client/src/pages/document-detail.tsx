@@ -29,11 +29,11 @@ export function DocumentDetail() {
   // Fetch document details
   const { data: document, isLoading, error } = useQuery({
     queryKey: ["/api/documents", id],
-    queryFn: async () => {
+    queryFn: async (): Promise<Document> => {
       if (!id) throw new Error("No document ID");
       const response = await fetch(`/api/documents/${id}`);
       if (!response.ok) throw new Error("Failed to fetch document");
-      return response.json() as Document;
+      return response.json();
     },
     enabled: !!id
   });
