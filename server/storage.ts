@@ -202,13 +202,13 @@ export class MemStorage implements IStorage {
     );
   }
 
-  async getDocumentsByType(type: "person" | "document"): Promise<Document[]> {
+  async getDocumentsByType(type: "person" | "document" | "organization"): Promise<Document[]> {
     return Array.from(this.documents.values())
       .filter(doc => doc.type === type)
       .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
   }
 
-  async searchDocuments(query: string, type?: "person" | "document"): Promise<SearchResult> {
+  async searchDocuments(query: string, type?: "person" | "document" | "organization"): Promise<SearchResult> {
     const allDocs = Array.from(this.documents.values());
     const lowerQuery = query.toLowerCase();
     

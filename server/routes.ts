@@ -8,6 +8,31 @@ import { embeddingService } from "./embedding-service";
 import { chunkingService } from "./chunking-service";
 import { z } from "zod";
 
+// Date format validation function for YYYY-MM-DD
+function validateDateFormat(dateStr: string | null): boolean {
+  if (dateStr === null) return true; // null is allowed
+  if (!dateStr) return false;
+  
+  // Check YYYY-MM-DD format using regex
+  const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+  if (!dateRegex.test(dateStr)) return false;
+  
+  // Check if it's a valid date
+  const parts = dateStr.split('-');
+  const year = parseInt(parts[0]);
+  const month = parseInt(parts[1]);
+  const day = parseInt(parts[2]);
+  
+  if (month < 1 || month > 12) return false;
+  if (day < 1 || day > 31) return false;
+  
+  // Basic month/day validation
+  const date = new Date(year, month - 1, day);
+  return date.getFullYear() === year && 
+         date.getMonth() === month - 1 && 
+         date.getDate() === day;
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
   // Document routes
   app.get("/api/documents", async (req, res) => {
@@ -49,6 +74,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/documents", async (req, res) => {
     try {
       const validatedData = insertDocumentSchema.parse(req.body);
+      
+      // Additional date format validation
+      if (validatedData.date && !validateDateFormat(validatedData.date)) {
+        return res.status(400).json({ 
+          error: "Invalid date format", 
+          details: "Date must be in YYYY-MM-DD format" 
+        });
+      }
+      
       const document = await storage.createDocument(validatedData);
       
       // Trigger immediate embedding for mention-created documents
@@ -69,6 +103,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put("/api/documents/:id", async (req, res) => {
     try {
       const validatedData = updateDocumentSchema.parse(req.body);
+      
+      // Additional date format validation
+      if (validatedData.date && !validateDateFormat(validatedData.date)) {
+        return res.status(400).json({ 
+          error: "Invalid date format", 
+          details: "Date must be in YYYY-MM-DD format" 
+        });
+      }
+      
       const document = await storage.updateDocument(req.params.id, validatedData);
       if (!document) {
         return res.status(404).json({ error: "Document not found" });
