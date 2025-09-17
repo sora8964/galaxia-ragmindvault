@@ -13,12 +13,22 @@ import { DocumentsList } from "./pages/documents-list";
 import { DocumentDetail } from "./pages/document-detail";
 import NotFound from "@/pages/not-found";
 import { useState } from "react";
+import { useParams } from "wouter";
 
 // Main content pages
 function ConversationsPage() {
   return (
     <div className="h-full">
       <ChatInterface />
+    </div>
+  );
+}
+
+function ConversationDetailPage() {
+  const { id } = useParams<{ id: string }>();
+  return (
+    <div className="h-full">
+      <ChatInterface conversationId={id} />
     </div>
   );
 }
@@ -66,6 +76,7 @@ function Router() {
     <Switch>
       <Route path="/" component={ConversationsPage} />
       <Route path="/conversations" component={ConversationsPage} />
+      <Route path="/conversations/:id" component={ConversationDetailPage} />
       <Route path="/documents" component={DocumentsPage} />
       <Route path="/documents/:id" component={DocumentDetail} />
       <Route path="/settings" component={SettingsPage} />

@@ -54,10 +54,10 @@ export function AppSidebar() {
   // Delete conversation
   const deleteConversationMutation = useMutation({
     mutationFn: (id: string) => apiRequest("DELETE", `/api/conversations/${id}`),
-    onSuccess: () => {
+    onSuccess: (_, deletedId) => {
       queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
-      // If we're currently in the deleted conversation, navigate to conversations list
-      if (location.startsWith('/conversations/')) {
+      // Only navigate away if we deleted the current conversation
+      if (currentConversationId === deletedId) {
         navigate('/conversations');
       }
       toast({

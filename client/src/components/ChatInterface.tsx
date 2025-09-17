@@ -35,7 +35,7 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
   const [mentionQuery, setMentionQuery] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const eventSourceRef = useRef<EventSource | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -79,11 +79,11 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Cleanup event source on unmount
+  // Cleanup abort controller on unmount
   useEffect(() => {
     return () => {
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close();
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
       }
     };
   }, []);
@@ -187,6 +187,10 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
         content: msg.content
       }));
 
+      // Create abort controller for this request
+      const abortController = new AbortController();
+      abortControllerRef.current = abortController;
+
       // Start streaming
       const response = await fetch('/api/chat/stream', {
         method: 'POST',
@@ -198,6 +202,7 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
           contextDocumentIds: currentContextIds,
           conversationId: conversationId
         }),
+        signal: abortController.signal,
       });
 
       if (!response.ok) {
@@ -260,10 +265,14 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
                   ));
                   setIsStreaming(false);
                   setStreamingMessageId(null);
+                  abortControllerRef.current = null;
                   
-                  // Invalidate conversation messages to refresh
+                  // Invalidate conversation messages and conversations list
                   queryClient.invalidateQueries({ 
                     queryKey: ['/api/conversations', conversationId, 'messages'] 
+                  });
+                  queryClient.invalidateQueries({
+                    queryKey: ['/api/conversations']
                   });
                 } else if (data.type === 'error') {
                   throw new Error(data.content);
@@ -280,8 +289,14 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
       setIsStreaming(false);
       setStreamingMessageId(null);
       
+      // Clean up abort controller
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
+      }
+      
       // Remove the empty assistant message on error
-      setMessages(prev => prev.filter(msg => msg.id !== streamingMessageId));
+      setMessages(prev => prev.filter(msg => msg.id !== assistantMessageId));
       
       toast({
         title: '錯誤',
