@@ -306,8 +306,14 @@ export function BaseItemManager({
                     </div>
                   </div>
                   <CardDescription className="flex items-center gap-2 text-xs">
-                    <Calendar className="w-3 h-3" />
-                    {new Date(item.updatedAt).toLocaleDateString('zh-TW')}
+                    {item.type === "document" && item.date ? (
+                      <>
+                        <Calendar className="w-3 h-3" />
+                        {item.date}
+                      </>
+                    ) : (
+                      <span className="h-4"></span> // Empty space to maintain layout
+                    )}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
