@@ -1,4 +1,4 @@
-import { FileText, MessageSquare, Settings, Plus, Trash2, MoreHorizontal, User } from "lucide-react";
+import { FileText, MessageSquare, Settings, Plus, Trash2, MoreHorizontal, User, Building } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -184,6 +184,14 @@ export function AppSidebar() {
                   <Link href="/people">
                     <User className="h-4 w-4" />
                     <span>人員</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild data-testid="link-organizations">
+                  <Link href="/organizations">
+                    <Building className="h-4 w-4" />
+                    <span>組織</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>

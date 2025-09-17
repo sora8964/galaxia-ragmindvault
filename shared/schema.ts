@@ -13,7 +13,7 @@ export const users = pgTable("users", {
 export const documents = pgTable("documents", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull(),
-  type: text("type", { enum: ["person", "document"] }).notNull(),
+  type: text("type", { enum: ["person", "document", "organization"] }).notNull(),
   content: text("content").notNull().default(""),
   aliases: json("aliases").$type<string[]>().notNull().default([]),
   embedding: vector("embedding", { dimensions: 2000 }),

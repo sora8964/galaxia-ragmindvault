@@ -29,8 +29,8 @@ export interface IStorage {
   // Document operations
   getDocument(id: string): Promise<Document | undefined>;
   getAllDocuments(): Promise<Document[]>;
-  getDocumentsByType(type: "person" | "document"): Promise<Document[]>;
-  searchDocuments(query: string, type?: "person" | "document"): Promise<SearchResult>;
+  getDocumentsByType(type: "person" | "document" | "organization"): Promise<Document[]>;
+  searchDocuments(query: string, type?: "person" | "document" | "organization"): Promise<SearchResult>;
   createDocument(document: InsertDocument): Promise<Document>;
   updateDocument(id: string, updates: UpdateDocument): Promise<Document | undefined>;
   deleteDocument(id: string): Promise<boolean>;
@@ -144,6 +144,18 @@ export class MemStorage implements IStorage {
         type: "person" as const,
         content: "中華人民共和國國務院總理，中國共產黨中央政治局常委。",
         aliases: ["李總理", "國務院總理"]
+      },
+      {
+        name: "騰訊控股",
+        type: "organization" as const,
+        content: "中國領先的互聯網和科技公司，業務範圍涵蓋社交網絡、遊戲、媒體、電子商務、移動支付等。",
+        aliases: ["騰訊", "Tencent", "騰訊公司"]
+      },
+      {
+        name: "阿里巴巴集團",
+        type: "organization" as const,
+        content: "中國最大的電子商務公司，旗下擁有淘寶、天貓、支付寶等知名平台，同時涉及雲計算、物流等領域。",
+        aliases: ["阿里巴巴", "Alibaba", "阿里集團"]
       }
     ];
     
