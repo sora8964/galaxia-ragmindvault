@@ -16,6 +16,7 @@ export const documents = pgTable("documents", {
   type: text("type", { enum: ["person", "document", "organization"] }).notNull(),
   content: text("content").notNull().default(""),
   aliases: json("aliases").$type<string[]>().notNull().default([]),
+  date: varchar("date", { length: 10 }), // YYYY-MM-DD format, nullable
   embedding: vector("embedding", { dimensions: 2000 }),
   hasEmbedding: boolean("has_embedding").notNull().default(false),
   embeddingStatus: text("embedding_status", { enum: ["pending", "completed", "failed"] }).notNull().default("pending"),
