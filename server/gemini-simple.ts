@@ -43,9 +43,9 @@ When users mention documents or people using @mentions (like @[person:習近平|
       systemInstruction += `\n\nPlease reference these documents in your responses when relevant.`;
     }
 
-    // Convert messages to Gemini format
+    // Convert messages to Gemini format - map "assistant" to "model" for Gemini API
     const geminiMessages = messages.map(msg => ({
-      role: msg.role,
+      role: msg.role === 'assistant' ? 'model' : msg.role,
       parts: [{ text: msg.content }]
     }));
 

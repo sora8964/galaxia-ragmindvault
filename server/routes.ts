@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertDocumentSchema, updateDocumentSchema, insertConversationSchema, insertMessageSchema, parseMentionsSchema } from "@shared/schema";
-import { chatWithGemini, extractTextFromPDF } from "./gemini";
+import { chatWithGemini, extractTextFromPDF } from "./gemini-simple";
 import { z } from "zod";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -242,7 +242,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Chat routes
   app.post("/api/chat", async (req, res) => {
     try {
-      const { messages, contextDocumentIds = [], enableFunctionCalling = true } = req.body;
+      const { messages, contextDocumentIds = [] } = req.body;
       
       // Fetch context documents if provided
       const contextDocuments = [];
@@ -253,8 +253,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const response = await chatWithGemini({
         messages,
-        contextDocuments,
-        enableFunctionCalling
+        contextDocuments
       });
       
       res.json({ response });
