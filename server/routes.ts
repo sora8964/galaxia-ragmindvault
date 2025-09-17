@@ -4,6 +4,7 @@ import { storage } from "./storage";
 import { insertDocumentSchema, updateDocumentSchema, insertConversationSchema, insertMessageSchema, parseMentionsSchema } from "@shared/schema";
 import { chatWithGemini, extractTextFromPDF, extractTextFromWord, generateTextEmbedding } from "./gemini-simple";
 import { embeddingService } from "./embedding-service";
+import { chunkingService } from "./chunking-service";
 import { z } from "zod";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -72,10 +73,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Document not found" });
       }
       
-      // Mark OCR documents as edited and queue for embedding
-      if (document.isFromOCR && document.hasBeenEdited) {
-        await embeddingService.markOCRDocumentAsEdited(document.id);
-      }
+      // Trigger chunking and embedding after document update
+      await embeddingService.queueDocumentForEmbedding(document.id);
       
       res.json(document);
     } catch (error) {

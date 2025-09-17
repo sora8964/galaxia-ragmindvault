@@ -10,6 +10,8 @@ import { AppSidebar } from "./components/AppSidebar";
 import { ChatInterface } from "./components/ChatInterface";
 import { PDFUpload } from "./components/PDFUpload";
 import { DocumentEditor } from "./components/DocumentEditor";
+import { DocumentsList } from "./pages/documents-list";
+import { DocumentDetail } from "./pages/document-detail";
 import NotFound from "@/pages/not-found";
 import { useState } from "react";
 
@@ -34,51 +36,7 @@ function UploadPage() {
 }
 
 function DocumentsPage() {
-  const [isEditing, setIsEditing] = useState(false);
-  const [selectedDocument, setSelectedDocument] = useState<any>(undefined);
-
-  const handleDocumentSave = (document: any) => {
-    console.log('Document saved:', document);
-    setIsEditing(false);
-    setSelectedDocument(null);
-  };
-
-  const handleDocumentCancel = () => {
-    setIsEditing(false);
-    setSelectedDocument(null);
-  };
-
-  if (isEditing) {
-    return (
-      <div className="p-6 h-full overflow-y-auto">
-        <DocumentEditor
-          document={selectedDocument}
-          onSave={handleDocumentSave}
-          onCancel={handleDocumentCancel}
-        />
-      </div>
-    );
-  }
-
-  return (
-    <div className="p-6 h-full overflow-y-auto">
-      <div className="max-w-4xl mx-auto">
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold">Document Management</h1>
-          <button
-            onClick={() => setIsEditing(true)}
-            className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover-elevate"
-            data-testid="button-new-document"
-          >
-            New Document
-          </button>
-        </div>
-        <div className="text-muted-foreground">
-          Document management interface will be here. Use the sidebar to navigate documents.
-        </div>
-      </div>
-    </div>
-  );
+  return <DocumentsList />;
 }
 
 function SettingsPage() {
@@ -121,6 +79,7 @@ function Router() {
       <Route path="/conversations" component={ConversationsPage} />
       <Route path="/upload" component={UploadPage} />
       <Route path="/documents" component={DocumentsPage} />
+      <Route path="/documents/:id" component={DocumentDetail} />
       <Route path="/settings" component={SettingsPage} />
       <Route component={NotFound} />
     </Switch>

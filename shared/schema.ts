@@ -42,6 +42,20 @@ export const messages = pgTable("messages", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const chunks = pgTable("chunks", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  documentId: varchar("document_id").notNull().references(() => documents.id, { onDelete: "cascade" }),
+  content: text("content").notNull(),
+  chunkIndex: text("chunk_index").notNull(), // 0, 1, 2... for ordering
+  startPosition: text("start_position").notNull(), // Start character position in original content
+  endPosition: text("end_position").notNull(), // End character position in original content
+  embedding: vector("embedding", { dimensions: 2000 }),
+  hasEmbedding: boolean("has_embedding").notNull().default(false),
+  embeddingStatus: text("embedding_status", { enum: ["pending", "completed", "failed"] }).notNull().default("pending"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 // Schema definitions
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
@@ -67,6 +81,14 @@ export const insertMessageSchema = createInsertSchema(messages).omit({
   createdAt: true,
 });
 
+export const insertChunkSchema = createInsertSchema(chunks).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const updateChunkSchema = insertChunkSchema.partial();
+
 // Types
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
@@ -80,6 +102,10 @@ export type Conversation = typeof conversations.$inferSelect;
 
 export type InsertMessage = z.infer<typeof insertMessageSchema>;
 export type Message = typeof messages.$inferSelect;
+
+export type InsertChunk = z.infer<typeof insertChunkSchema>;
+export type UpdateChunk = z.infer<typeof updateChunkSchema>;
+export type Chunk = typeof chunks.$inferSelect;
 
 // API Response types
 export interface SearchResult {

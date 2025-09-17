@@ -1,6 +1,7 @@
 // Reference: javascript_gemini blueprint integration
 import { storage } from "./storage";
 import { generateTextEmbedding } from "./gemini-simple";
+import { chunkingService } from "./chunking-service";
 
 export class EmbeddingService {
   private isProcessing = false;
@@ -19,7 +20,7 @@ export class EmbeddingService {
     }
   }
 
-  // Process a single document embedding
+  // Process a single document embedding with chunking
   async processDocumentEmbedding(documentId: string): Promise<boolean> {
     try {
       const document = await storage.getDocument(documentId);
@@ -29,40 +30,19 @@ export class EmbeddingService {
       }
 
       if (document.hasEmbedding) {
-        console.log(`Document ${documentId} already has embedding`);
+        console.log(`Document ${documentId} already has embedding, processing chunks...`);
+        // Process chunking even if document has embedding
+        await chunkingService.processDocumentChunking(document);
         return true;
       }
 
-      console.log(`Generating embedding for document: ${document.name}`);
+      console.log(`Processing document with chunking: ${document.name}`);
       
-      // Create embedding text from name, content, and aliases
-      const embeddingText = [
-        document.name,
-        ...document.aliases,
-        document.content
-      ].filter(Boolean).join(' ');
-
-      if (!embeddingText.trim()) {
-        console.warn(`No content to embed for document ${documentId}`);
-        return false;
-      }
-
-      const embedding = await generateTextEmbedding(embeddingText);
+      // Use chunking service to handle embedding and chunking
+      await chunkingService.processDocumentChunking(document);
       
-      if (embedding.length === 0) {
-        console.error(`Failed to generate embedding for document ${documentId}`);
-        return false;
-      }
-
-      const success = await storage.updateDocumentEmbedding(documentId, embedding);
-      
-      if (success) {
-        console.log(`Successfully generated embedding for document: ${document.name} (${embedding.length} dimensions)`);
-      } else {
-        console.error(`Failed to update embedding for document ${documentId}`);
-      }
-      
-      return success;
+      console.log(`Successfully processed document with chunking: ${document.name}`);
+      return true;
     } catch (error) {
       console.error(`Error processing embedding for document ${documentId}:`, error);
       return false;

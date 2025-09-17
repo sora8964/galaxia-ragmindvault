@@ -8,6 +8,9 @@ import {
   type InsertConversation,
   type Message,
   type InsertMessage,
+  type Chunk,
+  type InsertChunk,
+  type UpdateChunk,
   type SearchResult,
   type MentionItem,
   type ParsedMention
@@ -35,6 +38,15 @@ export interface IStorage {
   searchDocumentsByVector(queryVector: number[], limit?: number): Promise<Document[]>;
   getDocumentsNeedingEmbedding(): Promise<Document[]>;
   
+  // Chunk operations
+  getChunksByDocumentId(documentId: string): Promise<Chunk[]>;
+  createChunk(chunk: InsertChunk): Promise<Chunk>;
+  updateChunk(id: string, updates: UpdateChunk): Promise<Chunk | undefined>;
+  updateChunkEmbedding(id: string, embedding: number[]): Promise<boolean>;
+  deleteChunk(id: string): Promise<boolean>;
+  deleteChunksByDocumentId(documentId: string): Promise<boolean>;
+  searchChunksByVector(queryVector: number[], limit?: number): Promise<Array<Chunk & { document: Document }>>;
+  
   // Mention parsing operations
   parseMentions(text: string): Promise<ParsedMention[]>;
   resolveMentionDocuments(mentions: ParsedMention[]): Promise<string[]>;
@@ -57,12 +69,14 @@ export class MemStorage implements IStorage {
   private documents: Map<string, Document>;
   private conversations: Map<string, Conversation>;
   private messages: Map<string, Message>;
+  private chunks: Map<string, Chunk>;
 
   constructor() {
     this.users = new Map();
     this.documents = new Map();
     this.conversations = new Map();
     this.messages = new Map();
+    this.chunks = new Map();
     
     // Add some sample data
     this.initializeSampleData();
@@ -440,6 +454,101 @@ export class MemStorage implements IStorage {
     
     if (normA === 0 || normB === 0) return 0;
     return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
+  }
+
+  // Chunk operations
+  async getChunksByDocumentId(documentId: string): Promise<Chunk[]> {
+    return Array.from(this.chunks.values())
+      .filter(chunk => chunk.documentId === documentId)
+      .sort((a, b) => parseInt(a.chunkIndex) - parseInt(b.chunkIndex));
+  }
+
+  async createChunk(insertChunk: InsertChunk): Promise<Chunk> {
+    const id = randomUUID();
+    const now = new Date();
+    const chunk: Chunk = {
+      id,
+      documentId: insertChunk.documentId,
+      content: insertChunk.content,
+      chunkIndex: insertChunk.chunkIndex,
+      startPosition: insertChunk.startPosition,
+      endPosition: insertChunk.endPosition,
+      embedding: insertChunk.embedding || null,
+      hasEmbedding: insertChunk.hasEmbedding || false,
+      embeddingStatus: insertChunk.embeddingStatus || "pending",
+      createdAt: now,
+      updatedAt: now
+    };
+    this.chunks.set(id, chunk);
+    return chunk;
+  }
+
+  async updateChunk(id: string, updates: UpdateChunk): Promise<Chunk | undefined> {
+    const existing = this.chunks.get(id);
+    if (!existing) return undefined;
+    
+    const updated: Chunk = {
+      ...existing,
+      ...updates,
+      updatedAt: new Date()
+    };
+    this.chunks.set(id, updated);
+    return updated;
+  }
+
+  async updateChunkEmbedding(id: string, embedding: number[]): Promise<boolean> {
+    const existing = this.chunks.get(id);
+    if (!existing) return false;
+    
+    const updated: Chunk = {
+      ...existing,
+      embedding,
+      hasEmbedding: true,
+      embeddingStatus: "completed",
+      updatedAt: new Date()
+    };
+    this.chunks.set(id, updated);
+    return true;
+  }
+
+  async deleteChunk(id: string): Promise<boolean> {
+    return this.chunks.delete(id);
+  }
+
+  async deleteChunksByDocumentId(documentId: string): Promise<boolean> {
+    const chunksToDelete = Array.from(this.chunks.entries())
+      .filter(([_, chunk]) => chunk.documentId === documentId)
+      .map(([chunkId]) => chunkId);
+    
+    let deletedCount = 0;
+    for (const chunkId of chunksToDelete) {
+      if (this.chunks.delete(chunkId)) {
+        deletedCount++;
+      }
+    }
+    
+    console.log(`Deleted ${deletedCount} chunks for document ${documentId}`);
+    return deletedCount > 0;
+  }
+
+  async searchChunksByVector(queryVector: number[], limit: number = 10): Promise<Array<Chunk & { document: Document }>> {
+    const chunksWithEmbeddings = Array.from(this.chunks.values())
+      .filter(chunk => chunk.hasEmbedding && chunk.embedding);
+    
+    const similarities = chunksWithEmbeddings.map(chunk => {
+      const similarity = this.cosineSimilarity(queryVector, chunk.embedding!);
+      const document = this.documents.get(chunk.documentId);
+      return { 
+        ...chunk, 
+        document: document!, 
+        similarity 
+      };
+    }).filter(item => item.document); // Filter out chunks without documents
+    
+    return similarities
+      .sort((a, b) => b.similarity - a.similarity)
+      .slice(0, limit)
+      .map(item => ({ ...item, similarity: undefined })); // Remove similarity from result
   }
 }
 
