@@ -134,7 +134,7 @@ export interface SearchResult {
 export interface MentionItem {
   id: string;
   name: string;
-  type: "person" | "document";
+  type: "person" | "document" | "organization";
   aliases: string[];
 }
 
