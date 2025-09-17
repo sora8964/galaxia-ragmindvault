@@ -8,7 +8,6 @@ import { ThemeProvider } from "./components/ThemeProvider";
 import { ThemeToggle } from "./components/ThemeToggle";
 import { AppSidebar } from "./components/AppSidebar";
 import { ChatInterface } from "./components/ChatInterface";
-import { PDFUpload } from "./components/PDFUpload";
 import { DocumentEditor } from "./components/DocumentEditor";
 import { DocumentsList } from "./pages/documents-list";
 import { DocumentDetail } from "./pages/document-detail";
@@ -24,16 +23,6 @@ function ConversationsPage() {
   );
 }
 
-function UploadPage() {
-  return (
-    <div className="p-6 h-full overflow-y-auto">
-      <div className="max-w-4xl mx-auto">
-        <h1 className="text-2xl font-bold mb-6">Upload PDF Files</h1>
-        <PDFUpload />
-      </div>
-    </div>
-  );
-}
 
 function DocumentsPage() {
   return <DocumentsList />;
@@ -77,7 +66,6 @@ function Router() {
     <Switch>
       <Route path="/" component={ConversationsPage} />
       <Route path="/conversations" component={ConversationsPage} />
-      <Route path="/upload" component={UploadPage} />
       <Route path="/documents" component={DocumentsPage} />
       <Route path="/documents/:id" component={DocumentDetail} />
       <Route path="/settings" component={SettingsPage} />

@@ -78,14 +78,6 @@ export function AppSidebar() {
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
-                <SidebarMenuButton asChild data-testid="link-upload">
-                  <Link href="/upload">
-                    <Upload className="h-4 w-4" />
-                    <span>Upload PDF</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
                 <SidebarMenuButton asChild data-testid="link-settings">
                   <Link href="/settings">
                     <Settings className="h-4 w-4" />
