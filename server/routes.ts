@@ -2,6 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertDocumentSchema, updateDocumentSchema, insertConversationSchema, insertMessageSchema, parseMentionsSchema } from "@shared/schema";
+import { chatWithGemini, extractTextFromPDF } from "./gemini";
 import { z } from "zod";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -235,6 +236,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Invalid request data", details: error.errors });
       }
       res.status(500).json({ error: "Failed to parse mentions" });
+    }
+  });
+
+  // Chat routes
+  app.post("/api/chat", async (req, res) => {
+    try {
+      const { messages, contextDocumentIds = [], enableFunctionCalling = true } = req.body;
+      
+      // Fetch context documents if provided
+      const contextDocuments = [];
+      for (const docId of contextDocumentIds) {
+        const doc = await storage.getDocument(docId);
+        if (doc) contextDocuments.push(doc);
+      }
+      
+      const response = await chatWithGemini({
+        messages,
+        contextDocuments,
+        enableFunctionCalling
+      });
+      
+      res.json({ response });
+    } catch (error) {
+      console.error('Chat error:', error);
+      res.status(500).json({ error: "Failed to process chat request" });
+    }
+  });
+
+  // PDF OCR endpoint
+  app.post("/api/pdf/extract", async (req, res) => {
+    try {
+      const { pdfBase64, filename } = req.body;
+      
+      if (!pdfBase64) {
+        return res.status(400).json({ error: "PDF data is required" });
+      }
+      
+      const extractedText = await extractTextFromPDF(pdfBase64);
+      
+      res.json({
+        text: extractedText,
+        filename: filename || 'untitled.pdf'
+      });
+    } catch (error) {
+      console.error('PDF extraction error:', error);
+      res.status(500).json({ error: "Failed to extract text from PDF" });
     }
   });
 
