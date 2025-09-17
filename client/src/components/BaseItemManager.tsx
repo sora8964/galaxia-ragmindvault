@@ -19,10 +19,11 @@ interface BaseItemForm {
   name: string;
   content: string;
   aliases: string[];
+  date?: string | null; // For document type only
 }
 
 interface BaseItemManagerProps {
-  itemType: "document" | "person";
+  itemType: "document" | "person" | "organization";
   title: string;
   description: string;
   apiEndpoint: string;
@@ -57,7 +58,8 @@ export function BaseItemManager({
   const [newItemForm, setNewItemForm] = useState<BaseItemForm>({
     name: "",
     content: "",
-    aliases: []
+    aliases: [],
+    date: null
   });
 
   // Fetch items
@@ -84,6 +86,7 @@ export function BaseItemManager({
           type: itemType,
           content: data.content,
           aliases: data.aliases,
+          date: data.date,
           isFromOCR: false,
           hasBeenEdited: false,
           needsEmbedding: true
@@ -96,7 +99,7 @@ export function BaseItemManager({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [apiEndpoint] });
       setIsCreating(false);
-      setNewItemForm({ name: "", content: "", aliases: [] });
+      setNewItemForm({ name: "", content: "", aliases: [], date: null });
       toast({
         title: `${itemType === "document" ? "文件" : "人員"}已創建`,
         description: `新${itemType === "document" ? "文件" : "人員"}已成功創建並正在生成 embedding`
@@ -161,23 +164,32 @@ export function BaseItemManager({
                 </DialogHeader>
                 <div className="space-y-4">
                   <div>
-                    <Label htmlFor="item-name">{itemType === "document" ? "文件名稱" : "人員姓名"}</Label>
+                    <Label htmlFor="item-name">
+                      {itemType === "document" ? "文件名稱" : 
+                       itemType === "person" ? "人員姓名" : "組織名稱"}
+                    </Label>
                     <Input
                       id="item-name"
                       value={newItemForm.name}
                       onChange={(e) => setNewItemForm(prev => ({ ...prev, name: e.target.value }))}
-                      placeholder={itemType === "document" ? "輸入文件名稱" : "輸入人員姓名"}
+                      placeholder={itemType === "document" ? "輸入文件名稱" : 
+                                  itemType === "person" ? "輸入人員姓名" : "輸入組織名稱"}
                       data-testid={`input-${itemType}-name`}
                     />
                   </div>
                   <div>
-                    <Label htmlFor="item-content">{itemType === "document" ? "文件內容" : "人員描述"}</Label>
+                    <Label htmlFor="item-content">
+                      {itemType === "document" ? "文件內容" : 
+                       itemType === "person" ? "人員描述" : "組織描述"}
+                    </Label>
                     <div className="relative">
                       <Textarea
                         id="item-content"
                         value={newItemForm.content}
                         onChange={(e) => setNewItemForm(prev => ({ ...prev, content: e.target.value }))}
-                        placeholder={itemType === "document" ? "輸入文件內容，可以使用 @ 來引用其他文件或人員" : "輸入人員描述，可以使用 @ 來引用其他文件或人員"}
+                        placeholder={itemType === "document" ? "輸入文件內容，可以使用 @ 來引用其他文件或人員" : 
+                                    itemType === "person" ? "輸入人員描述，可以使用 @ 來引用其他文件或人員" : 
+                                    "輸入組織描述，可以使用 @ 來引用其他文件或人員"}
                         className="min-h-32"
                         data-testid={`textarea-${itemType}-content`}
                       />
@@ -187,6 +199,19 @@ export function BaseItemManager({
                       />
                     </div>
                   </div>
+                  {itemType === "document" && (
+                    <div>
+                      <Label htmlFor="item-date">日期</Label>
+                      <Input
+                        id="item-date"
+                        type="date"
+                        value={newItemForm.date || ""}
+                        onChange={(e) => setNewItemForm(prev => ({ ...prev, date: e.target.value || null }))}
+                        placeholder="YYYY-MM-DD"
+                        data-testid="input-document-date"
+                      />
+                    </div>
+                  )}
                   <div className="flex justify-end gap-2">
                     <Button
                       variant="outline"
@@ -200,7 +225,9 @@ export function BaseItemManager({
                       disabled={!newItemForm.name.trim() || createItemMutation.isPending}
                       data-testid={`button-save-create-${itemType}`}
                     >
-                      {createItemMutation.isPending ? "創建中..." : `創建${itemType === "document" ? "文件" : "人員"}`}
+                      {createItemMutation.isPending ? "創建中..." : 
+                       `創建${itemType === "document" ? "文件" : 
+                               itemType === "person" ? "人員" : "組織"}`}
                     </Button>
                   </div>
                 </div>
