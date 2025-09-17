@@ -1,22 +1,112 @@
-import { type User, type InsertUser } from "@shared/schema";
+import { 
+  type User, 
+  type InsertUser,
+  type Document,
+  type InsertDocument,
+  type UpdateDocument,
+  type Conversation,
+  type InsertConversation,
+  type Message,
+  type InsertMessage,
+  type SearchResult,
+  type MentionItem,
+  type ParsedMention
+} from "@shared/schema";
 import { randomUUID } from "crypto";
 
-// modify the interface with any CRUD methods
-// you might need
-
 export interface IStorage {
+  // User operations
   getUser(id: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
+  
+  // Document operations
+  getDocument(id: string): Promise<Document | undefined>;
+  getAllDocuments(): Promise<Document[]>;
+  getDocumentsByType(type: "person" | "document"): Promise<Document[]>;
+  searchDocuments(query: string, type?: "person" | "document"): Promise<SearchResult>;
+  createDocument(document: InsertDocument): Promise<Document>;
+  updateDocument(id: string, updates: UpdateDocument): Promise<Document | undefined>;
+  deleteDocument(id: string): Promise<boolean>;
+  getMentionSuggestions(query: string): Promise<MentionItem[]>;
+  
+  // Mention parsing operations
+  parseMentions(text: string): Promise<ParsedMention[]>;
+  resolveMentionDocuments(mentions: ParsedMention[]): Promise<string[]>;
+  
+  // Conversation operations
+  getConversation(id: string): Promise<Conversation | undefined>;
+  getAllConversations(): Promise<Conversation[]>;
+  createConversation(conversation: InsertConversation): Promise<Conversation>;
+  updateConversation(id: string, updates: { title?: string }): Promise<Conversation | undefined>;
+  deleteConversation(id: string): Promise<boolean>;
+  
+  // Message operations
+  getMessagesByConversation(conversationId: string): Promise<Message[]>;
+  createMessage(message: InsertMessage): Promise<Message>;
+  deleteMessage(id: string): Promise<boolean>;
 }
 
 export class MemStorage implements IStorage {
   private users: Map<string, User>;
+  private documents: Map<string, Document>;
+  private conversations: Map<string, Conversation>;
+  private messages: Map<string, Message>;
 
   constructor() {
     this.users = new Map();
+    this.documents = new Map();
+    this.conversations = new Map();
+    this.messages = new Map();
+    
+    // Add some sample data
+    this.initializeSampleData();
   }
 
+  private async initializeSampleData() {
+    // Sample documents
+    const sampleDocs = [
+      {
+        name: "習近平",
+        type: "person" as const,
+        content: "中華人民共和國國家主席，中國共產黨中央委員會總書記。曾任中共中央軍委主席。",
+        aliases: ["習總書記", "習主席", "國家主席"]
+      },
+      {
+        name: "項目計劃書",
+        type: "document" as const,
+        content: "2025年度重點項目開發計劃，包含AI技術應用、產品設計規範、進度安排等內容。",
+        aliases: ["計劃書", "項目文檔"]
+      },
+      {
+        name: "技術文檔",
+        type: "document" as const,
+        content: "系統架構設計文檔，包含前端React組件、後端API設計、數據庫結構等詳細說明。",
+        aliases: ["技術規範", "開發文檔"]
+      },
+      {
+        name: "李強",
+        type: "person" as const,
+        content: "中華人民共和國國務院總理，中國共產黨中央政治局常委。",
+        aliases: ["李總理", "國務院總理"]
+      }
+    ];
+    
+    for (const doc of sampleDocs) {
+      await this.createDocument(doc);
+    }
+
+    // Sample conversation
+    const conv = await this.createConversation({ title: "AI Context Manager討論" });
+    await this.createMessage({
+      conversationId: conv.id,
+      role: "user",
+      content: "請介紹一下@[person:習近平|習主席]的背景",
+      contextDocuments: []
+    });
+  }
+
+  // User operations
   async getUser(id: string): Promise<User | undefined> {
     return this.users.get(id);
   }
@@ -32,6 +122,245 @@ export class MemStorage implements IStorage {
     const user: User = { ...insertUser, id };
     this.users.set(id, user);
     return user;
+  }
+
+  // Document operations
+  async getDocument(id: string): Promise<Document | undefined> {
+    return this.documents.get(id);
+  }
+
+  async getAllDocuments(): Promise<Document[]> {
+    return Array.from(this.documents.values()).sort((a, b) => 
+      new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+    );
+  }
+
+  async getDocumentsByType(type: "person" | "document"): Promise<Document[]> {
+    return Array.from(this.documents.values())
+      .filter(doc => doc.type === type)
+      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+  }
+
+  async searchDocuments(query: string, type?: "person" | "document"): Promise<SearchResult> {
+    const allDocs = Array.from(this.documents.values());
+    const lowerQuery = query.toLowerCase();
+    
+    const filtered = allDocs.filter(doc => {
+      if (type && doc.type !== type) return false;
+      
+      const matchesName = doc.name.toLowerCase().includes(lowerQuery);
+      const matchesContent = doc.content.toLowerCase().includes(lowerQuery);
+      const matchesAliases = doc.aliases.some(alias => 
+        alias.toLowerCase().includes(lowerQuery)
+      );
+      
+      return matchesName || matchesContent || matchesAliases;
+    });
+    
+    return {
+      documents: filtered.sort((a, b) => 
+        new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+      ),
+      total: filtered.length
+    };
+  }
+
+  async createDocument(insertDocument: InsertDocument): Promise<Document> {
+    const id = randomUUID();
+    const now = new Date();
+    const document: Document = {
+      name: insertDocument.name,
+      type: insertDocument.type,
+      content: insertDocument.content || '',
+      aliases: (insertDocument.aliases as string[]) || [],
+      id,
+      createdAt: now,
+      updatedAt: now
+    };
+    this.documents.set(id, document);
+    return document;
+  }
+
+  async updateDocument(id: string, updates: UpdateDocument): Promise<Document | undefined> {
+    const existing = this.documents.get(id);
+    if (!existing) return undefined;
+    
+    const updated: Document = {
+      id: existing.id,
+      name: updates.name ?? existing.name,
+      type: updates.type ?? existing.type,
+      content: updates.content ?? existing.content,
+      aliases: (updates.aliases as string[]) ?? existing.aliases,
+      createdAt: existing.createdAt,
+      updatedAt: new Date()
+    };
+    this.documents.set(id, updated);
+    return updated;
+  }
+
+  async deleteDocument(id: string): Promise<boolean> {
+    return this.documents.delete(id);
+  }
+
+  async getMentionSuggestions(query: string): Promise<MentionItem[]> {
+    const allDocs = Array.from(this.documents.values());
+    const lowerQuery = query.toLowerCase();
+    
+    const matches = allDocs.filter(doc => {
+      const matchesName = doc.name.toLowerCase().includes(lowerQuery);
+      const matchesAliases = doc.aliases.some(alias => 
+        alias.toLowerCase().includes(lowerQuery)
+      );
+      return matchesName || matchesAliases;
+    });
+    
+    return matches.map(doc => ({
+      id: doc.id,
+      name: doc.name,
+      type: doc.type,
+      aliases: doc.aliases
+    })).slice(0, 10); // Limit to 10 suggestions
+  }
+
+  // Conversation operations
+  async getConversation(id: string): Promise<Conversation | undefined> {
+    return this.conversations.get(id);
+  }
+
+  async getAllConversations(): Promise<Conversation[]> {
+    return Array.from(this.conversations.values()).sort((a, b) => 
+      new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+    );
+  }
+
+  async createConversation(insertConversation: InsertConversation): Promise<Conversation> {
+    const id = randomUUID();
+    const now = new Date();
+    const conversation: Conversation = {
+      ...insertConversation,
+      id,
+      createdAt: now,
+      updatedAt: now
+    };
+    this.conversations.set(id, conversation);
+    return conversation;
+  }
+
+  async updateConversation(id: string, updates: { title?: string }): Promise<Conversation | undefined> {
+    const existing = this.conversations.get(id);
+    if (!existing) return undefined;
+    
+    const updated: Conversation = {
+      ...existing,
+      ...updates,
+      updatedAt: new Date()
+    };
+    this.conversations.set(id, updated);
+    return updated;
+  }
+
+  async deleteConversation(id: string): Promise<boolean> {
+    // Also delete all messages in this conversation
+    const messagesToDelete = Array.from(this.messages.entries())
+      .filter(([_, message]) => message.conversationId === id)
+      .map(([messageId]) => messageId);
+    
+    messagesToDelete.forEach(messageId => this.messages.delete(messageId));
+    
+    return this.conversations.delete(id);
+  }
+
+  // Message operations
+  async getMessagesByConversation(conversationId: string): Promise<Message[]> {
+    return Array.from(this.messages.values())
+      .filter(message => message.conversationId === conversationId)
+      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+  }
+
+  async createMessage(insertMessage: InsertMessage): Promise<Message> {
+    const id = randomUUID();
+    const message: Message = {
+      id,
+      conversationId: insertMessage.conversationId,
+      role: insertMessage.role,
+      content: insertMessage.content,
+      contextDocuments: (insertMessage.contextDocuments as string[]) || [],
+      createdAt: new Date()
+    };
+    this.messages.set(id, message);
+    
+    // Update conversation timestamp
+    const conversation = this.conversations.get(insertMessage.conversationId);
+    if (conversation) {
+      this.conversations.set(insertMessage.conversationId, {
+        ...conversation,
+        updatedAt: new Date()
+      });
+    }
+    
+    return message;
+  }
+
+  async deleteMessage(id: string): Promise<boolean> {
+    return this.messages.delete(id);
+  }
+
+  // Mention parsing operations
+  async parseMentions(text: string): Promise<ParsedMention[]> {
+    const mentions: ParsedMention[] = [];
+    // Regex to match @[type:name] or @[type:name|alias]
+    const mentionRegex = /@\[(person|document):([^|\]]+)(?:\|([^\]]+))?\]/g;
+    
+    let match;
+    while ((match = mentionRegex.exec(text)) !== null) {
+      const [fullMatch, type, name, alias] = match;
+      
+      mentions.push({
+        start: match.index,
+        end: match.index + fullMatch.length,
+        raw: fullMatch,
+        type: type as "person" | "document",
+        name: name.trim(),
+        alias: alias?.trim(),
+        documentId: undefined // Will be resolved separately
+      });
+    }
+    
+    return mentions;
+  }
+
+  async resolveMentionDocuments(mentions: ParsedMention[]): Promise<string[]> {
+    const documentIds: string[] = [];
+    
+    for (const mention of mentions) {
+      // Find document by name first
+      let document = Array.from(this.documents.values()).find(doc => 
+        doc.type === mention.type && doc.name === mention.name
+      );
+      
+      // If not found by name, try alias
+      if (!document && mention.alias) {
+        document = Array.from(this.documents.values()).find(doc => 
+          doc.type === mention.type && doc.aliases.includes(mention.alias!)
+        );
+      }
+      
+      // If still not found, try searching by alias in the original name field
+      if (!document) {
+        document = Array.from(this.documents.values()).find(doc => 
+          doc.type === mention.type && 
+          (doc.aliases.includes(mention.name) || doc.name === mention.alias)
+        );
+      }
+      
+      if (document && !documentIds.includes(document.id)) {
+        documentIds.push(document.id);
+        // Update the mention with resolved document ID
+        mention.documentId = document.id;
+      }
+    }
+    
+    return documentIds;
   }
 }
 

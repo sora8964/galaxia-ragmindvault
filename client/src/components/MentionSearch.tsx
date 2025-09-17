@@ -1,13 +1,9 @@
 import { useState, useRef, useEffect } from "react";
 import { FileText, Users, Search } from "lucide-react";
 import { Card } from "@/components/ui/card";
+import { useQuery } from "@tanstack/react-query";
 
-interface MentionItem {
-  id: string;
-  name: string;
-  type: 'person' | 'document';
-  aliases?: string[];
-}
+import type { MentionItem } from "@shared/schema";
 
 interface MentionSearchProps {
   onMentionSelect: (mention: MentionItem, alias?: string) => void;
@@ -16,45 +12,18 @@ interface MentionSearchProps {
   onClose: () => void;
 }
 
-// TODO: Remove mock data when implementing real backend
-const mockMentions: MentionItem[] = [
-  { 
-    id: '1', 
-    name: '習近平', 
-    type: 'person', 
-    aliases: ['習總書記', '習主席', '國家主席']
-  },
-  { 
-    id: '2', 
-    name: '項目計劃書', 
-    type: 'document', 
-    aliases: ['計劃書', '項目文檔']
-  },
-  { 
-    id: '3', 
-    name: '技術文檔', 
-    type: 'document', 
-    aliases: ['技術規範', '開發文檔']
-  },
-  { 
-    id: '4', 
-    name: '李克強', 
-    type: 'person', 
-    aliases: ['李總理', '李克強總理']
-  },
-];
-
 export function MentionSearch({ onMentionSelect, searchQuery, position, onClose }: MentionSearchProps) {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const filteredMentions = mockMentions.filter(mention => {
-    const searchLower = searchQuery.toLowerCase();
-    const nameMatch = mention.name.toLowerCase().includes(searchLower);
-    const aliasMatch = mention.aliases?.some(alias => 
-      alias.toLowerCase().includes(searchLower)
-    );
-    return nameMatch || aliasMatch;
+  const { data: filteredMentions = [], isLoading } = useQuery({
+    queryKey: ['/api/mentions', searchQuery],
+    enabled: !!searchQuery && searchQuery.length > 0,
+    queryFn: async () => {
+      const response = await fetch(`/api/mentions?q=${encodeURIComponent(searchQuery)}`);
+      if (!response.ok) throw new Error('Failed to fetch mention suggestions');
+      return await response.json() as MentionItem[];
+    }
   });
 
   useEffect(() => {
@@ -96,7 +65,7 @@ export function MentionSearch({ onMentionSelect, searchQuery, position, onClose 
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [selectedIndex, filteredMentions, onMentionSelect, onClose, position]);
 
-  if (!position || filteredMentions.length === 0) {
+  if (!position || (!isLoading && filteredMentions.length === 0)) {
     return null;
   }
 
@@ -122,7 +91,12 @@ export function MentionSearch({ onMentionSelect, searchQuery, position, onClose 
         </div>
         
         <div className="space-y-1 mt-2">
-          {filteredMentions.map((mention, index) => (
+          {isLoading ? (
+            <div className="p-3 text-sm text-muted-foreground flex items-center gap-2">
+              <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+              搜尋中...
+            </div>
+          ) : filteredMentions.map((mention, index) => (
             <div key={mention.id}>
               <button
                 className={`w-full flex items-center gap-2 p-2 rounded-md text-left hover-elevate ${
@@ -149,7 +123,7 @@ export function MentionSearch({ onMentionSelect, searchQuery, position, onClose 
                 </div>
               </button>
               
-              {mention.aliases && mention.aliases.map((alias, aliasIndex) => (
+              {mention.aliases && mention.aliases.length > 0 && mention.aliases.map((alias, aliasIndex) => (
                 <button
                   key={`${mention.id}-${aliasIndex}`}
                   className={`w-full flex items-center gap-2 p-2 pl-8 rounded-md text-left hover-elevate ${
