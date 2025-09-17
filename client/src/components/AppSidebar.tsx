@@ -72,7 +72,7 @@ export function AppSidebar() {
               <SidebarMenuItem>
                 <SidebarMenuButton asChild data-testid="link-documents">
                   <Link href="/documents">
-                    <Users className="h-4 w-4" />
+                    <FileText className="h-4 w-4" />
                     <span>文件</span>
                   </Link>
                 </SidebarMenuButton>
