@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, json, boolean, integer } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, char, timestamp, json, boolean, integer } from "drizzle-orm/pg-core";
 import { vector } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -16,7 +16,7 @@ export const documents = pgTable("documents", {
   type: text("type", { enum: ["person", "document", "organization"] }).notNull(),
   content: text("content").notNull().default(""),
   aliases: json("aliases").$type<string[]>().notNull().default([]),
-  date: varchar("date", { length: 10 }), // YYYY-MM-DD format, nullable
+  date: char("date", { length: 10 }), // YYYY-MM-DD format, nullable
   embedding: vector("embedding", { dimensions: 2000 }),
   hasEmbedding: boolean("has_embedding").notNull().default(false),
   embeddingStatus: text("embedding_status", { enum: ["pending", "completed", "failed"] }).notNull().default("pending"),
@@ -79,13 +79,75 @@ export const insertUserSchema = createInsertSchema(users).pick({
   password: true,
 });
 
-export const insertDocumentSchema = createInsertSchema(documents).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-});
+// Date validation function
+const dateValidation = z
+  .string()
+  .nullable()
+  .refine((val) => {
+    if (val === null || val === undefined) return true;
+    if (val === "") return false; // Empty strings are not allowed
+    
+    // Check YYYY-MM-DD format using regex
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (!dateRegex.test(val)) return false;
+    
+    // Check if it's a valid date
+    const parts = val.split('-');
+    const year = parseInt(parts[0]);
+    const month = parseInt(parts[1]);
+    const day = parseInt(parts[2]);
+    
+    if (month < 1 || month > 12) return false;
+    if (day < 1 || day > 31) return false;
+    
+    // Basic month/day validation
+    const date = new Date(year, month - 1, day);
+    return date.getFullYear() === year && 
+           date.getMonth() === month - 1 && 
+           date.getDate() === day;
+  }, "Date must be in YYYY-MM-DD format")
+  .transform((val) => val === "" ? null : val); // Normalize empty strings to null
 
-export const updateDocumentSchema = insertDocumentSchema.partial();
+export const insertDocumentSchema = createInsertSchema(documents)
+  .omit({
+    id: true,
+    createdAt: true,
+    updatedAt: true,
+  })
+  .extend({
+    date: dateValidation.optional()
+  })
+  .refine((data) => {
+    // Only documents can have a date field
+    if (data.date !== null && data.date !== undefined && data.type !== "document") {
+      return false;
+    }
+    return true;
+  }, {
+    message: "Only documents can have a date field",
+    path: ["date"]
+  });
+
+export const updateDocumentSchema = createInsertSchema(documents)
+  .omit({
+    id: true,
+    createdAt: true,
+    updatedAt: true,
+  })
+  .extend({
+    date: dateValidation.optional()
+  })
+  .partial()
+  .refine((data) => {
+    // Only documents can have a date field
+    if (data.date !== null && data.date !== undefined && data.type !== undefined && data.type !== "document") {
+      return false;
+    }
+    return true;
+  }, {
+    message: "Only documents can have a date field",
+    path: ["date"]
+  });
 
 export const insertConversationSchema = createInsertSchema(conversations).omit({
   id: true,
