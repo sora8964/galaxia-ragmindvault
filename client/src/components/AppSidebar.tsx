@@ -1,4 +1,5 @@
 import { FileText, Users, MessageSquare, Upload, Settings, Search, Plus } from "lucide-react";
+import { Link } from "wouter";
 import {
   Sidebar,
   SidebarContent,
@@ -61,21 +62,35 @@ export function AppSidebar() {
           <SidebarGroupContent>
             <SidebarMenu>
               <SidebarMenuItem>
-                <SidebarMenuButton data-testid="link-conversations">
-                  <MessageSquare className="h-4 w-4" />
-                  <span>Conversations</span>
+                <SidebarMenuButton asChild data-testid="link-conversations">
+                  <Link href="/conversations">
+                    <MessageSquare className="h-4 w-4" />
+                    <span>Conversations</span>
+                  </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
-                <SidebarMenuButton data-testid="link-upload">
-                  <Upload className="h-4 w-4" />
-                  <span>Upload PDF</span>
+                <SidebarMenuButton asChild data-testid="link-documents">
+                  <Link href="/documents">
+                    <Users className="h-4 w-4" />
+                    <span>成員</span>
+                  </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
-                <SidebarMenuButton data-testid="link-settings">
-                  <Settings className="h-4 w-4" />
-                  <span>Settings</span>
+                <SidebarMenuButton asChild data-testid="link-upload">
+                  <Link href="/upload">
+                    <Upload className="h-4 w-4" />
+                    <span>Upload PDF</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild data-testid="link-settings">
+                  <Link href="/settings">
+                    <Settings className="h-4 w-4" />
+                    <span>Settings</span>
+                  </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>
