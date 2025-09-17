@@ -2,7 +2,8 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertDocumentSchema, updateDocumentSchema, insertConversationSchema, insertMessageSchema, parseMentionsSchema } from "@shared/schema";
-import { chatWithGemini, extractTextFromPDF } from "./gemini-simple";
+import { chatWithGemini, extractTextFromPDF, extractTextFromWord, generateTextEmbedding } from "./gemini-simple";
+import { embeddingService } from "./embedding-service";
 import { z } from "zod";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -47,6 +48,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const validatedData = insertDocumentSchema.parse(req.body);
       const document = await storage.createDocument(validatedData);
+      
+      // Trigger immediate embedding for mention-created documents
+      if (!validatedData.isFromOCR) {
+        await embeddingService.triggerImmediateEmbedding(document.id);
+      }
+      
       res.status(201).json(document);
     } catch (error) {
       console.error('Error creating document:', error);
@@ -64,6 +71,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!document) {
         return res.status(404).json({ error: "Document not found" });
       }
+      
+      // Mark OCR documents as edited and queue for embedding
+      if (document.isFromOCR && document.hasBeenEdited) {
+        await embeddingService.markOCRDocumentAsEdited(document.id);
+      }
+      
       res.json(document);
     } catch (error) {
       console.error('Error updating document:', error);
@@ -281,6 +294,158 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('PDF extraction error:', error);
       res.status(500).json({ error: "Failed to extract text from PDF" });
+    }
+  });
+
+  // Word document extraction endpoint
+  app.post("/api/word/extract", async (req, res) => {
+    try {
+      const { wordBase64, filename } = req.body;
+      
+      if (!wordBase64) {
+        return res.status(400).json({ error: "Word document data is required" });
+      }
+      
+      const extractedMarkdown = await extractTextFromWord(wordBase64);
+      
+      res.json({
+        text: extractedMarkdown,
+        filename: filename || 'untitled.docx'
+      });
+    } catch (error) {
+      console.error('Word extraction error:', error);
+      res.status(500).json({ error: "Failed to extract text from Word document" });
+    }
+  });
+
+  // Create document from Word upload
+  app.post("/api/documents/word-upload", async (req, res) => {
+    try {
+      const { wordBase64, filename, name } = req.body;
+      
+      if (!wordBase64) {
+        return res.status(400).json({ error: "Word document data is required" });
+      }
+      
+      // Extract text from Word document
+      const extractedText = await extractTextFromWord(wordBase64);
+      
+      // Create document entry
+      const documentData = {
+        name: name || filename?.replace(/\.[^/.]+$/, "") || "Untitled Document",
+        type: "document" as const,
+        content: extractedText,
+        aliases: [],
+        isFromOCR: false, // Word extraction is direct, no OCR needed
+        hasBeenEdited: false,
+        needsEmbedding: true
+      };
+      
+      const document = await storage.createDocument(documentData);
+      
+      // Trigger immediate embedding since Word documents are clean
+      await embeddingService.triggerImmediateEmbedding(document.id);
+      
+      res.status(201).json(document);
+    } catch (error) {
+      console.error('Word upload error:', error);
+      res.status(500).json({ error: "Failed to process Word document upload" });
+    }
+  });
+
+  // Create document from PDF upload  
+  app.post("/api/documents/pdf-upload", async (req, res) => {
+    try {
+      const { pdfBase64, filename, name } = req.body;
+      
+      if (!pdfBase64) {
+        return res.status(400).json({ error: "PDF data is required" });
+      }
+      
+      // Extract text from PDF
+      const extractedText = await extractTextFromPDF(pdfBase64);
+      
+      // Create document entry
+      const documentData = {
+        name: name || filename?.replace(/\.[^/.]+$/, "") || "Untitled Document",
+        type: "document" as const,
+        content: extractedText,
+        aliases: [],
+        isFromOCR: true, // PDF requires OCR, wait for user edit
+        hasBeenEdited: false,
+        needsEmbedding: true
+      };
+      
+      const document = await storage.createDocument(documentData);
+      
+      res.status(201).json(document);
+    } catch (error) {
+      console.error('PDF upload error:', error);
+      res.status(500).json({ error: "Failed to process PDF upload" });
+    }
+  });
+
+  // Embedding endpoints
+  app.post("/api/embeddings/generate", async (req, res) => {
+    try {
+      const { text } = req.body;
+      
+      if (!text || typeof text !== 'string') {
+        return res.status(400).json({ error: "Text is required" });
+      }
+      
+      const embedding = await generateTextEmbedding(text);
+      
+      res.json({
+        embedding,
+        dimensions: embedding.length
+      });
+    } catch (error) {
+      console.error('Embedding generation error:', error);
+      res.status(500).json({ error: "Failed to generate embedding" });
+    }
+  });
+
+  app.post("/api/embeddings/search", async (req, res) => {
+    try {
+      const { query, limit = 10 } = req.body;
+      
+      if (!query || typeof query !== 'string') {
+        return res.status(400).json({ error: "Query text is required" });
+      }
+      
+      // Generate embedding for the query
+      const queryEmbedding = await generateTextEmbedding(query);
+      
+      // Search for similar documents
+      const similarDocuments = await storage.searchDocumentsByVector(queryEmbedding, limit);
+      
+      res.json({
+        query,
+        results: similarDocuments,
+        total: similarDocuments.length
+      });
+    } catch (error) {
+      console.error('Vector search error:', error);
+      res.status(500).json({ error: "Failed to search documents by similarity" });
+    }
+  });
+
+  app.get("/api/embeddings/status", async (req, res) => {
+    try {
+      const documentsNeedingEmbedding = await storage.getDocumentsNeedingEmbedding();
+      const allDocuments = await storage.getAllDocuments();
+      const documentsWithEmbedding = allDocuments.filter(doc => doc.hasEmbedding);
+      
+      res.json({
+        totalDocuments: allDocuments.length,
+        documentsWithEmbedding: documentsWithEmbedding.length,
+        documentsNeedingEmbedding: documentsNeedingEmbedding.length,
+        embeddingProgress: allDocuments.length > 0 ? (documentsWithEmbedding.length / allDocuments.length) * 100 : 0
+      });
+    } catch (error) {
+      console.error('Embedding status error:', error);
+      res.status(500).json({ error: "Failed to get embedding status" });
     }
   });
 

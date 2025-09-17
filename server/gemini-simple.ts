@@ -50,7 +50,7 @@ When users mention documents or people using @mentions (like @[person:習近平|
     }));
 
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+      model: "gemini-2.5-pro",
       config: {
         systemInstruction
       },
@@ -64,10 +64,50 @@ When users mention documents or people using @mentions (like @[person:習近平|
   }
 }
 
+// Text Embedding function with 2000 dimensions for pgvector compatibility
+export async function generateTextEmbedding(text: string): Promise<number[]> {
+  try {
+    const response = await ai.models.embedContent({
+      model: "gemini-embedding-001",
+      contents: [{
+        parts: [{ text }]
+      }]
+    });
+
+    return response.embeddings?.[0]?.values || [];
+  } catch (error) {
+    console.error('Text embedding error:', error);
+    throw new Error(`Failed to generate text embedding: ${error}`);
+  }
+}
+
+// Word document extraction function
+export async function extractTextFromWord(wordBase64: string): Promise<string> {
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-pro",
+      contents: [
+        {
+          inlineData: {
+            data: wordBase64,
+            mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+          }
+        },
+        "Extract all text content from this Word document and convert it to clean Markdown format. Preserve the document structure including headings, paragraphs, lists, and formatting. Return the content as properly formatted Markdown text."
+      ]
+    });
+
+    return response.text || "";
+  } catch (error) {
+    console.error('Word extraction error:', error);
+    throw new Error(`Failed to extract text from Word document: ${error}`);
+  }
+}
+
 export async function extractTextFromPDF(pdfBase64: string): Promise<string> {
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+      model: "gemini-2.5-pro",
       contents: [
         {
           inlineData: {

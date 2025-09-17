@@ -1,0 +1,132 @@
+// Reference: javascript_gemini blueprint integration
+import { storage } from "./storage";
+import { generateTextEmbedding } from "./gemini-simple";
+
+export class EmbeddingService {
+  private isProcessing = false;
+  private processingQueue: string[] = [];
+  
+  constructor() {
+    // Start background processing
+    this.startBackgroundProcessing();
+  }
+
+  // Add document to embedding queue
+  async queueDocumentForEmbedding(documentId: string): Promise<void> {
+    if (!this.processingQueue.includes(documentId)) {
+      this.processingQueue.push(documentId);
+      console.log(`Queued document ${documentId} for embedding`);
+    }
+  }
+
+  // Process a single document embedding
+  async processDocumentEmbedding(documentId: string): Promise<boolean> {
+    try {
+      const document = await storage.getDocument(documentId);
+      if (!document) {
+        console.error(`Document ${documentId} not found`);
+        return false;
+      }
+
+      if (document.hasEmbedding) {
+        console.log(`Document ${documentId} already has embedding`);
+        return true;
+      }
+
+      console.log(`Generating embedding for document: ${document.name}`);
+      
+      // Create embedding text from name, content, and aliases
+      const embeddingText = [
+        document.name,
+        ...document.aliases,
+        document.content
+      ].filter(Boolean).join(' ');
+
+      if (!embeddingText.trim()) {
+        console.warn(`No content to embed for document ${documentId}`);
+        return false;
+      }
+
+      const embedding = await generateTextEmbedding(embeddingText);
+      
+      if (embedding.length === 0) {
+        console.error(`Failed to generate embedding for document ${documentId}`);
+        return false;
+      }
+
+      const success = await storage.updateDocumentEmbedding(documentId, embedding);
+      
+      if (success) {
+        console.log(`Successfully generated embedding for document: ${document.name} (${embedding.length} dimensions)`);
+      } else {
+        console.error(`Failed to update embedding for document ${documentId}`);
+      }
+      
+      return success;
+    } catch (error) {
+      console.error(`Error processing embedding for document ${documentId}:`, error);
+      return false;
+    }
+  }
+
+  // Background processing loop
+  private async startBackgroundProcessing(): Promise<void> {
+    setInterval(async () => {
+      if (this.isProcessing || this.processingQueue.length === 0) {
+        return;
+      }
+
+      this.isProcessing = true;
+      
+      try {
+        // Process documents needing embedding
+        const documentsNeedingEmbedding = await storage.getDocumentsNeedingEmbedding();
+        
+        for (const doc of documentsNeedingEmbedding) {
+          if (!this.processingQueue.includes(doc.id)) {
+            this.processingQueue.push(doc.id);
+          }
+        }
+
+        // Process queue
+        while (this.processingQueue.length > 0) {
+          const documentId = this.processingQueue.shift()!;
+          await this.processDocumentEmbedding(documentId);
+          
+          // Small delay to prevent overwhelming the API
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+      } catch (error) {
+        console.error('Error in background embedding processing:', error);
+      } finally {
+        this.isProcessing = false;
+      }
+    }, 5000); // Check every 5 seconds
+  }
+
+  // Trigger immediate embedding for mention-created documents
+  async triggerImmediateEmbedding(documentId: string): Promise<void> {
+    await this.queueDocumentForEmbedding(documentId);
+    
+    // Process immediately for mention-created documents
+    if (!this.isProcessing) {
+      this.isProcessing = true;
+      try {
+        await this.processDocumentEmbedding(documentId);
+      } finally {
+        this.isProcessing = false;
+      }
+    }
+  }
+
+  // Mark OCR document as ready for embedding after editing
+  async markOCRDocumentAsEdited(documentId: string): Promise<void> {
+    const doc = await storage.getDocument(documentId);
+    if (doc && doc.isFromOCR) {
+      await storage.updateDocument(documentId, { hasBeenEdited: true });
+      await this.queueDocumentForEmbedding(documentId);
+    }
+  }
+}
+
+export const embeddingService = new EmbeddingService();

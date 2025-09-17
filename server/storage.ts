@@ -30,6 +30,11 @@ export interface IStorage {
   deleteDocument(id: string): Promise<boolean>;
   getMentionSuggestions(query: string): Promise<MentionItem[]>;
   
+  // Embedding operations
+  updateDocumentEmbedding(id: string, embedding: number[]): Promise<boolean>;
+  searchDocumentsByVector(queryVector: number[], limit?: number): Promise<Document[]>;
+  getDocumentsNeedingEmbedding(): Promise<Document[]>;
+  
   // Mention parsing operations
   parseMentions(text: string): Promise<ParsedMention[]>;
   resolveMentionDocuments(mentions: ParsedMention[]): Promise<string[]>;
@@ -173,6 +178,12 @@ export class MemStorage implements IStorage {
       type: insertDocument.type,
       content: insertDocument.content || '',
       aliases: (insertDocument.aliases as string[]) || [],
+      embedding: null,
+      hasEmbedding: false,
+      embeddingStatus: "pending",
+      needsEmbedding: true,
+      isFromOCR: false,
+      hasBeenEdited: false,
       id,
       createdAt: now,
       updatedAt: now
@@ -191,6 +202,12 @@ export class MemStorage implements IStorage {
       type: updates.type ?? existing.type,
       content: updates.content ?? existing.content,
       aliases: (updates.aliases as string[]) ?? existing.aliases,
+      embedding: existing.embedding,
+      hasEmbedding: existing.hasEmbedding,
+      embeddingStatus: existing.embeddingStatus,
+      needsEmbedding: existing.needsEmbedding,
+      isFromOCR: existing.isFromOCR,
+      hasBeenEdited: true, // Mark as edited when updated
       createdAt: existing.createdAt,
       updatedAt: new Date()
     };
@@ -361,6 +378,68 @@ export class MemStorage implements IStorage {
     }
     
     return documentIds;
+  }
+
+  // Embedding operations
+  async updateDocumentEmbedding(id: string, embedding: number[]): Promise<boolean> {
+    const existing = this.documents.get(id);
+    if (!existing) return false;
+    
+    const updated: Document = {
+      ...existing,
+      embedding,
+      hasEmbedding: true,
+      embeddingStatus: "completed",
+      needsEmbedding: false,
+      updatedAt: new Date()
+    };
+    this.documents.set(id, updated);
+    return true;
+  }
+
+  async searchDocumentsByVector(queryVector: number[], limit: number = 10): Promise<Document[]> {
+    // Simple cosine similarity implementation for in-memory storage
+    const docsWithEmbeddings = Array.from(this.documents.values())
+      .filter(doc => doc.hasEmbedding && doc.embedding);
+    
+    const similarities = docsWithEmbeddings.map(doc => {
+      const similarity = this.cosineSimilarity(queryVector, doc.embedding!);
+      return { doc, similarity };
+    });
+    
+    return similarities
+      .sort((a, b) => b.similarity - a.similarity)
+      .slice(0, limit)
+      .map(item => item.doc);
+  }
+
+  async getDocumentsNeedingEmbedding(): Promise<Document[]> {
+    return Array.from(this.documents.values()).filter(doc => {
+      if (!doc.needsEmbedding) return false;
+      
+      // For OCR documents, wait until they've been edited
+      if (doc.isFromOCR && !doc.hasBeenEdited) return false;
+      
+      // For mention-created documents, embed immediately
+      return true;
+    });
+  }
+
+  private cosineSimilarity(a: number[], b: number[]): number {
+    if (a.length !== b.length) return 0;
+    
+    let dotProduct = 0;
+    let normA = 0;
+    let normB = 0;
+    
+    for (let i = 0; i < a.length; i++) {
+      dotProduct += a[i] * b[i];
+      normA += a[i] * a[i];
+      normB += b[i] * b[i];
+    }
+    
+    if (normA === 0 || normB === 0) return 0;
+    return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
   }
 }
 

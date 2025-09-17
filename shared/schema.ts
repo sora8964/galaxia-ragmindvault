@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, json } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, json, boolean } from "drizzle-orm/pg-core";
+import { vector } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -15,6 +16,12 @@ export const documents = pgTable("documents", {
   type: text("type", { enum: ["person", "document"] }).notNull(),
   content: text("content").notNull().default(""),
   aliases: json("aliases").$type<string[]>().notNull().default([]),
+  embedding: vector("embedding", { dimensions: 2000 }),
+  hasEmbedding: boolean("has_embedding").notNull().default(false),
+  embeddingStatus: text("embedding_status", { enum: ["pending", "completed", "failed"] }).notNull().default("pending"),
+  needsEmbedding: boolean("needs_embedding").notNull().default(true),
+  isFromOCR: boolean("is_from_ocr").notNull().default(false),
+  hasBeenEdited: boolean("has_been_edited").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
