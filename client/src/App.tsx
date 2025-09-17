@@ -12,6 +12,7 @@ import { DocumentEditor } from "./components/DocumentEditor";
 import { DocumentsList } from "./pages/documents-list";
 import { DocumentDetail } from "./pages/document-detail";
 import { PeopleList } from "./pages/people-list";
+import { Settings } from "./components/Settings";
 import NotFound from "@/pages/not-found";
 import { useState } from "react";
 import { useParams } from "wouter";
@@ -44,36 +45,7 @@ function PeoplePage() {
 }
 
 function SettingsPage() {
-  return (
-    <div className="p-6 h-full overflow-y-auto">
-      <div className="max-w-4xl mx-auto">
-        <h1 className="text-2xl font-bold mb-6">Settings</h1>
-        <div className="space-y-6">
-          <div className="p-4 border rounded-lg">
-            <h3 className="font-semibold mb-2">Theme</h3>
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">Toggle theme:</span>
-              <ThemeToggle />
-            </div>
-          </div>
-          
-          <div className="p-4 border rounded-lg">
-            <h3 className="font-semibold mb-2">Gemini API</h3>
-            <p className="text-sm text-muted-foreground">
-              Gemini API configuration will be handled here for function calling and OCR processing.
-            </p>
-          </div>
-          
-          <div className="p-4 border rounded-lg">
-            <h3 className="font-semibold mb-2">Text Embedding</h3>
-            <p className="text-sm text-muted-foreground">
-              Configure text embedding settings for context completion.
-            </p>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+  return <Settings />;
 }
 
 function Router() {

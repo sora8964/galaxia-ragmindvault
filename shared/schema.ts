@@ -165,3 +165,61 @@ export interface ParseMentionsResponse {
 export const parseMentionsSchema = z.object({
   text: z.string()
 });
+
+// Settings Configuration Schema
+export const geminiApiConfigSchema = z.object({
+  model: z.enum([
+    "gemini-2.5-flash", 
+    "gemini-2.5-pro",
+    "gemini-1.5-flash", 
+    "gemini-1.5-pro"
+  ]).default("gemini-2.5-flash"),
+  temperature: z.number().min(0).max(2).default(0.7),
+  topP: z.number().min(0).max(1).default(0.94),
+  topK: z.number().int().min(1).max(40).default(32),
+  maxOutputTokens: z.number().int().min(1).max(8192).default(1000),
+  systemInstructions: z.string().default("You are a helpful AI assistant for document and context management."),
+  safetySettings: z.object({
+    harassment: z.enum(["BLOCK_NONE", "BLOCK_LOW_AND_ABOVE", "BLOCK_MEDIUM_AND_ABOVE", "BLOCK_HIGH_AND_ABOVE"]).default("BLOCK_MEDIUM_AND_ABOVE"),
+    hateSpeech: z.enum(["BLOCK_NONE", "BLOCK_LOW_AND_ABOVE", "BLOCK_MEDIUM_AND_ABOVE", "BLOCK_HIGH_AND_ABOVE"]).default("BLOCK_MEDIUM_AND_ABOVE"),
+    sexuallyExplicit: z.enum(["BLOCK_NONE", "BLOCK_LOW_AND_ABOVE", "BLOCK_MEDIUM_AND_ABOVE", "BLOCK_HIGH_AND_ABOVE"]).default("BLOCK_MEDIUM_AND_ABOVE"),
+    dangerousContent: z.enum(["BLOCK_NONE", "BLOCK_LOW_AND_ABOVE", "BLOCK_MEDIUM_AND_ABOVE", "BLOCK_HIGH_AND_ABOVE"]).default("BLOCK_MEDIUM_AND_ABOVE"),
+    civicIntegrity: z.enum(["BLOCK_NONE", "BLOCK_LOW_AND_ABOVE", "BLOCK_MEDIUM_AND_ABOVE", "BLOCK_HIGH_AND_ABOVE"]).default("BLOCK_MEDIUM_AND_ABOVE")
+  }).default({}),
+});
+
+export const textEmbeddingConfigSchema = z.object({
+  model: z.enum(["gemini-embedding-001"]).default("gemini-embedding-001"),
+  taskType: z.enum([
+    "TASK_TYPE_UNSPECIFIED",
+    "RETRIEVAL_QUERY",
+    "RETRIEVAL_DOCUMENT", 
+    "SEMANTIC_SIMILARITY",
+    "CLASSIFICATION",
+    "CLUSTERING",
+    "QUESTION_ANSWERING",
+    "FACT_VERIFICATION",
+    "CODE_RETRIEVAL_QUERY"
+  ]).default("RETRIEVAL_DOCUMENT"),
+  outputDimensionality: z.number().int().min(1).max(3072).default(3072),
+  autoEmbedding: z.boolean().default(true),
+  autoTruncate: z.boolean().default(true),
+  batchSize: z.number().int().min(1).max(100).default(10),
+});
+
+export const appConfigSchema = z.object({
+  geminiApi: geminiApiConfigSchema.default({}),
+  textEmbedding: textEmbeddingConfigSchema.default({}),
+  updatedAt: z.date().default(() => new Date())
+});
+
+// Types
+export type GeminiApiConfig = z.infer<typeof geminiApiConfigSchema>;
+export type TextEmbeddingConfig = z.infer<typeof textEmbeddingConfigSchema>;
+export type AppConfig = z.infer<typeof appConfigSchema>;
+
+export const insertAppConfigSchema = appConfigSchema.omit({ updatedAt: true });
+export const updateAppConfigSchema = insertAppConfigSchema.partial();
+
+export type InsertAppConfig = z.infer<typeof insertAppConfigSchema>;
+export type UpdateAppConfig = z.infer<typeof updateAppConfigSchema>;

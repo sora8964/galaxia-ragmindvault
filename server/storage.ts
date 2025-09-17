@@ -13,7 +13,10 @@ import {
   type UpdateChunk,
   type SearchResult,
   type MentionItem,
-  type ParsedMention
+  type ParsedMention,
+  type AppConfig,
+  type InsertAppConfig,
+  type UpdateAppConfig
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 
@@ -62,6 +65,10 @@ export interface IStorage {
   getMessagesByConversation(conversationId: string): Promise<Message[]>;
   createMessage(message: InsertMessage): Promise<Message>;
   deleteMessage(id: string): Promise<boolean>;
+  
+  // Settings operations
+  getAppConfig(): Promise<AppConfig>;
+  updateAppConfig(updates: UpdateAppConfig): Promise<AppConfig>;
 }
 
 export class MemStorage implements IStorage {
@@ -70,6 +77,7 @@ export class MemStorage implements IStorage {
   private conversations: Map<string, Conversation>;
   private messages: Map<string, Message>;
   private chunks: Map<string, Chunk>;
+  private appConfig: AppConfig;
 
   constructor() {
     this.users = new Map();
@@ -77,6 +85,34 @@ export class MemStorage implements IStorage {
     this.conversations = new Map();
     this.messages = new Map();
     this.chunks = new Map();
+    
+    // Initialize default app configuration
+    this.appConfig = {
+      geminiApi: {
+        model: "gemini-2.5-flash",
+        temperature: 0.7,
+        topP: 0.94,
+        topK: 32,
+        maxOutputTokens: 1000,
+        systemInstructions: "You are a helpful AI assistant for document and context management.",
+        safetySettings: {
+          harassment: "BLOCK_MEDIUM_AND_ABOVE",
+          hateSpeech: "BLOCK_MEDIUM_AND_ABOVE",
+          sexuallyExplicit: "BLOCK_MEDIUM_AND_ABOVE",
+          dangerousContent: "BLOCK_MEDIUM_AND_ABOVE",
+          civicIntegrity: "BLOCK_MEDIUM_AND_ABOVE"
+        }
+      },
+      textEmbedding: {
+        model: "gemini-embedding-001",
+        taskType: "RETRIEVAL_DOCUMENT",
+        outputDimensionality: 3072,
+        autoEmbedding: true,
+        autoTruncate: true,
+        batchSize: 10
+      },
+      updatedAt: new Date()
+    };
     
     // Add some sample data
     this.initializeSampleData();
@@ -559,6 +595,34 @@ export class MemStorage implements IStorage {
       .sort((a, b) => b.similarity - a.similarity)
       .slice(0, limit)
       .map(item => ({ ...item, similarity: undefined })); // Remove similarity from result
+  }
+
+  // Settings operations
+  async getAppConfig(): Promise<AppConfig> {
+    return this.appConfig;
+  }
+
+  async updateAppConfig(updates: UpdateAppConfig): Promise<AppConfig> {
+    // Deep merge the updates with existing config
+    this.appConfig = {
+      ...this.appConfig,
+      ...updates,
+      geminiApi: {
+        ...this.appConfig.geminiApi,
+        ...(updates.geminiApi || {}),
+        safetySettings: {
+          ...this.appConfig.geminiApi.safetySettings,
+          ...(updates.geminiApi?.safetySettings || {})
+        }
+      },
+      textEmbedding: {
+        ...this.appConfig.textEmbedding,
+        ...(updates.textEmbedding || {})
+      },
+      updatedAt: new Date()
+    };
+    
+    return this.appConfig;
   }
 }
 

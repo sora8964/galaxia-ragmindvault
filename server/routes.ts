@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertDocumentSchema, updateDocumentSchema, insertConversationSchema, insertMessageSchema, parseMentionsSchema } from "@shared/schema";
+import { insertDocumentSchema, updateDocumentSchema, insertConversationSchema, insertMessageSchema, parseMentionsSchema, updateAppConfigSchema } from "@shared/schema";
 import { chatWithGemini, extractTextFromPDF, extractTextFromWord, generateTextEmbedding } from "./gemini-simple";
 import { chatWithGeminiFunctions } from "./gemini-functions";
 import { embeddingService } from "./embedding-service";
@@ -337,22 +337,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           contextDocuments
         });
 
-        // Send thinking if available
-        if (response.thinking) {
-          thinking = response.thinking;
-          res.write(`data: ${JSON.stringify({ type: 'thinking', content: response.thinking })}\n\n`);
-        }
-
-        // Send function calls if available
-        if (response.functionCalls) {
-          for (const fc of response.functionCalls) {
-            functionCalls.push(fc);
-            res.write(`data: ${JSON.stringify({ type: 'function_call', content: fc })}\n\n`);
-          }
-        }
-
+        // Since response is a string, we'll use it as content directly
+        // Note: thinking and functionCalls are not available in this implementation
+        
         // Stream content token by token
-        const content = response.content || '';
+        const content = response || '';
         const words = content.split(' ');
         for (let i = 0; i < words.length; i++) {
           const token = (i === 0 ? '' : ' ') + words[i];
@@ -370,15 +359,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
             role: "assistant",
             content: fullResponse,
             contextDocuments: contextDocumentIds,
-            thinking: response.thinking || null,
-            functionCalls: response.functionCalls || null,
+            thinking: null,
+            functionCalls: null,
             status: "completed"
           });
         }
 
         res.write(`data: ${JSON.stringify({ type: 'complete' })}\n\n`);
       } catch (streamError) {
-        res.write(`data: ${JSON.stringify({ type: 'error', content: streamError.message })}\n\n`);
+        const errorMessage = streamError instanceof Error ? streamError.message : 'Unknown error';
+        res.write(`data: ${JSON.stringify({ type: 'error', content: errorMessage })}\n\n`);
       }
 
       res.end();
@@ -558,6 +548,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Embedding status error:', error);
       res.status(500).json({ error: "Failed to get embedding status" });
+    }
+  });
+
+  // Settings API endpoints
+  app.get("/api/settings", async (req, res) => {
+    try {
+      const config = await storage.getAppConfig();
+      res.json(config);
+    } catch (error) {
+      console.error('Error fetching app config:', error);
+      res.status(500).json({ error: "Failed to fetch application settings" });
+    }
+  });
+
+  app.patch("/api/settings", async (req, res) => {
+    try {
+      const validatedUpdates = updateAppConfigSchema.parse(req.body);
+      const updatedConfig = await storage.updateAppConfig(validatedUpdates);
+      res.json(updatedConfig);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          error: "Invalid settings data", 
+          details: error.errors 
+        });
+      }
+      console.error('Error updating app config:', error);
+      res.status(500).json({ error: "Failed to update application settings" });
     }
   });
 
