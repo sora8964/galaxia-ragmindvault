@@ -40,7 +40,7 @@ import type { AppConfig, UpdateAppConfig } from '@shared/schema';
 // Form validation schema
 const settingsFormSchema = z.object({
   geminiApi: z.object({
-    model: z.enum(['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-1.5-flash', 'gemini-1.5-pro']),
+    model: z.enum(['gemini-2.5-flash', 'gemini-2.5-pro']),
     temperature: z.number().min(0).max(2),
     topP: z.number().min(0).max(1),
     topK: z.number().int().min(1).max(40),
@@ -265,8 +265,6 @@ export function Settings() {
                           <SelectContent>
                             <SelectItem value="gemini-2.5-flash">Gemini 2.5 Flash</SelectItem>
                             <SelectItem value="gemini-2.5-pro">Gemini 2.5 Pro</SelectItem>
-                            <SelectItem value="gemini-1.5-flash">Gemini 1.5 Flash</SelectItem>
-                            <SelectItem value="gemini-1.5-pro">Gemini 1.5 Pro</SelectItem>
                           </SelectContent>
                         </Select>
                         <FormDescription>Choose the Gemini model variant</FormDescription>

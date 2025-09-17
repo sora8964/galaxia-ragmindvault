@@ -170,9 +170,7 @@ export const parseMentionsSchema = z.object({
 export const geminiApiConfigSchema = z.object({
   model: z.enum([
     "gemini-2.5-flash", 
-    "gemini-2.5-pro",
-    "gemini-1.5-flash", 
-    "gemini-1.5-pro"
+    "gemini-2.5-pro"
   ]).default("gemini-2.5-flash"),
   temperature: z.number().min(0).max(2).default(0.7),
   topP: z.number().min(0).max(1).default(0.94),
