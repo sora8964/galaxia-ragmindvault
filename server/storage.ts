@@ -83,6 +83,7 @@ export interface IStorage {
   createMessage(message: InsertMessage): Promise<Message>;
   updateMessage(id: string, updates: UpdateMessage): Promise<Message | undefined>;
   deleteMessage(id: string, cascadeDelete?: boolean): Promise<boolean>;
+  deleteMessagesAfter(conversationId: string, messageId: string): Promise<boolean>;
   
   // Relationship operations
   getRelationship(id: string): Promise<Relationship | undefined>;
@@ -528,6 +529,42 @@ export class MemStorage implements IStorage {
     }
     
     return deleted;
+  }
+
+  async deleteMessagesAfter(conversationId: string, messageId: string): Promise<boolean> {
+    const targetMessage = this.messages.get(messageId);
+    if (!targetMessage || targetMessage.conversationId !== conversationId) {
+      return false;
+    }
+    
+    // Find messages that come after the target message (excluding the target message itself)
+    const messagesToDelete = Array.from(this.messages.entries())
+      .filter(([id, message]) => 
+        message.conversationId === conversationId && 
+        new Date(message.createdAt).getTime() > new Date(targetMessage.createdAt).getTime()
+      )
+      .map(([messageId]) => messageId);
+    
+    // Delete the messages
+    let deletedCount = 0;
+    for (const id of messagesToDelete) {
+      if (this.messages.delete(id)) {
+        deletedCount++;
+      }
+    }
+    
+    // Update conversation timestamp if messages were deleted
+    if (deletedCount > 0) {
+      const conversation = this.conversations.get(conversationId);
+      if (conversation) {
+        this.conversations.set(conversationId, {
+          ...conversation,
+          updatedAt: new Date()
+        });
+      }
+    }
+    
+    return deletedCount > 0;
   }
   
   // Helper method to delete messages that come after a specific timestamp in a conversation

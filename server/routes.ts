@@ -335,6 +335,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Bulk delete messages after specific message endpoint (for regenerate functionality)
+  app.delete("/api/conversations/:conversationId/messages/:messageId/after", async (req, res) => {
+    try {
+      // Check if conversation exists
+      const conversation = await storage.getConversation(req.params.conversationId);
+      if (!conversation) {
+        return res.status(404).json({ error: "Conversation not found" });
+      }
+      
+      // Validate that the message belongs to the specified conversation
+      const messages = await storage.getMessagesByConversation(req.params.conversationId);
+      const messageExists = messages.some(msg => msg.id === req.params.messageId);
+      
+      if (!messageExists) {
+        return res.status(404).json({ error: "Message not found in this conversation" });
+      }
+      
+      // Delete all messages after the specified message
+      const success = await storage.deleteMessagesAfter(req.params.conversationId, req.params.messageId);
+      
+      res.json({ 
+        success,
+        message: success ? "Messages deleted successfully" : "No messages were deleted" 
+      });
+    } catch (error) {
+      console.error('Error deleting messages after specified message:', error);
+      res.status(500).json({ error: "Failed to delete messages" });
+    }
+  });
+
   // Mention parsing endpoint
   app.post("/api/mentions/parse", async (req, res) => {
     try {

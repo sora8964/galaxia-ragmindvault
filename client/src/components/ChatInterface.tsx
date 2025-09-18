@@ -58,6 +58,7 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editedContent, setEditedContent] = useState<string>('');
   const [deleteConfirmMessageId, setDeleteConfirmMessageId] = useState<string | null>(null);
+  const [regeneratingMessageId, setRegeneratingMessageId] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const editTextareaRef = useRef<HTMLTextAreaElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -287,6 +288,30 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
       toast({
         title: '錯誤',
         description: '更新消息失敗，請再試一次',
+        variant: 'destructive'
+      });
+    }
+  });
+
+  // Delete messages after specific message mutation (for regenerate functionality)
+  const deleteMessagesAfterMutation = useMutation({
+    mutationFn: async ({ conversationId, messageId }: { conversationId: string; messageId: string }) => {
+      return apiRequest('DELETE', `/api/conversations/${conversationId}/messages/${messageId}/after`);
+    },
+    onSuccess: () => {
+      // Invalidate and refetch messages
+      queryClient.invalidateQueries({ 
+        queryKey: ['/api/conversations', currentConversationId, 'messages'] 
+      });
+      // Refresh conversation list
+      queryClient.invalidateQueries({ queryKey: ['/api/conversations'] });
+    },
+    onError: (error) => {
+      console.error('Failed to delete messages after specified message:', error);
+      setRegeneratingMessageId(null);
+      toast({
+        title: '錯誤',
+        description: '刪除後續消息失敗，請再試一次',
         variant: 'destructive'
       });
     }
@@ -826,6 +851,167 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
     setDeleteConfirmMessageId(null);
   };
 
+  // Handle regenerate from user message
+  const handleRegenerateFromUser = async (messageId: string) => {
+    if (!currentConversationId || regeneratingMessageId || isStreaming) return;
+    
+    // Find the user message
+    const userMessage = messages.find(msg => msg.id === messageId);
+    if (!userMessage || userMessage.role !== 'user') {
+      toast({
+        title: '錯誤',
+        description: '只能從用戶消息重新生成',
+        variant: 'destructive'
+      });
+      return;
+    }
+    
+    setRegeneratingMessageId(messageId);
+    setOpenMenuId(null);
+    
+    try {
+      // Delete all messages after this user message
+      await deleteMessagesAfterMutation.mutateAsync({
+        conversationId: currentConversationId,
+        messageId
+      });
+      
+      // Wait for the cache to update
+      await queryClient.invalidateQueries({ 
+        queryKey: ['/api/conversations', currentConversationId, 'messages'] 
+      });
+      
+      // Get updated messages and regenerate
+      const updatedMessages = await queryClient.fetchQuery({
+        queryKey: ['/api/conversations', currentConversationId, 'messages']
+      });
+      
+      const formattedMessages: StreamMessage[] = (updatedMessages as DbMessage[]).map((msg: DbMessage) => ({
+        id: msg.id,
+        content: msg.content,
+        role: msg.role,
+        timestamp: new Date(msg.createdAt),
+        thinking: msg.thinking,
+        functionCalls: msg.functionCalls,
+        isStreaming: false,
+      }));
+      
+      // Extract context documents from the user message
+      const originalMessage = conversationMessages.find(m => m.id === messageId);
+      const contextDocumentIds = originalMessage?.contextDocuments || [];
+      
+      // Regenerate AI response
+      const success = await startAssistantStream({
+        historyMessages: formattedMessages,
+        contextDocumentIds,
+        conversationId: currentConversationId
+      });
+      
+      if (success) {
+        toast({
+          title: '成功',
+          description: 'AI回應已重新生成',
+        });
+      }
+    } catch (error) {
+      console.error('Failed to regenerate from user message:', error);
+      toast({
+        title: '錯誤',
+        description: '重新生成失敗，請再試一次',
+        variant: 'destructive'
+      });
+    } finally {
+      setRegeneratingMessageId(null);
+    }
+  };
+
+  // Handle regenerate from assistant message
+  const handleRegenerateFromAssistant = async (messageId: string) => {
+    if (!currentConversationId || regeneratingMessageId || isStreaming) return;
+    
+    // Find the assistant message
+    const assistantMessage = messages.find(msg => msg.id === messageId);
+    if (!assistantMessage || assistantMessage.role !== 'assistant') {
+      toast({
+        title: '錯誤',
+        description: '只能從AI消息重新生成',
+        variant: 'destructive'
+      });
+      return;
+    }
+    
+    setRegeneratingMessageId(messageId);
+    setOpenMenuId(null);
+    
+    try {
+      // First delete the assistant message itself and all messages after it
+      await deleteMessageMutation.mutateAsync(messageId);
+      
+      // Wait for the cache to update
+      await queryClient.invalidateQueries({ 
+        queryKey: ['/api/conversations', currentConversationId, 'messages'] 
+      });
+      
+      // Get updated messages
+      const updatedMessages = await queryClient.fetchQuery({
+        queryKey: ['/api/conversations', currentConversationId, 'messages']
+      });
+      
+      const formattedMessages: StreamMessage[] = (updatedMessages as DbMessage[]).map((msg: DbMessage) => ({
+        id: msg.id,
+        content: msg.content,
+        role: msg.role,
+        timestamp: new Date(msg.createdAt),
+        thinking: msg.thinking,
+        functionCalls: msg.functionCalls,
+        isStreaming: false,
+      }));
+      
+      // Find the last user message in the updated conversation
+      const lastUserMessageIndex = formattedMessages.map(m => m.role).lastIndexOf('user');
+      
+      if (lastUserMessageIndex === -1) {
+        toast({
+          title: '錯誤',
+          description: '沒有找到用戶消息進行重新生成',
+          variant: 'destructive'
+        });
+        return;
+      }
+      
+      // Get messages up to and including the last user message
+      const historyForRegeneration = formattedMessages.slice(0, lastUserMessageIndex + 1);
+      const lastUserMessage = historyForRegeneration[lastUserMessageIndex];
+      
+      // Extract context documents from the last user message
+      const originalMessage = conversationMessages.find(m => m.id === lastUserMessage.id);
+      const contextDocumentIds = originalMessage?.contextDocuments || [];
+      
+      // Regenerate AI response
+      const success = await startAssistantStream({
+        historyMessages: historyForRegeneration,
+        contextDocumentIds,
+        conversationId: currentConversationId
+      });
+      
+      if (success) {
+        toast({
+          title: '成功',
+          description: 'AI回應已重新生成',
+        });
+      }
+    } catch (error) {
+      console.error('Failed to regenerate from assistant message:', error);
+      toast({
+        title: '錯誤',
+        description: '重新生成失敗，請再試一次',
+        variant: 'destructive'
+      });
+    } finally {
+      setRegeneratingMessageId(null);
+    }
+  };
+
   return (
     <div className="flex flex-col h-full">
       {/* Messages */}
@@ -999,6 +1185,25 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
                         >
                           <Edit className="h-3 w-3 mr-2" />
                           編輯
+                        </DropdownMenuItem>
+                        <DropdownMenuItem 
+                          onClick={() => {
+                            if (message.role === 'user') {
+                              handleRegenerateFromUser(message.id);
+                            } else if (message.role === 'assistant') {
+                              handleRegenerateFromAssistant(message.id);
+                            }
+                          }}
+                          className="cursor-pointer"
+                          disabled={regeneratingMessageId !== null || isStreaming}
+                          data-testid={`button-regenerate-message-${message.id}`}
+                        >
+                          {regeneratingMessageId === message.id ? (
+                            <Loader2 className="h-3 w-3 mr-2 animate-spin" />
+                          ) : (
+                            <RefreshCw className="h-3 w-3 mr-2" />
+                          )}
+                          重新生成
                         </DropdownMenuItem>
                         <DropdownMenuItem 
                           onClick={() => handleDeleteMessage(message.id)}
