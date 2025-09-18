@@ -11,6 +11,9 @@ import {
   type Chunk,
   type InsertChunk,
   type UpdateChunk,
+  type Relationship,
+  type InsertRelationship,
+  type UpdateRelationship,
   type SearchResult,
   type MentionItem,
   type ParsedMention,
@@ -29,8 +32,8 @@ export interface IStorage {
   // Document operations
   getDocument(id: string): Promise<Document | undefined>;
   getAllDocuments(): Promise<Document[]>;
-  getDocumentsByType(type: "person" | "document" | "organization" | "issue"): Promise<Document[]>;
-  searchDocuments(query: string, type?: "person" | "document" | "organization" | "issue"): Promise<SearchResult>;
+  getDocumentsByType(type: "person" | "document" | "organization" | "issue" | "log"): Promise<Document[]>;
+  searchDocuments(query: string, type?: "person" | "document" | "organization" | "issue" | "log"): Promise<SearchResult>;
   createDocument(document: InsertDocument): Promise<Document>;
   updateDocument(id: string, updates: UpdateDocument): Promise<Document | undefined>;
   deleteDocument(id: string): Promise<boolean>;
@@ -66,6 +69,17 @@ export interface IStorage {
   createMessage(message: InsertMessage): Promise<Message>;
   deleteMessage(id: string): Promise<boolean>;
   
+  // Relationship operations
+  getRelationship(id: string): Promise<Relationship | undefined>;
+  getRelationshipsBySource(sourceId: string): Promise<Relationship[]>;
+  getRelationshipsByTarget(targetId: string): Promise<Relationship[]>;
+  getRelationshipsByType(relationshipType: string): Promise<Relationship[]>;
+  createRelationship(relationship: InsertRelationship): Promise<Relationship>;
+  updateRelationship(id: string, updates: UpdateRelationship): Promise<Relationship | undefined>;
+  deleteRelationship(id: string): Promise<boolean>;
+  deleteRelationshipsBySource(sourceId: string): Promise<boolean>;
+  deleteRelationshipsByTarget(targetId: string): Promise<boolean>;
+  
   // Settings operations
   getAppConfig(): Promise<AppConfig>;
   updateAppConfig(updates: UpdateAppConfig): Promise<AppConfig>;
@@ -77,6 +91,7 @@ export class MemStorage implements IStorage {
   private conversations: Map<string, Conversation>;
   private messages: Map<string, Message>;
   private chunks: Map<string, Chunk>;
+  private relationships: Map<string, Relationship>;
   private appConfig: AppConfig;
 
   constructor() {
@@ -85,6 +100,7 @@ export class MemStorage implements IStorage {
     this.conversations = new Map();
     this.messages = new Map();
     this.chunks = new Map();
+    this.relationships = new Map();
     
     // Initialize default app configuration
     this.appConfig = {
@@ -220,13 +236,13 @@ export class MemStorage implements IStorage {
     );
   }
 
-  async getDocumentsByType(type: "person" | "document" | "organization" | "issue"): Promise<Document[]> {
+  async getDocumentsByType(type: "person" | "document" | "organization" | "issue" | "log"): Promise<Document[]> {
     return Array.from(this.documents.values())
       .filter(doc => doc.type === type)
       .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
   }
 
-  async searchDocuments(query: string, type?: "person" | "document" | "organization" | "issue"): Promise<SearchResult> {
+  async searchDocuments(query: string, type?: "person" | "document" | "organization" | "issue" | "log"): Promise<SearchResult> {
     const allDocs = Array.from(this.documents.values());
     const lowerQuery = query.toLowerCase();
     
@@ -418,7 +434,7 @@ export class MemStorage implements IStorage {
   async parseMentions(text: string): Promise<ParsedMention[]> {
     const mentions: ParsedMention[] = [];
     // Regex to match @[type:name] or @[type:name|alias]
-    const mentionRegex = /@\[(person|document):([^|\]]+)(?:\|([^\]]+))?\]/g;
+    const mentionRegex = /@\[(person|document|organization|issue|log):([^|\]]+)(?:\|([^\]]+))?\]/g;
     
     let match;
     while ((match = mentionRegex.exec(text)) !== null) {
@@ -428,7 +444,7 @@ export class MemStorage implements IStorage {
         start: match.index,
         end: match.index + fullMatch.length,
         raw: fullMatch,
-        type: type as "person" | "document",
+        type: type as "person" | "document" | "organization" | "issue" | "log",
         name: name.trim(),
         alias: alias?.trim(),
         documentId: undefined // Will be resolved separately
@@ -655,6 +671,91 @@ export class MemStorage implements IStorage {
     };
     
     return this.appConfig;
+  }
+
+  // Relationship operations
+  async getRelationship(id: string): Promise<Relationship | undefined> {
+    return this.relationships.get(id);
+  }
+
+  async getRelationshipsBySource(sourceId: string): Promise<Relationship[]> {
+    return Array.from(this.relationships.values())
+      .filter(rel => rel.sourceId === sourceId)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }
+
+  async getRelationshipsByTarget(targetId: string): Promise<Relationship[]> {
+    return Array.from(this.relationships.values())
+      .filter(rel => rel.targetId === targetId)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }
+
+  async getRelationshipsByType(relationshipType: string): Promise<Relationship[]> {
+    return Array.from(this.relationships.values())
+      .filter(rel => rel.relationshipType === relationshipType)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }
+
+  async createRelationship(insertRelationship: InsertRelationship): Promise<Relationship> {
+    const id = randomUUID();
+    const now = new Date();
+    const relationship: Relationship = {
+      id,
+      sourceId: insertRelationship.sourceId,
+      targetId: insertRelationship.targetId,
+      relationshipType: insertRelationship.relationshipType,
+      createdAt: now,
+      updatedAt: now
+    };
+    this.relationships.set(id, relationship);
+    return relationship;
+  }
+
+  async updateRelationship(id: string, updates: UpdateRelationship): Promise<Relationship | undefined> {
+    const existing = this.relationships.get(id);
+    if (!existing) return undefined;
+    
+    const updated: Relationship = {
+      ...existing,
+      ...updates,
+      updatedAt: new Date()
+    };
+    this.relationships.set(id, updated);
+    return updated;
+  }
+
+  async deleteRelationship(id: string): Promise<boolean> {
+    return this.relationships.delete(id);
+  }
+
+  async deleteRelationshipsBySource(sourceId: string): Promise<boolean> {
+    const relationshipsToDelete = Array.from(this.relationships.entries())
+      .filter(([_, rel]) => rel.sourceId === sourceId)
+      .map(([relId]) => relId);
+    
+    let deletedCount = 0;
+    for (const relId of relationshipsToDelete) {
+      if (this.relationships.delete(relId)) {
+        deletedCount++;
+      }
+    }
+    
+    return deletedCount > 0;
+  }
+
+  async deleteRelationshipsByTarget(targetId: string): Promise<boolean> {
+    const relationshipsToDelete = Array.from(this.relationships.entries())
+      .filter(([_, rel]) => rel.targetId === targetId)
+      .map(([relId]) => relId);
+    
+    let deletedCount = 0;
+    for (const relId of relationshipsToDelete) {
+      if (this.relationships.delete(relId)) {
+        deletedCount++;
+      }
+    }
+    
+    return deletedCount > 0;
   }
 }
 

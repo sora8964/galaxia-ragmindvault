@@ -13,7 +13,7 @@ export const users = pgTable("users", {
 export const documents = pgTable("documents", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull(),
-  type: text("type", { enum: ["person", "document", "organization", "issue"] }).notNull(),
+  type: text("type", { enum: ["person", "document", "organization", "issue", "log"] }).notNull(),
   content: text("content").notNull().default(""),
   aliases: json("aliases").$type<string[]>().notNull().default([]),
   date: char("date", { length: 10 }), // YYYY-MM-DD format, nullable
@@ -73,6 +73,15 @@ export const chunks = pgTable("chunks", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+export const relationships = pgTable("relationships", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sourceId: varchar("source_id").notNull(),
+  targetId: varchar("target_id").notNull(),
+  relationshipType: text("relationship_type").notNull(), // e.g., "log_to_issue", "document_to_issue", etc.
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 // Schema definitions
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
@@ -118,13 +127,13 @@ export const insertDocumentSchema = createInsertSchema(documents)
     date: dateValidation.optional()
   })
   .refine((data) => {
-    // Only documents can have a date field
-    if (data.date !== null && data.date !== undefined && data.type !== "document") {
+    // Only documents and logs can have a date field
+    if (data.date !== null && data.date !== undefined && data.type !== "document" && data.type !== "log") {
       return false;
     }
     return true;
   }, {
-    message: "Only documents can have a date field",
+    message: "Only documents and logs can have a date field",
     path: ["date"]
   });
 
@@ -139,13 +148,13 @@ export const updateDocumentSchema = createInsertSchema(documents)
   })
   .partial()
   .refine((data) => {
-    // Only documents can have a date field
-    if (data.date !== null && data.date !== undefined && data.type !== undefined && data.type !== "document") {
+    // Only documents and logs can have a date field
+    if (data.date !== null && data.date !== undefined && data.type !== undefined && data.type !== "document" && data.type !== "log") {
       return false;
     }
     return true;
   }, {
-    message: "Only documents can have a date field",
+    message: "Only documents and logs can have a date field",
     path: ["date"]
   });
 
@@ -169,6 +178,14 @@ export const insertChunkSchema = createInsertSchema(chunks).omit({
 
 export const updateChunkSchema = insertChunkSchema.partial();
 
+export const insertRelationshipSchema = createInsertSchema(relationships).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const updateRelationshipSchema = insertRelationshipSchema.partial();
+
 // Types
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
@@ -187,6 +204,10 @@ export type InsertChunk = z.infer<typeof insertChunkSchema>;
 export type UpdateChunk = z.infer<typeof updateChunkSchema>;
 export type Chunk = typeof chunks.$inferSelect;
 
+export type InsertRelationship = z.infer<typeof insertRelationshipSchema>;
+export type UpdateRelationship = z.infer<typeof updateRelationshipSchema>;
+export type Relationship = typeof relationships.$inferSelect;
+
 // API Response types
 export interface SearchResult {
   documents: Document[];
@@ -196,7 +217,7 @@ export interface SearchResult {
 export interface MentionItem {
   id: string;
   name: string;
-  type: "person" | "document" | "organization" | "issue";
+  type: "person" | "document" | "organization" | "issue" | "log";
   aliases: string[];
 }
 
@@ -210,7 +231,7 @@ export interface ParsedMention {
   start: number;
   end: number;
   raw: string;
-  type: "person" | "document" | "organization" | "issue";
+  type: "person" | "document" | "organization" | "issue" | "log";
   name: string;
   alias?: string;
   documentId?: string;
