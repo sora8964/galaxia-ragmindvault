@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { Send, Bot, User, Sparkles, Brain, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -26,7 +26,9 @@ interface ChatInterfaceProps {
 }
 
 export function ChatInterface({ conversationId }: ChatInterfaceProps) {
-  const [messages, setMessages] = useState<StreamMessage[]>([]);
+  // Separate state for local messages and database messages
+  const [localMessages, setLocalMessages] = useState<StreamMessage[]>([]);
+  const [databaseMessages, setDatabaseMessages] = useState<StreamMessage[]>([]);
   const [input, setInput] = useState('');
   const [contextDocumentIds, setContextDocumentIds] = useState<string[]>([]);
   const [mentionPosition, setMentionPosition] = useState<{ x: number; y: number } | null>(null);
@@ -42,6 +44,30 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
 
   // Debug logging
   console.log('ChatInterface props:', { conversationId, currentConversationId });
+
+  // Smart merge function to combine database messages with local messages
+  const mergeMessages = (dbMessages: StreamMessage[], localMsgs: StreamMessage[]): StreamMessage[] => {
+    // Create a map of database messages by ID for quick lookup
+    const dbMessageMap = new Map(dbMessages.map(msg => [msg.id, msg]));
+    
+    // Create a combined list starting with database messages
+    const merged: StreamMessage[] = [...dbMessages];
+    
+    // Add local messages that are not yet in the database
+    localMsgs.forEach(localMsg => {
+      if (!dbMessageMap.has(localMsg.id)) {
+        merged.push(localMsg);
+      }
+    });
+    
+    // Sort by timestamp to maintain correct order
+    return merged.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+  };
+
+  // Compute the final messages to display
+  const messages = useMemo(() => {
+    return mergeMessages(databaseMessages, localMessages);
+  }, [databaseMessages, localMessages]);
 
   // Create new conversation mutation
   const createConversationMutation = useMutation({
@@ -79,7 +105,7 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
     enabled: !!currentConversationId,
   });
 
-  // Convert database messages to stream messages
+  // Convert database messages to stream messages without overriding local state
   useEffect(() => {
     if (conversationMessages.length > 0) {
       const formattedMessages: StreamMessage[] = conversationMessages.map((msg: DbMessage) => ({
@@ -91,17 +117,17 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
         functionCalls: msg.functionCalls,
         isStreaming: false,
       }));
-      setMessages(formattedMessages);
-    } else if (currentConversationId && messages.length === 0) {
+      setDatabaseMessages(formattedMessages);
+    } else if (currentConversationId && databaseMessages.length === 0 && localMessages.length === 0) {
       // Add welcome message for new conversations only if no messages exist
-      setMessages([{
+      setDatabaseMessages([{
         id: 'welcome',
         content: '你好！我是AI Context Manager。我可以幫助你管理文件、處理PDF並進行智能對話。你可以使用@提及功能來引用你的文件。',
         role: 'assistant',
         timestamp: new Date(),
       }]);
     }
-  }, [conversationMessages, currentConversationId, messages.length]);
+  }, [conversationMessages, currentConversationId, databaseMessages.length, localMessages.length]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -206,7 +232,8 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
       timestamp: new Date(),
     };
 
-    setMessages(prev => [...prev, userMessage]);
+    // Immediately add user message to local messages for instant display
+    setLocalMessages(prev => [...prev, userMessage]);
     const messageContent = input;
     const currentContextIds = [...contextDocumentIds];
     setInput('');
@@ -226,7 +253,7 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
       const assistantMessageId = `assistant-${Date.now()}`;
       setStreamingMessageId(assistantMessageId);
 
-      // Add empty assistant message for streaming
+      // Add empty assistant message for streaming to local messages
       const assistantMessage: StreamMessage = {
         id: assistantMessageId,
         content: '',
@@ -234,10 +261,11 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
         timestamp: new Date(),
         isStreaming: true,
       };
-      setMessages(prev => [...prev, assistantMessage]);
+      setLocalMessages(prev => [...prev, assistantMessage]);
 
-      // Prepare messages for AI
-      const chatMessages = [...messages, userMessage].map(msg => ({
+      // Prepare messages for AI - combine all messages for context
+      const allMessages = mergeMessages(databaseMessages, [...localMessages, userMessage]);
+      const chatMessages = allMessages.map(msg => ({
         role: msg.role,
         content: msg.content
       }));
@@ -288,22 +316,22 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
                 const data = JSON.parse(line.slice(6));
                 
                 if (data.type === 'token') {
-                  // Update streaming message content
-                  setMessages(prev => prev.map(msg => 
+                  // Update streaming message content in local messages
+                  setLocalMessages(prev => prev.map(msg => 
                     msg.id === assistantMessageId 
                       ? { ...msg, content: msg.content + data.content }
                       : msg
                   ));
                 } else if (data.type === 'thinking') {
-                  // Update thinking content
-                  setMessages(prev => prev.map(msg => 
+                  // Update thinking content in local messages
+                  setLocalMessages(prev => prev.map(msg => 
                     msg.id === assistantMessageId 
                       ? { ...msg, thinking: data.content }
                       : msg
                   ));
                 } else if (data.type === 'function_call') {
-                  // Add function call
-                  setMessages(prev => prev.map(msg => 
+                  // Add function call to local messages
+                  setLocalMessages(prev => prev.map(msg => 
                     msg.id === assistantMessageId 
                       ? { 
                           ...msg, 
@@ -312,8 +340,8 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
                       : msg
                   ));
                 } else if (data.type === 'complete') {
-                  // Mark as complete
-                  setMessages(prev => prev.map(msg => 
+                  // Mark as complete in local messages
+                  setLocalMessages(prev => prev.map(msg => 
                     msg.id === assistantMessageId 
                       ? { ...msg, isStreaming: false }
                       : msg
@@ -321,6 +349,12 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
                   setIsStreaming(false);
                   setStreamingMessageId(null);
                   abortControllerRef.current = null;
+                  
+                  // Clear local messages after successful completion
+                  // The database will be updated and the messages will reload from there
+                  setTimeout(() => {
+                    setLocalMessages([]);
+                  }, 100);
                   
                   // Invalidate conversation messages and conversations list
                   queryClient.invalidateQueries({ 
@@ -350,9 +384,9 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
         abortControllerRef.current = null;
       }
       
-      // Remove the empty assistant message on error
+      // Remove the empty assistant message on error from local messages
       if (streamingMessageId) {
-        setMessages(prev => prev.filter(msg => msg.id !== streamingMessageId));
+        setLocalMessages(prev => prev.filter(msg => msg.id !== streamingMessageId));
       }
       
       toast({
@@ -432,7 +466,21 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
                   <div className="text-sm whitespace-pre-wrap">
                     {message.content}
                     {message.isStreaming && (
-                      <span className="inline-block w-2 h-4 bg-current animate-pulse ml-1">|</span>
+                      <>
+                        {!message.content && (
+                          <div className="flex items-center gap-1 text-muted-foreground">
+                            <div className="flex space-x-1">
+                              <div className="w-2 h-2 bg-current rounded-full animate-bounce [animation-delay:-0.3s]"></div>
+                              <div className="w-2 h-2 bg-current rounded-full animate-bounce [animation-delay:-0.15s]"></div>
+                              <div className="w-2 h-2 bg-current rounded-full animate-bounce"></div>
+                            </div>
+                            <span className="text-xs ml-2">思考中...</span>
+                          </div>
+                        )}
+                        {message.content && (
+                          <span className="inline-block w-0.5 h-4 bg-current animate-pulse ml-1"></span>
+                        )}
+                      </>
                     )}
                   </div>
                   <div className="text-xs opacity-70 mt-2">
