@@ -23,7 +23,7 @@ interface BaseItemForm {
 }
 
 interface BaseItemManagerProps {
-  itemType: "document" | "person" | "organization" | "issue";
+  itemType: "document" | "person" | "organization" | "issue" | "log";
   title: string;
   description: string;
   apiEndpoint: string;
@@ -101,14 +101,14 @@ export function BaseItemManager({
       setIsCreating(false);
       setNewItemForm({ name: "", content: "", aliases: [], date: null });
       toast({
-        title: `${itemType === "document" ? "文件" : itemType === "person" ? "人員" : itemType === "organization" ? "組織" : "議題"}已創建`,
-        description: `新${itemType === "document" ? "文件" : itemType === "person" ? "人員" : itemType === "organization" ? "組織" : "議題"}已成功創建並正在生成 embedding`
+        title: `${itemType === "document" ? "文件" : itemType === "person" ? "人員" : itemType === "organization" ? "組織" : itemType === "issue" ? "議題" : "日誌"}已創建`,
+        description: `新${itemType === "document" ? "文件" : itemType === "person" ? "人員" : itemType === "organization" ? "組織" : itemType === "issue" ? "議題" : "日誌"}已成功創建並正在生成 embedding`
       });
     },
     onError: () => {
       toast({
         title: "創建失敗",
-        description: `無法創建${itemType === "document" ? "文件" : itemType === "person" ? "人員" : itemType === "organization" ? "組織" : "議題"}，請重試`,
+        description: `無法創建${itemType === "document" ? "文件" : itemType === "person" ? "人員" : itemType === "organization" ? "組織" : itemType === "issue" ? "議題" : "日誌"}，請重試`,
         variant: "destructive"
       });
     }
@@ -126,7 +126,7 @@ export function BaseItemManager({
     if (onItemClick) {
       onItemClick(item);
     } else {
-      const routePath = itemType === "document" ? "/documents" : "/people";
+      const routePath = itemType === "document" ? "/documents" : itemType === "person" ? "/people" : itemType === "organization" ? "/organizations" : itemType === "issue" ? "/issues" : "/logs";
       setLocation(`${routePath}/${item.id}`);
     }
   };
@@ -167,7 +167,8 @@ export function BaseItemManager({
                     <Label htmlFor="item-name">
                       {itemType === "document" ? "文件名稱" : 
                        itemType === "person" ? "人員姓名" : 
-                       itemType === "organization" ? "組織名稱" : "議題名稱"}
+                       itemType === "organization" ? "組織名稱" : 
+                       itemType === "issue" ? "議題名稱" : "日誌名稱"}
                     </Label>
                     <Input
                       id="item-name"
@@ -175,7 +176,8 @@ export function BaseItemManager({
                       onChange={(e) => setNewItemForm(prev => ({ ...prev, name: e.target.value }))}
                       placeholder={itemType === "document" ? "輸入文件名稱" : 
                                   itemType === "person" ? "輸入人員姓名" : 
-                                  itemType === "organization" ? "輸入組織名稱" : "輸入議題名稱"}
+                                  itemType === "organization" ? "輸入組織名稱" : 
+                                  itemType === "issue" ? "輸入議題名稱" : "輸入日誌名稱"}
                       data-testid={`input-${itemType}-name`}
                     />
                   </div>
@@ -183,7 +185,8 @@ export function BaseItemManager({
                     <Label htmlFor="item-content">
                       {itemType === "document" ? "文件內容" : 
                        itemType === "person" ? "人員描述" : 
-                       itemType === "organization" ? "組織描述" : "議題內容"}
+                       itemType === "organization" ? "組織描述" : 
+                       itemType === "issue" ? "議題內容" : "日誌內容"}
                     </Label>
                     <div className="relative">
                       <Textarea
@@ -193,7 +196,8 @@ export function BaseItemManager({
                         placeholder={itemType === "document" ? "輸入文件內容，可以使用 @ 來引用其他文件或人員" : 
                                     itemType === "person" ? "輸入人員描述，可以使用 @ 來引用其他文件或人員" : 
                                     itemType === "organization" ? "輸入組織描述，可以使用 @ 來引用其他文件或人員" : 
-                                    "輸入議題內容，可以使用 @ 來引用其他文件或人員"}
+                                    itemType === "issue" ? "輸入議題內容，可以使用 @ 來引用其他文件或人員" : 
+                                    "輸入日誌內容，可以使用 @ 來引用其他文件或人員"}
                         className="min-h-32"
                         data-testid={`textarea-${itemType}-content`}
                       />
@@ -203,7 +207,7 @@ export function BaseItemManager({
                       />
                     </div>
                   </div>
-                  {itemType === "document" && (
+                  {(itemType === "document" || itemType === "log") && (
                     <div>
                       <Label htmlFor="item-date">日期</Label>
                       <Input
@@ -212,7 +216,7 @@ export function BaseItemManager({
                         value={newItemForm.date || ""}
                         onChange={(e) => setNewItemForm(prev => ({ ...prev, date: e.target.value || null }))}
                         placeholder="YYYY-MM-DD"
-                        data-testid="input-document-date"
+                        data-testid={`input-${itemType}-date`}
                       />
                     </div>
                   )}
@@ -232,7 +236,8 @@ export function BaseItemManager({
                       {createItemMutation.isPending ? "創建中..." : 
                        `創建${itemType === "document" ? "文件" : 
                                itemType === "person" ? "人員" : 
-                               itemType === "organization" ? "組織" : "議題"}`}
+                               itemType === "organization" ? "組織" : 
+                               itemType === "issue" ? "議題" : "日誌"}`}
                     </Button>
                   </div>
                 </div>
@@ -248,7 +253,8 @@ export function BaseItemManager({
             <Input
               placeholder={`搜索${itemType === "document" ? "文件" : 
                                         itemType === "person" ? "人員" : 
-                                        itemType === "organization" ? "組織" : "議題"}...`}
+                                        itemType === "organization" ? "組織" : 
+                                        itemType === "issue" ? "議題" : "日誌"}...`}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-10"
@@ -278,7 +284,8 @@ export function BaseItemManager({
             <h3 className="text-lg font-medium mb-2">
               {searchQuery ? `找不到相關${itemType === "document" ? "文件" : 
                                                       itemType === "person" ? "人員" : 
-                                                      itemType === "organization" ? "組織" : "議題"}` : emptyStateTitle}
+                                                      itemType === "organization" ? "組織" : 
+                                                      itemType === "issue" ? "議題" : "日誌"}` : emptyStateTitle}
             </h3>
             <p className="text-muted-foreground mb-4">
               {searchQuery ? "嘗試調整搜索條件" : emptyStateDescription}
@@ -315,7 +322,7 @@ export function BaseItemManager({
                     </div>
                   </div>
                   <CardDescription className="flex items-center gap-2 text-xs">
-                    {item.type === "document" && item.date ? (
+                    {(item.type === "document" || item.type === "log") && item.date ? (
                       <>
                         <Calendar className="w-3 h-3" />
                         {item.date}

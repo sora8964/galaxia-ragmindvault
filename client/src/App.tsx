@@ -14,6 +14,7 @@ import { DocumentDetail } from "./pages/document-detail";
 import { PeopleList } from "./pages/people-list";
 import { OrganizationsList } from "./pages/organizations-list";
 import { IssuesList } from "./pages/issues-list";
+import { LogsList } from "./pages/logs-list";
 import { Settings } from "./components/Settings";
 import NotFound from "@/pages/not-found";
 import { useState } from "react";
@@ -54,6 +55,10 @@ function IssuesPage() {
   return <IssuesList />;
 }
 
+function LogsPage() {
+  return <LogsList />;
+}
+
 function SettingsPage() {
   return <Settings />;
 }
@@ -72,6 +77,8 @@ function Router() {
       <Route path="/organizations/:id" component={DocumentDetail} />
       <Route path="/issues" component={IssuesPage} />
       <Route path="/issues/:id" component={DocumentDetail} />
+      <Route path="/logs" component={LogsPage} />
+      <Route path="/logs/:id" component={DocumentDetail} />
       <Route path="/settings" component={SettingsPage} />
       <Route component={NotFound} />
     </Switch>

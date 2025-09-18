@@ -1,4 +1,4 @@
-import { FileText, MessageSquare, Settings, Plus, Trash2, MoreHorizontal, User, Building, AlertTriangle } from "lucide-react";
+import { FileText, MessageSquare, Settings, Plus, Trash2, MoreHorizontal, User, Building, AlertTriangle, Clock } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -200,6 +200,14 @@ export function AppSidebar() {
                   <Link href="/issues">
                     <AlertTriangle className="h-4 w-4" />
                     <span>議題</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild data-testid="link-logs">
+                  <Link href="/logs">
+                    <Clock className="h-4 w-4" />
+                    <span>日誌</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
