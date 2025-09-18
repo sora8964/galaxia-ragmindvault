@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage, type RelationshipFilters } from "./storage";
-import { insertDocumentSchema, updateDocumentSchema, insertConversationSchema, insertMessageSchema, parseMentionsSchema, updateAppConfigSchema, insertRelationshipSchema, updateRelationshipSchema, DocumentType } from "@shared/schema";
+import { insertDocumentSchema, updateDocumentSchema, insertConversationSchema, insertMessageSchema, updateMessageSchema, parseMentionsSchema, updateAppConfigSchema, insertRelationshipSchema, updateRelationshipSchema, DocumentType } from "@shared/schema";
 import { chatWithGemini, extractTextFromPDF, extractTextFromWord, generateTextEmbedding } from "./gemini-simple";
 import { chatWithGeminiFunctions } from "./gemini-functions";
 import { embeddingService } from "./embedding-service";
@@ -259,6 +259,75 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!success) {
         return res.status(404).json({ error: "Message not found" });
       }
+      res.status(204).send();
+    } catch (error) {
+      console.error('Error deleting message:', error);
+      res.status(500).json({ error: "Failed to delete message" });
+    }
+  });
+
+  // Message editing endpoint with conversation context
+  app.patch("/api/conversations/:conversationId/messages/:messageId", async (req, res) => {
+    try {
+      // Validate that the message belongs to the specified conversation
+      const messages = await storage.getMessagesByConversation(req.params.conversationId);
+      const messageExists = messages.some(msg => msg.id === req.params.messageId);
+      
+      if (!messageExists) {
+        return res.status(404).json({ error: "Message not found in this conversation" });
+      }
+      
+      // Parse mentions from content if it's being updated
+      let contextDocuments = req.body.contextDocuments || [];
+      if (req.body.content) {
+        const mentions = await storage.parseMentions(req.body.content);
+        const resolvedDocuments = await storage.resolveMentionDocuments(mentions);
+        contextDocuments = [...contextDocuments, ...resolvedDocuments];
+      }
+      
+      const validatedData = updateMessageSchema.parse({
+        ...req.body,
+        contextDocuments
+      });
+      
+      const updatedMessage = await storage.updateMessage(req.params.messageId, validatedData);
+      if (!updatedMessage) {
+        return res.status(404).json({ error: "Message not found" });
+      }
+      
+      res.json(updatedMessage);
+    } catch (error) {
+      console.error('Error updating message:', error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid message data", details: error.errors });
+      }
+      res.status(500).json({ error: "Failed to update message" });
+    }
+  });
+
+  // Message deletion endpoint with conversation context and cascading delete
+  app.delete("/api/conversations/:conversationId/messages/:messageId", async (req, res) => {
+    try {
+      // Validate that the message belongs to the specified conversation
+      const messages = await storage.getMessagesByConversation(req.params.conversationId);
+      const messageExists = messages.some(msg => msg.id === req.params.messageId);
+      
+      if (!messageExists) {
+        return res.status(404).json({ error: "Message not found in this conversation" });
+      }
+      
+      // Check if conversation exists
+      const conversation = await storage.getConversation(req.params.conversationId);
+      if (!conversation) {
+        return res.status(404).json({ error: "Conversation not found" });
+      }
+      
+      // Delete with cascading logic (always true to ensure subsequent messages are deleted)
+      const success = await storage.deleteMessage(req.params.messageId, true);
+      if (!success) {
+        return res.status(404).json({ error: "Message not found" });
+      }
+      
       res.status(204).send();
     } catch (error) {
       console.error('Error deleting message:', error);

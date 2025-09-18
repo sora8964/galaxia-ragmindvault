@@ -185,6 +185,8 @@ export const insertMessageSchema = createInsertSchema(messages).omit({
   updatedAt: true,
 });
 
+export const updateMessageSchema = insertMessageSchema.partial();
+
 export const insertChunkSchema = createInsertSchema(chunks).omit({
   id: true,
   createdAt: true,
@@ -234,6 +236,7 @@ export type InsertConversation = z.infer<typeof insertConversationSchema>;
 export type Conversation = typeof conversations.$inferSelect;
 
 export type InsertMessage = z.infer<typeof insertMessageSchema>;
+export type UpdateMessage = z.infer<typeof updateMessageSchema>;
 export type Message = typeof messages.$inferSelect;
 
 export type InsertChunk = z.infer<typeof insertChunkSchema>;

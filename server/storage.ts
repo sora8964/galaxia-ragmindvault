@@ -8,6 +8,7 @@ import {
   type InsertConversation,
   type Message,
   type InsertMessage,
+  type UpdateMessage,
   type Chunk,
   type InsertChunk,
   type UpdateChunk,
@@ -80,7 +81,8 @@ export interface IStorage {
   // Message operations
   getMessagesByConversation(conversationId: string): Promise<Message[]>;
   createMessage(message: InsertMessage): Promise<Message>;
-  deleteMessage(id: string): Promise<boolean>;
+  updateMessage(id: string, updates: UpdateMessage): Promise<Message | undefined>;
+  deleteMessage(id: string, cascadeDelete?: boolean): Promise<boolean>;
   
   // Relationship operations
   getRelationship(id: string): Promise<Relationship | undefined>;
@@ -472,8 +474,74 @@ export class MemStorage implements IStorage {
     return message;
   }
 
-  async deleteMessage(id: string): Promise<boolean> {
-    return this.messages.delete(id);
+  async updateMessage(id: string, updates: UpdateMessage): Promise<Message | undefined> {
+    const existing = this.messages.get(id);
+    if (!existing) return undefined;
+
+    const updated: Message = {
+      ...existing,
+      ...updates,
+      // Ensure contextDocuments is properly typed as string[]
+      contextDocuments: updates.contextDocuments ? (updates.contextDocuments as string[]) : existing.contextDocuments,
+      // Ensure other JSON fields are properly typed
+      functionCalls: updates.functionCalls ? (updates.functionCalls as Array<{name: string; arguments: any; result?: any}>) : existing.functionCalls,
+      contextMetadata: updates.contextMetadata ? (updates.contextMetadata as {
+        mentionedPersons?: Array<{ id: string; name: string; alias?: string }>;
+        mentionedDocuments?: Array<{ id: string; name: string; alias?: string }>;
+        originalPrompt?: string;
+      }) : existing.contextMetadata,
+      id, // Ensure ID cannot be changed
+      createdAt: existing.createdAt, // Preserve original creation time
+      updatedAt: new Date()
+    };
+
+    this.messages.set(id, updated);
+    
+    // Update conversation timestamp
+    const conversation = this.conversations.get(updated.conversationId);
+    if (conversation) {
+      this.conversations.set(updated.conversationId, {
+        ...conversation,
+        updatedAt: new Date()
+      });
+    }
+    
+    // If this is a user message being edited, delete all subsequent messages in the conversation
+    // since AI responses would need to be regenerated based on the new content
+    if (existing.role === "user") {
+      await this.deleteSubsequentMessages(existing.conversationId, existing.createdAt);
+    }
+    
+    return updated;
+  }
+
+  async deleteMessage(id: string, cascadeDelete: boolean = false): Promise<boolean> {
+    const message = this.messages.get(id);
+    if (!message) return false;
+    
+    // Delete the message
+    const deleted = this.messages.delete(id);
+    
+    // If cascadeDelete is true or this is a user message, delete subsequent messages
+    if (deleted && (cascadeDelete || message.role === "user")) {
+      await this.deleteSubsequentMessages(message.conversationId, message.createdAt);
+    }
+    
+    return deleted;
+  }
+  
+  // Helper method to delete messages that come after a specific timestamp in a conversation
+  private async deleteSubsequentMessages(conversationId: string, afterTimestamp: Date): Promise<void> {
+    const conversationMessages = Array.from(this.messages.entries())
+      .filter(([_, message]) => 
+        message.conversationId === conversationId && 
+        new Date(message.createdAt).getTime() > new Date(afterTimestamp).getTime()
+      )
+      .map(([messageId]) => messageId);
+    
+    conversationMessages.forEach(messageId => {
+      this.messages.delete(messageId);
+    });
   }
 
   // Mention parsing operations
