@@ -1,4 +1,4 @@
-import { FileText, MessageSquare, Settings, Plus, Trash2, MoreHorizontal, User, Building, AlertTriangle, Clock } from "lucide-react";
+import { FileText, MessageSquare, Settings, Plus, Trash2, MoreHorizontal, User, Building, AlertTriangle, Clock, Edit2 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -20,12 +20,26 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
+import { useState } from "react";
 import type { Conversation } from "@shared/schema";
 
 export function AppSidebar() {
   const [location, navigate] = useLocation();
   const { toast } = useToast();
+  const [isRenameDialogOpen, setIsRenameDialogOpen] = useState(false);
+  const [editingConversation, setEditingConversation] = useState<{id: string, title: string} | null>(null);
+  const [newTitle, setNewTitle] = useState("");
   
   // Fetch conversations
   const { data: conversations = [], isLoading } = useQuery<Conversation[]>({
@@ -46,6 +60,29 @@ export function AppSidebar() {
       toast({
         title: "錯誤",
         description: "無法創建新對話",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Rename conversation
+  const renameConversationMutation = useMutation({
+    mutationFn: ({ id, title }: { id: string; title: string }) => 
+      apiRequest("PUT", `/api/conversations/${id}`, { title }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
+      setIsRenameDialogOpen(false);
+      setEditingConversation(null);
+      setNewTitle("");
+      toast({
+        title: "成功",
+        description: "對話已重命名",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "錯誤",
+        description: "無法重命名對話",
         variant: "destructive",
       });
     },
@@ -78,10 +115,33 @@ export function AppSidebar() {
     createConversationMutation.mutate();
   };
 
+  const handleRenameConversation = (conversation: { id: string; title: string }, event: React.MouseEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setEditingConversation(conversation);
+    setNewTitle(conversation.title);
+    setIsRenameDialogOpen(true);
+  };
+
   const handleDeleteConversation = (conversationId: string, event: React.MouseEvent) => {
     event.preventDefault();
     event.stopPropagation();
     deleteConversationMutation.mutate(conversationId);
+  };
+
+  const handleConfirmRename = () => {
+    if (editingConversation && newTitle.trim()) {
+      renameConversationMutation.mutate({
+        id: editingConversation.id,
+        title: newTitle.trim(),
+      });
+    }
+  };
+
+  const handleCancelRename = () => {
+    setIsRenameDialogOpen(false);
+    setEditingConversation(null);
+    setNewTitle("");
   };
 
   // Get current conversation ID from URL
@@ -148,6 +208,13 @@ export function AppSidebar() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onClick={(e) => handleRenameConversation(conversation, e)}
+                            data-testid={`button-rename-conversation-${conversation.id}`}
+                          >
+                            <Edit2 className="h-4 w-4 mr-2" />
+                            重命名
+                          </DropdownMenuItem>
                           <DropdownMenuItem
                             onClick={(e) => handleDeleteConversation(conversation.id, e)}
                             className="text-destructive"
@@ -223,6 +290,59 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
+      
+      {/* Rename Dialog */}
+      <Dialog open={isRenameDialogOpen} onOpenChange={setIsRenameDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>重命名對話</DialogTitle>
+            <DialogDescription>
+              為對話輸入新的標題
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="title" className="text-right">
+                標題
+              </Label>
+              <Input
+                id="title"
+                value={newTitle}
+                onChange={(e) => setNewTitle(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleConfirmRename();
+                  }
+                  if (e.key === 'Escape') {
+                    handleCancelRename();
+                  }
+                }}
+                className="col-span-3"
+                placeholder="輸入對話標題"
+                data-testid="input-conversation-title"
+                autoFocus
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={handleCancelRename}
+              data-testid="button-cancel-rename"
+            >
+              取消
+            </Button>
+            <Button
+              onClick={handleConfirmRename}
+              disabled={!newTitle.trim() || renameConversationMutation.isPending}
+              data-testid="button-confirm-rename"
+            >
+              {renameConversationMutation.isPending ? "重命名中..." : "確認"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Sidebar>
   );
 }
