@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from "react";
-import { Send, Bot, User, Sparkles, Brain, Settings, MoreVertical, Edit, Trash2, Check, X } from "lucide-react";
+import { Send, Bot, User, Sparkles, Brain, Settings, MoreVertical, Edit, Trash2, Check, X, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -10,6 +10,16 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { MentionSearch } from "./MentionSearch";
 import { ContextIndicator } from "./ContextIndicator";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -47,6 +57,7 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editedContent, setEditedContent] = useState<string>('');
+  const [deleteConfirmMessageId, setDeleteConfirmMessageId] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const editTextareaRef = useRef<HTMLTextAreaElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -115,6 +126,41 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
       toast({
         title: '錯誤',
         description: '建立對話失敗，請再試一次',
+        variant: 'destructive'
+      });
+    }
+  });
+
+  // Delete message mutation
+  const deleteMessageMutation = useMutation({
+    mutationFn: async (messageId: string) => {
+      if (!currentConversationId) {
+        throw new Error('No conversation ID available');
+      }
+      return apiRequest('DELETE', `/api/conversations/${currentConversationId}/messages/${messageId}`);
+    },
+    onSuccess: () => {
+      // Close confirmation dialog and menu
+      setDeleteConfirmMessageId(null);
+      setOpenMenuId(null);
+      
+      // Invalidate and refetch messages
+      queryClient.invalidateQueries({ 
+        queryKey: ['/api/conversations', currentConversationId, 'messages'] 
+      });
+      // 新增：刷新對話列表
+      queryClient.invalidateQueries({ queryKey: ['/api/conversations'] });
+      
+      toast({
+        title: '成功',
+        description: '消息已刪除',
+      });
+    },
+    onError: (error) => {
+      console.error('Failed to delete message:', error);
+      toast({
+        title: '錯誤',
+        description: '刪除消息失敗，請再試一次',
         variant: 'destructive'
       });
     }
@@ -505,8 +551,39 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
   };
 
   const handleDeleteMessage = (messageId: string) => {
-    // TODO: Implement delete functionality
+    // 防禦性檢查
+    if (!persistedMessageIds.has(messageId)) {
+      console.warn('Attempted to delete non-persisted message:', messageId);
+      return;
+    }
+    
+    // Find the message to check if it can be deleted
+    const messageToDelete = messages.find(msg => msg.id === messageId);
+    if (!messageToDelete) return;
+    
+    // Don't allow deleting streaming messages
+    if (messageToDelete.isStreaming) {
+      toast({
+        title: '無法刪除',
+        description: '無法刪除正在接收的消息',
+        variant: 'destructive'
+      });
+      return;
+    }
+    
+    // Show confirmation dialog
+    setDeleteConfirmMessageId(messageId);
     setOpenMenuId(null);
+  };
+
+  const confirmDelete = () => {
+    if (deleteConfirmMessageId) {
+      deleteMessageMutation.mutate(deleteConfirmMessageId);
+    }
+  };
+
+  const cancelDelete = () => {
+    setDeleteConfirmMessageId(null);
   };
 
   return (
@@ -710,6 +787,48 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
         
         <div ref={messagesEndRef} />
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={!!deleteConfirmMessageId} onOpenChange={(open) => !open && cancelDelete()}>
+        <AlertDialogContent data-testid="dialog-delete-message-confirm">
+          <AlertDialogHeader>
+            <AlertDialogTitle>確認刪除消息</AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              <p>您確定要刪除這條消息嗎？這個動作無法撤回。</p>
+              {(() => {
+                const messageToDelete = deleteConfirmMessageId ? messages.find(msg => msg.id === deleteConfirmMessageId) : null;
+                const shouldShowCascadeWarning = messageToDelete?.role === 'user';
+                if (shouldShowCascadeWarning) {
+                  return (
+                    <p className="text-amber-600 dark:text-amber-400 font-medium">
+                      ⚠️ 刪除用戶消息將會同時刪除後續的AI回應，因為它們需要重新生成。
+                    </p>
+                  );
+                }
+                return null;
+              })()}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel 
+              onClick={cancelDelete}
+              disabled={deleteMessageMutation.isPending}
+              data-testid="button-cancel-delete"
+            >
+              取消
+            </AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={confirmDelete}
+              disabled={deleteMessageMutation.isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              data-testid="button-confirm-delete"
+            >
+              {deleteMessageMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              {deleteMessageMutation.isPending ? '刪除中...' : '確認刪除'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Input Area */}
       <div className="border-t p-4">
