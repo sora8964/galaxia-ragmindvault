@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertDocumentSchema, updateDocumentSchema, insertConversationSchema, insertMessageSchema, parseMentionsSchema, updateAppConfigSchema } from "@shared/schema";
+import { insertDocumentSchema, updateDocumentSchema, insertConversationSchema, insertMessageSchema, parseMentionsSchema, updateAppConfigSchema, insertRelationshipSchema, updateRelationshipSchema } from "@shared/schema";
 import { chatWithGemini, extractTextFromPDF, extractTextFromWord, generateTextEmbedding } from "./gemini-simple";
 import { chatWithGeminiFunctions } from "./gemini-functions";
 import { embeddingService } from "./embedding-service";
@@ -562,6 +562,178 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Embedding status error:', error);
       res.status(500).json({ error: "Failed to get embedding status" });
+    }
+  });
+
+  // Relationship API endpoints
+  app.get("/api/relationships/:sourceId", async (req, res) => {
+    try {
+      const { sourceId } = req.params;
+      const relationships = await storage.getRelationshipsBySource(sourceId);
+      res.json(relationships);
+    } catch (error) {
+      console.error('Error fetching relationships:', error);
+      res.status(500).json({ error: "Failed to fetch relationships" });
+    }
+  });
+
+  app.post("/api/relationships", async (req, res) => {
+    try {
+      const validatedData = insertRelationshipSchema.parse(req.body);
+      const relationship = await storage.createRelationship(validatedData);
+      res.status(201).json(relationship);
+    } catch (error) {
+      console.error('Error creating relationship:', error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid relationship data", details: error.errors });
+      }
+      res.status(500).json({ error: "Failed to create relationship" });
+    }
+  });
+
+  app.delete("/api/relationships/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const success = await storage.deleteRelationship(id);
+      if (!success) {
+        return res.status(404).json({ error: "Relationship not found" });
+      }
+      res.status(204).send();
+    } catch (error) {
+      console.error('Error deleting relationship:', error);
+      res.status(500).json({ error: "Failed to delete relationship" });
+    }
+  });
+
+  // Document-issue relationship endpoints
+  app.get("/api/documents/:id/related-issues", async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      // Verify document exists
+      const document = await storage.getDocument(id);
+      if (!document) {
+        return res.status(404).json({ error: "Document not found" });
+      }
+      
+      // Get relationships where this document is the source and target is an issue
+      const relationships = await storage.getRelationshipsBySourceAndType(id, `${document.type}_to_issue`);
+      
+      // Get the related issue documents
+      const relatedIssues = [];
+      for (const rel of relationships) {
+        const issue = await storage.getDocument(rel.targetId);
+        if (issue && issue.type === "issue") {
+          relatedIssues.push({
+            relationship: rel,
+            issue: issue
+          });
+        }
+      }
+      
+      res.json({
+        document,
+        relatedIssues,
+        total: relatedIssues.length
+      });
+    } catch (error) {
+      console.error('Error fetching related issues:', error);
+      res.status(500).json({ error: "Failed to fetch related issues" });
+    }
+  });
+
+  app.post("/api/documents/:id/relate-to-issue", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { issueId } = req.body;
+      
+      if (!issueId) {
+        return res.status(400).json({ error: "Issue ID is required" });
+      }
+      
+      // Verify both documents exist
+      const document = await storage.getDocument(id);
+      if (!document) {
+        return res.status(404).json({ error: "Document not found" });
+      }
+      
+      const issue = await storage.getDocument(issueId);
+      if (!issue) {
+        return res.status(404).json({ error: "Issue not found" });
+      }
+      
+      if (issue.type !== "issue") {
+        return res.status(400).json({ error: "Target document must be of type 'issue'" });
+      }
+      
+      // Only documents and logs can be related to issues
+      if (document.type !== "document" && document.type !== "log") {
+        return res.status(400).json({ error: "Only documents and logs can be related to issues" });
+      }
+      
+      // Check if relationship already exists
+      const existingRelationships = await storage.getRelationshipBetween(id, issueId);
+      const relationshipType = `${document.type}_to_issue`;
+      const existingRel = existingRelationships.find(rel => rel.relationshipType === relationshipType);
+      
+      if (existingRel) {
+        return res.status(409).json({ error: "Relationship already exists", relationship: existingRel });
+      }
+      
+      // Create the relationship
+      const relationship = await storage.createRelationship({
+        sourceId: id,
+        targetId: issueId,
+        relationshipType
+      });
+      
+      res.status(201).json({
+        relationship,
+        source: document,
+        target: issue
+      });
+    } catch (error) {
+      console.error('Error creating document-issue relationship:', error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid relationship data", details: error.errors });
+      }
+      res.status(500).json({ error: "Failed to create relationship" });
+    }
+  });
+
+  app.delete("/api/documents/:documentId/relationships/:issueId", async (req, res) => {
+    try {
+      const { documentId, issueId } = req.params;
+      
+      // Verify both documents exist
+      const document = await storage.getDocument(documentId);
+      if (!document) {
+        return res.status(404).json({ error: "Document not found" });
+      }
+      
+      const issue = await storage.getDocument(issueId);
+      if (!issue) {
+        return res.status(404).json({ error: "Issue not found" });
+      }
+      
+      // Find and delete the relationship
+      const relationships = await storage.getRelationshipBetween(documentId, issueId);
+      const relationshipType = `${document.type}_to_issue`;
+      const targetRel = relationships.find(rel => rel.relationshipType === relationshipType);
+      
+      if (!targetRel) {
+        return res.status(404).json({ error: "Relationship not found" });
+      }
+      
+      const success = await storage.deleteRelationship(targetRel.id);
+      if (!success) {
+        return res.status(500).json({ error: "Failed to delete relationship" });
+      }
+      
+      res.status(204).send();
+    } catch (error) {
+      console.error('Error deleting document-issue relationship:', error);
+      res.status(500).json({ error: "Failed to delete relationship" });
     }
   });
 

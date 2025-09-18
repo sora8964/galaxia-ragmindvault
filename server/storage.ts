@@ -74,11 +74,17 @@ export interface IStorage {
   getRelationshipsBySource(sourceId: string): Promise<Relationship[]>;
   getRelationshipsByTarget(targetId: string): Promise<Relationship[]>;
   getRelationshipsByType(relationshipType: string): Promise<Relationship[]>;
+  getRelationshipsBySourceAndType(sourceId: string, relationshipType: string): Promise<Relationship[]>;
+  getRelationshipsByTargetAndType(targetId: string, relationshipType: string): Promise<Relationship[]>;
+  getRelationshipBetween(sourceId: string, targetId: string): Promise<Relationship[]>;
   createRelationship(relationship: InsertRelationship): Promise<Relationship>;
+  createBulkRelationships(relationships: InsertRelationship[]): Promise<Relationship[]>;
   updateRelationship(id: string, updates: UpdateRelationship): Promise<Relationship | undefined>;
   deleteRelationship(id: string): Promise<boolean>;
   deleteRelationshipsBySource(sourceId: string): Promise<boolean>;
   deleteRelationshipsByTarget(targetId: string): Promise<boolean>;
+  deleteRelationshipsByType(relationshipType: string): Promise<boolean>;
+  cleanupRelationshipsForDocument(documentId: string): Promise<boolean>;
   
   // Settings operations
   getAppConfig(): Promise<AppConfig>;
@@ -191,6 +197,28 @@ export class MemStorage implements IStorage {
         content: "持續識別、評估和清理系統中的技術債務，包括過時的代碼庫、不安全的依賴項、效能瓶頸、代碼重複等問題。同時制定長期的系統架構優化計劃，確保技術架構能夠支撐業務的長期發展。這需要定期的代碼審查、效能監控和架構評估。",
         aliases: ["技術債務", "架構優化", "代碼重構", "系統升級", "效能優化"]
       },
+      // Log entries with different dates
+      {
+        name: "系統效能監控記錄 - 2025年1月",
+        type: "log" as const,
+        content: "2025年1月系統效能監控摘要：API回應時間平均250ms，CPU使用率維持在65%，記憶體使用率72%。發現資料庫查詢瓶頸，需要優化索引結構。用戶併發數峰值達到5,000人次。",
+        aliases: ["1月效能記錄", "效能監控1月", "系統監控紀錄"],
+        date: "2025-01-15"
+      },
+      {
+        name: "資安漏洞修復日誌 - 2025年2月",
+        type: "log" as const,
+        content: "發現並修復三個中等風險資安漏洞：SQL注入防護強化、XSS過濾機制更新、檔案上傳驗證加嚴。所有修復已通過安全測試並部署至生產環境。影響範圍：用戶登入模組、檔案管理系統。",
+        aliases: ["2月資安日誌", "漏洞修復記錄", "安全更新日誌"],
+        date: "2025-02-08"
+      },
+      {
+        name: "用戶反饋處理記錄 - 2025年3月",
+        type: "log" as const,
+        content: "本月處理用戶反饋126件，其中功能改善建議78件，錯誤回報32件，介面優化建議16件。重點改善項目：搜尋功能速度提升40%，報表匯出增加Excel格式支援，行動版介面適配優化。用戶滿意度評分從4.2提升至4.6。",
+        aliases: ["3月反饋記錄", "用戶意見處理", "客戶服務日誌"],
+        date: "2025-03-20"
+      }
     ];
     
     for (const doc of sampleDocs) {
@@ -746,6 +774,75 @@ export class MemStorage implements IStorage {
   async deleteRelationshipsByTarget(targetId: string): Promise<boolean> {
     const relationshipsToDelete = Array.from(this.relationships.entries())
       .filter(([_, rel]) => rel.targetId === targetId)
+      .map(([relId]) => relId);
+    
+    let deletedCount = 0;
+    for (const relId of relationshipsToDelete) {
+      if (this.relationships.delete(relId)) {
+        deletedCount++;
+      }
+    }
+    
+    return deletedCount > 0;
+  }
+
+  async getRelationshipsBySourceAndType(sourceId: string, relationshipType: string): Promise<Relationship[]> {
+    return Array.from(this.relationships.values())
+      .filter(rel => rel.sourceId === sourceId && rel.relationshipType === relationshipType)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }
+
+  async getRelationshipsByTargetAndType(targetId: string, relationshipType: string): Promise<Relationship[]> {
+    return Array.from(this.relationships.values())
+      .filter(rel => rel.targetId === targetId && rel.relationshipType === relationshipType)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }
+
+  async getRelationshipBetween(sourceId: string, targetId: string): Promise<Relationship[]> {
+    return Array.from(this.relationships.values())
+      .filter(rel => rel.sourceId === sourceId && rel.targetId === targetId)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }
+
+  async createBulkRelationships(insertRelationships: InsertRelationship[]): Promise<Relationship[]> {
+    const createdRelationships: Relationship[] = [];
+    
+    for (const insertRel of insertRelationships) {
+      // Check if relationship already exists to avoid duplicates
+      const existing = Array.from(this.relationships.values()).find(rel => 
+        rel.sourceId === insertRel.sourceId && 
+        rel.targetId === insertRel.targetId && 
+        rel.relationshipType === insertRel.relationshipType
+      );
+      
+      if (!existing) {
+        const relationship = await this.createRelationship(insertRel);
+        createdRelationships.push(relationship);
+      }
+    }
+    
+    return createdRelationships;
+  }
+
+  async deleteRelationshipsByType(relationshipType: string): Promise<boolean> {
+    const relationshipsToDelete = Array.from(this.relationships.entries())
+      .filter(([_, rel]) => rel.relationshipType === relationshipType)
+      .map(([relId]) => relId);
+    
+    let deletedCount = 0;
+    for (const relId of relationshipsToDelete) {
+      if (this.relationships.delete(relId)) {
+        deletedCount++;
+      }
+    }
+    
+    return deletedCount > 0;
+  }
+
+  async cleanupRelationshipsForDocument(documentId: string): Promise<boolean> {
+    // Delete all relationships where this document is either source or target
+    const relationshipsToDelete = Array.from(this.relationships.entries())
+      .filter(([_, rel]) => rel.sourceId === documentId || rel.targetId === documentId)
       .map(([relId]) => relId);
     
     let deletedCount = 0;
