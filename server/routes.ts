@@ -25,11 +25,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (search) {
         const result = await storage.searchDocuments(
           search as string, 
-          type as "person" | "document" | "organization" | "issue" | undefined
+          type as "person" | "document" | "organization" | "issue" | "log" | undefined
         );
         res.json(result);
       } else if (type) {
-        const documents = await storage.getDocumentsByType(type as "person" | "document" | "organization" | "issue");
+        const documents = await storage.getDocumentsByType(type as "person" | "document" | "organization" | "issue" | "log");
         res.json({ documents, total: documents.length });
       } else {
         const documents = await storage.getAllDocuments();
@@ -580,6 +580,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/relationships", async (req, res) => {
     try {
       const validatedData = insertRelationshipSchema.parse(req.body);
+      
+      // Check for duplicate relationships
+      const existingRelationships = await storage.getRelationshipBetween(
+        validatedData.sourceId, 
+        validatedData.targetId
+      );
+      
+      const duplicateRelationship = existingRelationships.find(
+        rel => rel.relationshipType === validatedData.relationshipType
+      );
+      
+      if (duplicateRelationship) {
+        return res.status(409).json({ 
+          error: "Relationship already exists",
+          existingRelationship: duplicateRelationship
+        });
+      }
+      
       const relationship = await storage.createRelationship(validatedData);
       res.status(201).json(relationship);
     } catch (error) {
