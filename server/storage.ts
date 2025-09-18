@@ -19,9 +19,22 @@ import {
   type ParsedMention,
   type AppConfig,
   type InsertAppConfig,
-  type UpdateAppConfig
+  type UpdateAppConfig,
+  type DocumentType
 } from "@shared/schema";
 import { randomUUID } from "crypto";
+
+// Universal relationship filter interface
+export interface RelationshipFilters {
+  sourceId?: string;
+  targetId?: string;
+  sourceType?: DocumentType;
+  targetType?: DocumentType;
+  relationKind?: string;
+  direction?: "out" | "in" | "both"; // out: sourceId matches, in: targetId matches, both: either
+  limit?: number;
+  offset?: number;
+}
 
 export interface IStorage {
   // User operations
@@ -71,11 +84,16 @@ export interface IStorage {
   
   // Relationship operations
   getRelationship(id: string): Promise<Relationship | undefined>;
+  // Universal relationship query method
+  findRelationships(filters: RelationshipFilters): Promise<{ relationships: Relationship[]; total: number }>;
   getRelationshipsBySource(sourceId: string): Promise<Relationship[]>;
   getRelationshipsByTarget(targetId: string): Promise<Relationship[]>;
   getRelationshipsByType(relationshipType: string): Promise<Relationship[]>;
+  getRelationshipsByKind(relationKind: string): Promise<Relationship[]>;
   getRelationshipsBySourceAndType(sourceId: string, relationshipType: string): Promise<Relationship[]>;
   getRelationshipsByTargetAndType(targetId: string, relationshipType: string): Promise<Relationship[]>;
+  getRelationshipsBySourceAndKind(sourceId: string, relationKind: string): Promise<Relationship[]>;
+  getRelationshipsByTargetAndKind(targetId: string, relationKind: string): Promise<Relationship[]>;
   getRelationshipBetween(sourceId: string, targetId: string): Promise<Relationship[]>;
   createRelationship(relationship: InsertRelationship): Promise<Relationship>;
   createBulkRelationships(relationships: InsertRelationship[]): Promise<Relationship[]>;
@@ -706,6 +724,74 @@ export class MemStorage implements IStorage {
     return this.relationships.get(id);
   }
 
+  // Universal relationship query method with advanced filtering
+  async findRelationships(filters: RelationshipFilters): Promise<{ relationships: Relationship[]; total: number }> {
+    let relationships = Array.from(this.relationships.values());
+
+    // Apply filters
+    if (filters.sourceId || filters.targetId) {
+      // Handle direction parameter
+      if (filters.direction === "out") {
+        // Only outgoing relationships (where the entity is the source)
+        if (filters.sourceId) {
+          relationships = relationships.filter(rel => rel.sourceId === filters.sourceId);
+        }
+      } else if (filters.direction === "in") {
+        // Only incoming relationships (where the entity is the target)
+        if (filters.targetId) {
+          relationships = relationships.filter(rel => rel.targetId === filters.targetId);
+        }
+      } else if (filters.direction === "both" || !filters.direction) {
+        // Both directions (default behavior)
+        if (filters.sourceId && filters.targetId) {
+          // Both sourceId and targetId specified
+          relationships = relationships.filter(rel => 
+            rel.sourceId === filters.sourceId && rel.targetId === filters.targetId
+          );
+        } else if (filters.sourceId) {
+          // Only sourceId specified, find relationships in both directions
+          relationships = relationships.filter(rel => 
+            rel.sourceId === filters.sourceId || rel.targetId === filters.sourceId
+          );
+        } else if (filters.targetId) {
+          // Only targetId specified, find relationships in both directions
+          relationships = relationships.filter(rel => 
+            rel.sourceId === filters.targetId || rel.targetId === filters.targetId
+          );
+        }
+      }
+    }
+
+    // Filter by source type
+    if (filters.sourceType) {
+      relationships = relationships.filter(rel => rel.sourceType === filters.sourceType);
+    }
+
+    // Filter by target type
+    if (filters.targetType) {
+      relationships = relationships.filter(rel => rel.targetType === filters.targetType);
+    }
+
+    // Filter by relation kind
+    if (filters.relationKind) {
+      relationships = relationships.filter(rel => rel.relationKind === filters.relationKind);
+    }
+
+    // Sort by creation date (newest first)
+    relationships.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+    const total = relationships.length;
+
+    // Apply pagination
+    if (filters.offset || filters.limit) {
+      const offset = filters.offset || 0;
+      const limit = filters.limit || 50;
+      relationships = relationships.slice(offset, offset + limit);
+    }
+
+    return { relationships, total };
+  }
+
   async getRelationshipsBySource(sourceId: string): Promise<Relationship[]> {
     return Array.from(this.relationships.values())
       .filter(rel => rel.sourceId === sourceId)
@@ -721,6 +807,13 @@ export class MemStorage implements IStorage {
   async getRelationshipsByType(relationshipType: string): Promise<Relationship[]> {
     return Array.from(this.relationships.values())
       .filter(rel => rel.relationshipType === relationshipType)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }
+
+  // New method for filtering by relationKind
+  async getRelationshipsByKind(relationKind: string): Promise<Relationship[]> {
+    return Array.from(this.relationships.values())
+      .filter(rel => rel.relationKind === relationKind)
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }
 
@@ -811,6 +904,19 @@ export class MemStorage implements IStorage {
   async getRelationshipsByTargetAndType(targetId: string, relationshipType: string): Promise<Relationship[]> {
     return Array.from(this.relationships.values())
       .filter(rel => rel.targetId === targetId && rel.relationshipType === relationshipType)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }
+
+  // New methods for filtering by relationKind
+  async getRelationshipsBySourceAndKind(sourceId: string, relationKind: string): Promise<Relationship[]> {
+    return Array.from(this.relationships.values())
+      .filter(rel => rel.sourceId === sourceId && rel.relationKind === relationKind)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }
+
+  async getRelationshipsByTargetAndKind(targetId: string, relationKind: string): Promise<Relationship[]> {
+    return Array.from(this.relationships.values())
+      .filter(rel => rel.targetId === targetId && rel.relationKind === relationKind)
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }
 

@@ -1,12 +1,32 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
-import { storage } from "./storage";
-import { insertDocumentSchema, updateDocumentSchema, insertConversationSchema, insertMessageSchema, parseMentionsSchema, updateAppConfigSchema, insertRelationshipSchema, updateRelationshipSchema } from "@shared/schema";
+import { storage, type RelationshipFilters } from "./storage";
+import { insertDocumentSchema, updateDocumentSchema, insertConversationSchema, insertMessageSchema, parseMentionsSchema, updateAppConfigSchema, insertRelationshipSchema, updateRelationshipSchema, DocumentType } from "@shared/schema";
 import { chatWithGemini, extractTextFromPDF, extractTextFromWord, generateTextEmbedding } from "./gemini-simple";
 import { chatWithGeminiFunctions } from "./gemini-functions";
 import { embeddingService } from "./embedding-service";
 import { chunkingService } from "./chunking-service";
 import { z } from "zod";
+
+// Zod schemas for relationship query validation
+const relationshipQuerySchema = z.object({
+  sourceId: z.string().optional(),
+  targetId: z.string().optional(),
+  sourceType: DocumentType.optional(),
+  targetType: DocumentType.optional(),
+  relationKind: z.string().optional(),
+  direction: z.enum(["out", "in", "both"]).optional(),
+  limit: z.coerce.number().min(1).max(1000).optional(),
+  offset: z.coerce.number().min(0).optional()
+});
+
+const documentRelationshipQuerySchema = z.object({
+  direction: z.enum(["out", "in", "both"]).optional(),
+  relationKind: z.string().optional(),
+  targetType: DocumentType.optional(),
+  limit: z.coerce.number().min(1).max(1000).optional(),
+  offset: z.coerce.number().min(0).optional()
+});
 
 // Preprocess request data to normalize empty strings to null for nullable fields
 function preprocessDocumentData(data: any) {
@@ -565,7 +585,101 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Relationship API endpoints
+  // Universal Relationship API endpoints
+  
+  // Universal relationship query endpoint with advanced filtering
+  app.get("/api/relationships", async (req, res) => {
+    try {
+      const validatedQuery = relationshipQuerySchema.parse(req.query);
+      
+      const filters: RelationshipFilters = {
+        ...validatedQuery,
+        limit: validatedQuery.limit || 50,
+        offset: validatedQuery.offset || 0
+      };
+      
+      const result = await storage.findRelationships(filters);
+      res.json(result);
+    } catch (error) {
+      console.error('Error fetching relationships:', error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid query parameters", details: error.errors });
+      }
+      res.status(500).json({ error: "Failed to fetch relationships" });
+    }
+  });
+
+  // Enhanced document relationships endpoint with direction and filtering support
+  app.get("/api/documents/:id/relationships", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const validatedQuery = documentRelationshipQuerySchema.parse(req.query);
+      
+      // Verify document exists
+      const document = await storage.getDocument(id);
+      if (!document) {
+        return res.status(404).json({ error: "Document not found" });
+      }
+
+      // Build filters based on query parameters and direction
+      const filters: RelationshipFilters = {
+        limit: validatedQuery.limit || 50,
+        offset: validatedQuery.offset || 0
+      };
+
+      // Handle direction parameter
+      if (validatedQuery.direction === "out") {
+        filters.sourceId = id;
+      } else if (validatedQuery.direction === "in") {
+        filters.targetId = id;  
+      } else {
+        // Default to "both" - relationships where document is either source or target
+        filters.sourceId = id; // Will be handled by findRelationships to include both directions
+        filters.direction = "both";
+      }
+
+      // Add additional filters
+      if (validatedQuery.relationKind) {
+        filters.relationKind = validatedQuery.relationKind;
+      }
+      if (validatedQuery.targetType) {
+        filters.targetType = validatedQuery.targetType;
+      }
+
+      const result = await storage.findRelationships(filters);
+      
+      // Enrich with document information for easier frontend consumption
+      const enrichedRelationships = await Promise.all(
+        result.relationships.map(async (rel) => {
+          const sourceDoc = await storage.getDocument(rel.sourceId);
+          const targetDoc = await storage.getDocument(rel.targetId);
+          return {
+            ...rel,
+            sourceDocument: sourceDoc ? { id: sourceDoc.id, name: sourceDoc.name, type: sourceDoc.type } : null,
+            targetDocument: targetDoc ? { id: targetDoc.id, name: targetDoc.name, type: targetDoc.type } : null
+          };
+        })
+      );
+
+      res.json({
+        relationships: enrichedRelationships,
+        total: result.total,
+        document: {
+          id: document.id,
+          name: document.name,
+          type: document.type
+        }
+      });
+    } catch (error) {
+      console.error('Error fetching document relationships:', error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid query parameters", details: error.errors });
+      }
+      res.status(500).json({ error: "Failed to fetch document relationships" });
+    }
+  });
+
+  // Legacy Relationship API endpoints (maintained for backward compatibility)
   app.get("/api/relationships/:sourceId", async (req, res) => {
     try {
       const { sourceId } = req.params;
