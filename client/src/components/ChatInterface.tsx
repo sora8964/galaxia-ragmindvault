@@ -1,8 +1,14 @@
 import { useState, useRef, useEffect, useMemo } from "react";
-import { Send, Bot, User, Sparkles, Brain, Settings } from "lucide-react";
+import { Send, Bot, User, Sparkles, Brain, Settings, MoreVertical, Edit, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { MentionSearch } from "./MentionSearch";
 import { ContextIndicator } from "./ContextIndicator";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -36,6 +42,8 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
   const [isStreaming, setIsStreaming] = useState(false);
   const [mentionQuery, setMentionQuery] = useState('');
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(conversationId || null);
+  const [hoveredMessageId, setHoveredMessageId] = useState<string | null>(null);
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -404,6 +412,19 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
     }
   };
 
+  // Event handlers for message actions (empty for now, will be implemented later)
+  const handleEditMessage = (messageId: string) => {
+    // TODO: Implement edit functionality
+    console.log('Edit message:', messageId);
+    setOpenMenuId(null);
+  };
+
+  const handleDeleteMessage = (messageId: string) => {
+    // TODO: Implement delete functionality
+    console.log('Delete message:', messageId);
+    setOpenMenuId(null);
+  };
+
   return (
     <div className="flex flex-col h-full">
       {/* Messages */}
@@ -461,33 +482,89 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
                 <ContextIndicator contexts={message.contextUsed} className="mb-2" />
               )}
               
-              <Card className={`${message.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-card'}`}>
-                <CardContent className="p-3">
-                  <div className="text-sm whitespace-pre-wrap">
-                    {message.content}
-                    {message.isStreaming && (
-                      <>
-                        {!message.content && (
-                          <div className="flex items-center gap-1 text-muted-foreground">
-                            <div className="flex space-x-1">
-                              <div className="w-2 h-2 bg-current rounded-full animate-bounce [animation-delay:-0.3s]"></div>
-                              <div className="w-2 h-2 bg-current rounded-full animate-bounce [animation-delay:-0.15s]"></div>
-                              <div className="w-2 h-2 bg-current rounded-full animate-bounce"></div>
+              <div 
+                className="relative group"
+                onMouseEnter={() => setHoveredMessageId(message.id)}
+                onMouseLeave={() => {
+                  if (openMenuId !== message.id) {
+                    setHoveredMessageId(null);
+                  }
+                }}
+                data-testid={`message-container-${message.id}`}
+              >
+                <Card className={`${message.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-card'}`}>
+                  <CardContent className="p-3">
+                    <div className="text-sm whitespace-pre-wrap">
+                      {message.content}
+                      {message.isStreaming && (
+                        <>
+                          {!message.content && (
+                            <div className="flex items-center gap-1 text-muted-foreground">
+                              <div className="flex space-x-1">
+                                <div className="w-2 h-2 bg-current rounded-full animate-bounce [animation-delay:-0.3s]"></div>
+                                <div className="w-2 h-2 bg-current rounded-full animate-bounce [animation-delay:-0.15s]"></div>
+                                <div className="w-2 h-2 bg-current rounded-full animate-bounce"></div>
+                              </div>
+                              <span className="text-xs ml-2">思考中...</span>
                             </div>
-                            <span className="text-xs ml-2">思考中...</span>
-                          </div>
-                        )}
-                        {message.content && (
-                          <span className="inline-block w-0.5 h-4 bg-current animate-pulse ml-1"></span>
-                        )}
-                      </>
-                    )}
+                          )}
+                          {message.content && (
+                            <span className="inline-block w-0.5 h-4 bg-current animate-pulse ml-1"></span>
+                          )}
+                        </>
+                      )}
+                    </div>
+                    <div className="text-xs opacity-70 mt-2">
+                      {message.timestamp.toLocaleTimeString()}
+                    </div>
+                  </CardContent>
+                </Card>
+                
+                {/* Hover menu button */}
+                {(hoveredMessageId === message.id || openMenuId === message.id) && !message.isStreaming && (
+                  <div className={`absolute top-2 ${message.role === 'user' ? 'left-2' : 'right-2'} z-10`}>
+                    <DropdownMenu open={openMenuId === message.id} onOpenChange={(open) => setOpenMenuId(open ? message.id : null)}>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className={`h-6 w-6 rounded-full ${
+                            message.role === 'user' 
+                              ? 'text-primary-foreground' 
+                              : 'text-muted-foreground'
+                          }`}
+                          aria-label="更多動作"
+                          data-testid={`button-message-menu-${message.id}`}
+                        >
+                          <MoreVertical className="h-3 w-3" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent 
+                        align={message.role === 'user' ? 'start' : 'end'}
+                        className="w-32"
+                        data-testid={`menu-message-actions-${message.id}`}
+                      >
+                        <DropdownMenuItem 
+                          onClick={() => handleEditMessage(message.id)}
+                          className="cursor-pointer"
+                          data-testid={`button-edit-message-${message.id}`}
+                        >
+                          <Edit className="h-3 w-3 mr-2" />
+                          編輯
+                        </DropdownMenuItem>
+                        <DropdownMenuItem 
+                          onClick={() => handleDeleteMessage(message.id)}
+                          className="cursor-pointer text-destructive focus:text-destructive"
+                          data-testid={`button-delete-message-${message.id}`}
+                        >
+                          <Trash2 className="h-3 w-3 mr-2" />
+                          刪除
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
-                  <div className="text-xs opacity-70 mt-2">
-                    {message.timestamp.toLocaleTimeString()}
-                  </div>
-                </CardContent>
-              </Card>
+                )}
+              </div>
             </div>
             
             {message.role === 'user' && (
