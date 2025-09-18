@@ -1,5 +1,5 @@
-import { useState, useRef, useEffect, useMemo } from "react";
-import { Send, Bot, User, Sparkles, Brain, Settings, MoreVertical, Edit, Trash2, Check, X, Loader2 } from "lucide-react";
+import { useState, useRef, useEffect, useMemo, useCallback } from "react";
+import { Send, Bot, User, Sparkles, Brain, Settings, MoreVertical, Edit, Trash2, Check, X, Loader2, RefreshCw, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -90,6 +90,17 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
     return mergeMessages(databaseMessages, localMessages);
   }, [databaseMessages, localMessages]);
 
+  // Check if we should show the regenerate button
+  const shouldShowRegenerateButton = useMemo(() => {
+    if (isStreaming || messages.length === 0) {
+      return false;
+    }
+    
+    // Show if the last message is from a user
+    const lastMessage = messages[messages.length - 1];
+    return lastMessage && lastMessage.role === 'user';
+  }, [messages, isStreaming]);
+
   // Get conversation data
   const { data: conversation } = useQuery<Conversation>({
     queryKey: ['/api/conversations', currentConversationId],
@@ -166,8 +177,12 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
     }
   });
 
-  // Edit message mutation
-  const editMessageMutation = useMutation({
+  // Edit message mutation with auto-regeneration
+  const editMessageMutation = useMutation<
+    { editedMessageId: string; [key: string]: any },
+    Error,
+    { messageId: string; content: string }
+  >({
     mutationFn: async ({ messageId, content }: { messageId: string; content: string }) => {
       if (!currentConversationId) {
         throw new Error('No conversation ID available');
@@ -175,16 +190,19 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
       const response = await apiRequest("PATCH", `/api/conversations/${currentConversationId}/messages/${messageId}`, {
         content: content.trim()
       });
-      return response.json();
+      const json = await response.json();
+      return { ...json, editedMessageId: messageId };
     },
-    onSuccess: () => {
+    onSuccess: async (data) => {
+      const { editedMessageId } = data;
+      
       // Exit edit mode
       setEditingMessageId(null);
       setEditedContent('');
       setOpenMenuId(null);
       
-      // Invalidate and refetch messages
-      queryClient.invalidateQueries({ 
+      // Invalidate and wait for cache refresh
+      await queryClient.invalidateQueries({ 
         queryKey: ['/api/conversations', currentConversationId, 'messages'] 
       });
       
@@ -192,6 +210,77 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
         title: '成功',
         description: '消息已更新',
       });
+      
+      try {
+        // Get the latest messages from database to ensure freshness
+        const latestMessages = await queryClient.fetchQuery({
+          queryKey: ['/api/conversations', currentConversationId, 'messages']
+        }) as DbMessage[];
+        
+        if (!latestMessages || latestMessages.length === 0) {
+          console.warn('No messages available for regeneration');
+          return;
+        }
+        
+        // Convert to stream messages for processing
+        const latestStreamMessages: StreamMessage[] = latestMessages.map((msg: DbMessage) => ({
+          id: msg.id,
+          content: msg.content,
+          role: msg.role,
+          timestamp: new Date(msg.createdAt),
+          thinking: msg.thinking,
+          functionCalls: msg.functionCalls,
+          isStreaming: false,
+        }));
+        
+        // Find the edited message index
+        const editedIndex = latestStreamMessages.findIndex(m => m.id === editedMessageId);
+        
+        if (editedIndex === -1) {
+          console.warn('Edited message not found in latest messages');
+          return;
+        }
+        
+        // Only regenerate if the edited message was a user message
+        const editedMessage = latestStreamMessages[editedIndex];
+        if (editedMessage.role !== 'user') {
+          console.log('Not regenerating - edited message is not a user message');
+          return;
+        }
+        
+        // Slice history up to and including the edited message
+        const historySlice = latestStreamMessages.slice(0, editedIndex + 1);
+        
+        // Extract context documents from the edited message (if available)
+        const contextDocumentIds: string[] = [];
+        const originalMessage = latestMessages.find(m => m.id === editedMessageId);
+        if (originalMessage && originalMessage.contextDocuments) {
+          contextDocumentIds.push(...originalMessage.contextDocuments);
+        }
+        
+        // Auto-regenerate AI response
+        console.log('Starting automatic regeneration after edit...');
+        const success = await startAssistantStream({
+          historyMessages: historySlice,
+          contextDocumentIds,
+          conversationId: currentConversationId!
+        });
+        
+        if (!success) {
+          toast({
+            title: '自動重新生成失敗',
+            description: '您可以手動點擊重新生成按鈕',
+            variant: 'default'
+          });
+        }
+      } catch (regenerationError) {
+        console.error('Error during automatic regeneration:', regenerationError);
+        toast({
+          title: '自動重新生成失敗',
+          description: '您可以手動點擊重新生成按鈕',
+          variant: 'default'
+        });
+      }
     },
     onError: (error) => {
       console.error('Failed to edit message:', error);
@@ -336,12 +425,60 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
         contextDocuments: currentContextIds
       });
 
-      // Start streaming AI response
+      // Start streaming AI response using the extracted function
+      const allMessages = mergeMessages(databaseMessages, [...localMessages, userMessage]);
+      const success = await startAssistantStream({
+        historyMessages: allMessages,
+        contextDocumentIds: currentContextIds,
+        conversationId: activeConversationId
+      });
+      
+      if (!success) {
+        // Clean up user message from local state on streaming failure
+        setLocalMessages(prev => prev.filter(msg => msg.id !== messageId));
+      }
+    } catch (error) {
+      console.error('Error sending message:', error);
+      // Clean up user message from local state
+      setLocalMessages(prev => prev.filter(msg => msg.id !== messageId));
+      
+      toast({
+        title: '錯誤',
+        description: '送出訊息失敗，請再試一次',
+        variant: 'destructive'
+      });
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey && !mentionPosition) {
+      e.preventDefault();
+      handleSendMessage();
+    }
+  };
+
+  // Extract streaming logic into reusable function
+  const startAssistantStream = useCallback(async ({ 
+    historyMessages, 
+    contextDocumentIds = [], 
+    conversationId 
+  }: {
+    historyMessages: StreamMessage[];
+    contextDocumentIds: string[];
+    conversationId: string;
+  }) => {
+    if (isStreaming || !conversationId) {
+      console.warn('Cannot start stream: already streaming or no conversation ID');
+      return false;
+    }
+
+    try {
+      // Set streaming state
       setIsStreaming(true);
       const assistantMessageId = `assistant-${Date.now()}`;
       setStreamingMessageId(assistantMessageId);
 
-      // Add empty assistant message for streaming to local messages
+      // Add empty assistant message for streaming
       const assistantMessage: StreamMessage = {
         id: assistantMessageId,
         content: '',
@@ -351,9 +488,8 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
       };
       setLocalMessages(prev => [...prev, assistantMessage]);
 
-      // Prepare messages for AI - combine all messages for context
-      const allMessages = mergeMessages(databaseMessages, [...localMessages, userMessage]);
-      const chatMessages = allMessages.map(msg => ({
+      // Prepare messages for AI
+      const chatMessages = historyMessages.map(msg => ({
         role: msg.role,
         content: msg.content
       }));
@@ -370,8 +506,8 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
         },
         body: JSON.stringify({
           messages: chatMessages,
-          contextDocumentIds: currentContextIds,
-          conversationId: activeConversationId
+          contextDocumentIds,
+          conversationId
         }),
         signal: abortController.signal,
       });
@@ -394,31 +530,34 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
           // Decode chunk and add to buffer
           buffer += decoder.decode(value, { stream: true });
           
-          // Process complete lines
-          const lines = buffer.split('\n');
+          // Process complete lines - handle CRLF and empty lines
+          const lines = buffer.split(/\r?\n/);
           buffer = lines.pop() || ''; // Keep incomplete line in buffer
           
           for (const line of lines) {
-            if (line.startsWith('data: ')) {
+            const trimmedLine = line.trim();
+            if (!trimmedLine) continue; // Skip empty lines
+            
+            if (trimmedLine.startsWith('data: ')) {
               try {
                 const data = JSON.parse(line.slice(6));
                 
                 if (data.type === 'token') {
-                  // Update streaming message content in local messages
+                  // Update streaming message content
                   setLocalMessages(prev => prev.map(msg => 
                     msg.id === assistantMessageId 
                       ? { ...msg, content: msg.content + data.content }
                       : msg
                   ));
                 } else if (data.type === 'thinking') {
-                  // Update thinking content in local messages
+                  // Update thinking content
                   setLocalMessages(prev => prev.map(msg => 
                     msg.id === assistantMessageId 
                       ? { ...msg, thinking: data.content }
                       : msg
                   ));
                 } else if (data.type === 'function_call') {
-                  // Add function call to local messages
+                  // Add function call
                   setLocalMessages(prev => prev.map(msg => 
                     msg.id === assistantMessageId 
                       ? { 
@@ -428,7 +567,7 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
                       : msg
                   ));
                 } else if (data.type === 'complete') {
-                  // Mark as complete in local messages
+                  // Mark as complete
                   setLocalMessages(prev => prev.map(msg => 
                     msg.id === assistantMessageId 
                       ? { ...msg, isStreaming: false }
@@ -438,31 +577,38 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
                   setStreamingMessageId(null);
                   abortControllerRef.current = null;
                   
-                  // Clear local messages after successful completion
-                  // The database will be updated and the messages will reload from there
-                  setTimeout(() => {
+                  // Clear local messages after DB refresh to prevent flicker
+                  // Wait for queries to invalidate and refresh first
+                  const clearLocalMessages = async () => {
+                    await Promise.all([
+                      queryClient.invalidateQueries({ 
+                        queryKey: ['/api/conversations', conversationId, 'messages'] 
+                      }),
+                      queryClient.invalidateQueries({
+                        queryKey: ['/api/conversations']
+                      })
+                    ]);
                     setLocalMessages([]);
-                  }, 100);
+                  };
+                  clearLocalMessages();
                   
-                  // Invalidate conversation messages and conversations list
-                  queryClient.invalidateQueries({ 
-                    queryKey: ['/api/conversations', activeConversationId, 'messages'] 
-                  });
-                  queryClient.invalidateQueries({
-                    queryKey: ['/api/conversations']
-                  });
+                  return true; // Success
                 } else if (data.type === 'error') {
                   throw new Error(data.content);
                 }
               } catch (parseError) {
                 console.error('Error parsing streaming data:', parseError);
               }
+            } else if (trimmedLine.startsWith('event: ')) {
+              // Handle event lines if needed in the future
+              console.debug('Received event:', trimmedLine.slice(7));
             }
           }
         }
       }
+      return true;
     } catch (error) {
-      console.error('Error sending message:', error);
+      console.error('Error in streaming:', error);
       setIsStreaming(false);
       setStreamingMessageId(null);
       
@@ -472,25 +618,19 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
         abortControllerRef.current = null;
       }
       
-      // Remove the empty assistant message on error from local messages
-      if (streamingMessageId) {
-        setLocalMessages(prev => prev.filter(msg => msg.id !== streamingMessageId));
-      }
+      // Remove the empty assistant message on error
+      setLocalMessages(prev => prev.filter(msg => !msg.isStreaming));
       
+      // Show error toast
       toast({
         title: '錯誤',
-        description: '送出訊息失敗，請再試一次',
+        description: '生成回應失敗，請再試一次',
         variant: 'destructive'
       });
+      
+      return false; // Failure
     }
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey && !mentionPosition) {
-      e.preventDefault();
-      handleSendMessage();
-    }
-  };
+  }, [isStreaming, setLocalMessages, queryClient, toast]);
 
   // Event handlers for message actions
   const handleEditMessage = (messageId: string) => {
@@ -533,6 +673,106 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
       messageId: editingMessageId,
       content: editedContent.trim()
     });
+  };
+
+  // Manual regeneration function
+  const handleManualRegenerate = async () => {
+    if (!currentConversationId || isStreaming) {
+      return;
+    }
+
+    try {
+      // Get the latest messages from database to ensure freshness
+      const latestMessages = await queryClient.fetchQuery({
+        queryKey: ['/api/conversations', currentConversationId, 'messages']
+      }) as DbMessage[];
+      
+      if (!latestMessages || latestMessages.length === 0) {
+        toast({
+          title: '無法重新生成',
+          description: '沒有可用的對話歷史',
+          variant: 'destructive'
+        });
+        return;
+      }
+      
+      // Convert to stream messages
+      const streamMessages: StreamMessage[] = latestMessages.map((msg: DbMessage) => ({
+        id: msg.id,
+        content: msg.content,
+        role: msg.role,
+        timestamp: new Date(msg.createdAt),
+        thinking: msg.thinking,
+        functionCalls: msg.functionCalls,
+        isStreaming: false,
+      }));
+      
+      // Find the last user message and extract context
+      let lastUserMessageIndex = -1;
+      let contextDocumentIds: string[] = [];
+      
+      for (let i = streamMessages.length - 1; i >= 0; i--) {
+        if (streamMessages[i].role === 'user') {
+          lastUserMessageIndex = i;
+          const originalMessage = latestMessages[i];
+          if (originalMessage && originalMessage.contextDocuments) {
+            contextDocumentIds = [...originalMessage.contextDocuments];
+          }
+          break;
+        }
+      }
+      
+      if (lastUserMessageIndex === -1) {
+        toast({
+          title: '無法重新生成',
+          description: '沒有找到用戶消息',
+          variant: 'destructive'
+        });
+        return;
+      }
+      
+      // Use all messages up to and including the last user message
+      const historyForRegeneration = streamMessages.slice(0, lastUserMessageIndex + 1);
+      
+      const success = await startAssistantStream({
+        historyMessages: historyForRegeneration,
+        contextDocumentIds,
+        conversationId: currentConversationId
+      });
+      
+      if (!success) {
+        toast({
+          title: '重新生成失敗',
+          description: '請檢查網絡連接後再試',
+          variant: 'destructive'
+        });
+      }
+    } catch (error) {
+      console.error('Manual regeneration error:', error);
+      toast({
+        title: '重新生成失敗',
+        description: '請檢查網絡連接後再試',
+        variant: 'destructive'
+      });
+    }
+  };
+
+  // Stop generation function
+  const handleStopGeneration = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+      setIsStreaming(false);
+      setStreamingMessageId(null);
+      
+      // Clean up any streaming messages
+      setLocalMessages(prev => prev.filter(msg => !msg.isStreaming));
+      
+      toast({
+        title: '已停止生成',
+        description: 'AI回應生成已中止',
+      });
+    }
   };
 
   const handleCancelEdit = () => {
@@ -673,7 +913,7 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
                             variant="ghost"
                             size="sm"
                             onClick={handleCancelEdit}
-                            disabled={editMessageMutation.isPending}
+                            disabled={editMessageMutation.isPending || isStreaming}
                             data-testid={`button-cancel-edit-${message.id}`}
                           >
                             <X className="h-3 w-3 mr-1" />
@@ -682,7 +922,7 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
                           <Button
                             size="sm"
                             onClick={handleSaveEdit}
-                            disabled={editMessageMutation.isPending || !editedContent.trim()}
+                            disabled={editMessageMutation.isPending || !editedContent.trim() || isStreaming}
                             data-testid={`button-save-edit-${message.id}`}
                           >
                             {editMessageMutation.isPending ? (
@@ -690,7 +930,7 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
                             ) : (
                               <Check className="h-3 w-3 mr-1" />
                             )}
-                            保存
+                            {editMessageMutation.isPending ? '更新中...' : '保存'}
                           </Button>
                         </div>
                       </div>
@@ -832,6 +1072,36 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
 
       {/* Input Area */}
       <div className="border-t p-4">
+        {/* Regeneration/Stop buttons */}
+        {(shouldShowRegenerateButton || isStreaming) && (
+          <div className="mb-3 flex justify-center">
+            {isStreaming ? (
+              <Button
+                onClick={handleStopGeneration}
+                variant="outline"
+                size="sm"
+                className="gap-2"
+                data-testid="button-stop-generation"
+              >
+                <Square className="h-3 w-3" />
+                停止生成
+              </Button>
+            ) : shouldShowRegenerateButton ? (
+              <Button
+                onClick={handleManualRegenerate}
+                variant="outline"
+                size="sm"
+                className="gap-2"
+                disabled={isStreaming || editMessageMutation.isPending}
+                data-testid="button-regenerate-response"
+              >
+                <RefreshCw className="h-3 w-3" />
+                重新生成
+              </Button>
+            ) : null}
+          </div>
+        )}
+        
         {/* Context indicators */}
         {contextDocumentIds.length > 0 && (
           <div className="mb-3">
@@ -874,7 +1144,7 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
             className="absolute right-2 bottom-2 h-8 w-8"
             data-testid="button-send-message"
           >
-            {isStreaming ? (
+            {(isStreaming && !streamingMessageId) ? (
               <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
             ) : (
               <Send className="h-4 w-4" />
