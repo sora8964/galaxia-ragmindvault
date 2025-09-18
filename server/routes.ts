@@ -695,20 +695,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const validatedData = insertRelationshipSchema.parse(req.body);
       
-      // Check for duplicate relationships
+      // Ensure backward compatibility by setting relationshipType if not provided
+      if (!validatedData.relationshipType && validatedData.sourceType && validatedData.targetType) {
+        validatedData.relationshipType = `${validatedData.sourceType}_to_${validatedData.targetType}`;
+      }
+      
+      // Check for duplicate relationships based on relationKind (modern) or relationshipType (legacy)
       const existingRelationships = await storage.getRelationshipBetween(
         validatedData.sourceId, 
         validatedData.targetId
       );
       
-      const duplicateRelationship = existingRelationships.find(
-        rel => rel.relationshipType === validatedData.relationshipType
-      );
+      // Check for duplicates using the modern relationKind approach first
+      const duplicateRelationship = existingRelationships.find(rel => {
+        if (validatedData.relationKind && rel.relationKind) {
+          // Both have relationKind - compare by relationKind
+          return rel.relationKind === validatedData.relationKind;
+        }
+        // Fall back to legacy relationshipType comparison
+        return rel.relationshipType === validatedData.relationshipType;
+      });
       
       if (duplicateRelationship) {
+        const relationLabel = validatedData.relationKind || validatedData.relationshipType;
         return res.status(409).json({ 
-          error: "Relationship already exists",
-          existingRelationship: duplicateRelationship
+          error: "A relationship of this type already exists between these items",
+          detail: `關聯類型「${relationLabel}」已存在於這兩個項目之間`,
+          existingRelationship: duplicateRelationship,
+          errorCode: "DUPLICATE_RELATIONSHIP"
         });
       }
       

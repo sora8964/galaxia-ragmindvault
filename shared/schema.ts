@@ -80,7 +80,7 @@ export const relationships = pgTable("relationships", {
   sourceType: text("source_type", { enum: ["person", "document", "organization", "issue", "log"] }).notNull(),
   targetType: text("target_type", { enum: ["person", "document", "organization", "issue", "log"] }).notNull(),
   relationKind: text("relation_kind").notNull().default("related"),
-  relationshipType: text("relationship_type").notNull(), // Kept for backward compatibility
+  relationshipType: text("relationship_type"), // Made nullable for new schema compatibility
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (table) => ({
@@ -205,17 +205,19 @@ const baseInsertRelationshipSchema = createInsertSchema(relationships)
     sourceType: DocumentType.optional(),
     targetType: DocumentType.optional(), 
     relationKind: z.string().optional().default("related"),
+    // Make relationshipType optional for new schema
+    relationshipType: z.string().optional(),
   });
 
 export const insertRelationshipSchema = baseInsertRelationshipSchema
   .refine((data) => {
-    // Ensure sourceType and targetType are provided for new relationships
-    if (!data.sourceType || !data.targetType) {
-      return !!data.relationshipType; // Allow if using legacy relationshipType
-    }
-    return true;
+    // Either provide the new format (sourceType + targetType) or legacy format (relationshipType)
+    const hasNewFormat = data.sourceType && data.targetType;
+    const hasLegacyFormat = !!data.relationshipType;
+    
+    return hasNewFormat || hasLegacyFormat;
   }, {
-    message: "sourceType and targetType are required for new relationships",
+    message: "Either sourceType+targetType or relationshipType must be provided",
   });
 
 export const updateRelationshipSchema = baseInsertRelationshipSchema.partial();

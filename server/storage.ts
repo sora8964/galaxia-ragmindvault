@@ -840,7 +840,7 @@ export class MemStorage implements IStorage {
       sourceType: sourceType || "document", // Default fallback
       targetType: targetType || "document", // Default fallback
       relationKind: insertRelationship.relationKind || "related",
-      relationshipType: insertRelationship.relationshipType,
+      relationshipType: insertRelationship.relationshipType ?? null,
       createdAt: now,
       updatedAt: now
     };

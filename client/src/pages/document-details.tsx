@@ -11,7 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { SimpleMentionSearch } from "@/components/SimpleMentionSearch";
-import { RelationshipManager } from "@/components/RelationshipManager";
+import { RelationshipManagerGeneric } from "@/components/RelationshipManagerGeneric";
 import { ArrowLeft, Save, Trash2, FileText, Calendar, Tag } from "lucide-react";
 import { queryClient } from "@/lib/queryClient";
 import type { Document } from "@shared/schema";
@@ -462,7 +462,7 @@ export function DocumentDetails() {
 
           {/* Relationship management */}
           <div className="lg:col-span-1">
-            <RelationshipManager 
+            <RelationshipManagerGeneric 
               sourceId={document.id} 
               sourceType="document"
             />
