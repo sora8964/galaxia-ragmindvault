@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { FileText, Users, Search } from "lucide-react";
+import { FileText, Users, Search, Building, ClipboardList, NotebookPen } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { useQuery } from "@tanstack/react-query";
 
@@ -74,6 +74,40 @@ export function MentionSearch({ onMentionSelect, searchQuery, position, onClose 
     onMentionSelect(mention, alias);
   };
 
+  const getTypeIcon = (type: MentionItem['type']) => {
+    switch (type) {
+      case 'person':
+        return <Users className="h-4 w-4 text-chart-1" />;
+      case 'document':
+        return <FileText className="h-4 w-4 text-chart-2" />;
+      case 'organization':
+        return <Building className="h-4 w-4 text-chart-3" />;
+      case 'issue':
+        return <ClipboardList className="h-4 w-4 text-chart-4" />;
+      case 'log':
+        return <NotebookPen className="h-4 w-4 text-chart-5" />;
+      default:
+        return <FileText className="h-4 w-4 text-muted-foreground" />;
+    }
+  };
+
+  const getTypeDisplayName = (type: MentionItem['type']) => {
+    switch (type) {
+      case 'person':
+        return '人員';
+      case 'document':
+        return '文檔';
+      case 'organization':
+        return '組織';
+      case 'issue':
+        return '問題';
+      case 'log':
+        return '日誌';
+      default:
+        return type;
+    }
+  };
+
   return (
     <Card 
       ref={containerRef}
@@ -105,11 +139,7 @@ export function MentionSearch({ onMentionSelect, searchQuery, position, onClose 
                 onClick={() => handleMentionClick(mention, mention.aliases?.[0])}
                 data-testid={`mention-item-${mention.id}`}
               >
-                {mention.type === 'person' ? (
-                  <Users className="h-4 w-4 text-chart-1" />
-                ) : (
-                  <FileText className="h-4 w-4 text-chart-2" />
-                )}
+                {getTypeIcon(mention.type)}
                 <div className="flex-1 min-w-0">
                   <div className="font-medium text-sm truncate">{mention.name}</div>
                   {mention.aliases && mention.aliases.length > 0 && (
@@ -118,8 +148,8 @@ export function MentionSearch({ onMentionSelect, searchQuery, position, onClose 
                     </div>
                   )}
                 </div>
-                <div className="text-xs text-muted-foreground capitalize">
-                  {mention.type}
+                <div className="text-xs text-muted-foreground">
+                  {getTypeDisplayName(mention.type)}
                 </div>
               </button>
               
