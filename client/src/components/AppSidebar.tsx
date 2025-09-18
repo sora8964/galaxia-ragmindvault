@@ -199,7 +199,7 @@ export function AppSidebar() {
                 <SidebarMenuButton asChild data-testid="link-issues">
                   <Link href="/issues">
                     <AlertTriangle className="h-4 w-4" />
-                    <span>事件</span>
+                    <span>議題</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>

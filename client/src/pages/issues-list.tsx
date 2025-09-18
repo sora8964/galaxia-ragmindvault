@@ -13,14 +13,14 @@ export function IssuesList() {
   return (
     <BaseItemManager
       itemType="issue"
-      title="事件管理"
-      description="管理和追蹤系統事件、故障和問題報告"
+      title="議題管理"
+      description="管理和追蹤系統議題、故障和問題報告"
       apiEndpoint="/api/documents"
-      createButtonText="新增事件"
-      emptyStateTitle="尚無事件記錄"
-      emptyStateDescription="開始記錄您的第一個事件或問題"
-      dialogTitle="新增事件"
-      dialogDescription="創建新的事件記錄，包含名稱、內容和相關別名"
+      createButtonText="新增議題"
+      emptyStateTitle="尚無議題記錄"
+      emptyStateDescription="開始記錄您的第一個議題或問題"
+      dialogTitle="新增議題"
+      dialogDescription="創建新的議題記錄，包含名稱、內容和相關別名"
       onItemClick={handleItemClick}
       getIcon={getIcon}
     />
