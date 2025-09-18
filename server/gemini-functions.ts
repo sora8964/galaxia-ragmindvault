@@ -11,7 +11,7 @@ const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
 const functions = {
   searchDocuments: {
     name: "searchDocuments",
-    description: "Search for documents and people in the knowledge base using keywords",
+    description: "Search for documents, people, organizations, issues, and logs in the knowledge base using keywords",
     parameters: {
       type: "object",
       properties: {
@@ -21,7 +21,7 @@ const functions = {
         },
         type: {
           type: "string",
-          description: "Filter by document type (optional)"
+          description: "Filter by document type: person, document, organization, issue, or log (optional)"
         },
         limit: {
           type: "number",
@@ -34,7 +34,7 @@ const functions = {
 
   getDocumentDetails: {
     name: "getDocumentDetails",
-    description: "Get the full content and details of a specific document or person",
+    description: "Get the full content and details of a specific document, person, organization, issue, or log. For issues, automatically includes all associated logs.",
     parameters: {
       type: "object",
       properties: {
@@ -49,17 +49,17 @@ const functions = {
 
   createDocument: {
     name: "createDocument",
-    description: "Create a new document or person profile in the knowledge base",
+    description: "Create a new document, person profile, organization, issue, or log entry in the knowledge base",
     parameters: {
       type: "object",
       properties: {
         name: {
           type: "string",
-          description: "The name/title of the document or person"
+          description: "The name/title of the document, person, organization, issue, or log"
         },
         type: {
           type: "string",
-          description: "Whether this is a person profile or document"
+          description: "Type of entry: person, document, organization, issue, or log"
         },
         content: {
           type: "string",
@@ -77,7 +77,7 @@ const functions = {
 
   updateDocument: {
     name: "updateDocument",
-    description: "Update an existing document or person profile",
+    description: "Update an existing document, person profile, organization, issue, or log entry",
     parameters: {
       type: "object",
       properties: {
@@ -154,8 +154,19 @@ async function searchDocuments(args: any): Promise<string> {
       return `No documents found for query: "${query}"`;
     }
     
+    const getIcon = (type: string) => {
+      switch (type) {
+        case 'person': return '👤';
+        case 'document': return '📄';
+        case 'organization': return '🏢';
+        case 'issue': return '📋';
+        case 'log': return '📝';
+        default: return '📄';
+      }
+    };
+    
     const summary = documents.map(doc => 
-      `- ${doc.type === 'person' ? '👤' : '📄'} **${doc.name}** (ID: ${doc.id})\n` +
+      `- ${getIcon(doc.type)} **${doc.name}** (ID: ${doc.id})\n` +
       `  ${doc.content.substring(0, 150)}${doc.content.length > 150 ? '...' : ''}\n` +
       (doc.aliases.length > 0 ? `  Also known as: ${doc.aliases.join(', ')}\n` : '')
     ).join('\n');
@@ -175,12 +186,66 @@ async function getDocumentDetails(args: any): Promise<string> {
       return `Document with ID "${documentId}" not found.`;
     }
     
-    const result = `${document.type === 'person' ? '👤 Person Profile' : '📄 Document'}: **${document.name}**\n\n` +
+    const getIcon = (type: string) => {
+      switch (type) {
+        case 'person': return '👤 Person Profile';
+        case 'document': return '📄 Document';
+        case 'organization': return '🏢 Organization';
+        case 'issue': return '📋 Issue';
+        case 'log': return '📝 Log';
+        default: return '📄 Document';
+      }
+    };
+    
+    let result = `${getIcon(document.type)}: **${document.name}**\n\n` +
       `**Content:**\n${document.content}\n\n` +
       (document.aliases.length > 0 ? `**Aliases:** ${document.aliases.join(', ')}\n\n` : '') +
+      (document.date ? `**Date:** ${document.date}\n\n` : '') +
       `**Status:** ${document.hasEmbedding ? '✅ Indexed' : '⏳ Processing'}\n` +
       `**Created:** ${new Date(document.createdAt).toLocaleDateString()}\n` +
       `**Updated:** ${new Date(document.updatedAt).toLocaleDateString()}`;
+    
+    // If this is an issue, find all associated logs
+    if (document.type === 'issue') {
+      try {
+        const relationshipResults = await storage.findRelationships({
+          sourceId: documentId,
+          targetType: 'log'
+        });
+        
+        if (relationshipResults.relationships.length > 0) {
+          // Get the actual log documents
+          const logIds = relationshipResults.relationships.map(r => r.targetId);
+          const logs = [];
+          
+          for (const logId of logIds) {
+            const log = await storage.getDocument(logId);
+            if (log) logs.push(log);
+          }
+          
+          // Sort logs by date field (same date = random order)
+          logs.sort((a, b) => {
+            if (a.date && b.date) {
+              if (a.date === b.date) {
+                return Math.random() - 0.5; // Random for same dates
+              }
+              return a.date.localeCompare(b.date);
+            }
+            if (a.date) return -1;
+            if (b.date) return 1;
+            return Math.random() - 0.5;
+          });
+          
+          result += `\n\n**Associated Logs (${logs.length}):**\n`;
+          logs.forEach(log => {
+            result += `\n- 📝 **${log.name}**${log.date ? ` (${log.date})` : ''}\n`;
+            result += `  ${log.content.substring(0, 100)}${log.content.length > 100 ? '...' : ''}\n`;
+          });
+        }
+      } catch (error) {
+        console.error('Error fetching associated logs:', error);
+      }
+    }
     
     return result;
   } catch (error) {
@@ -208,7 +273,18 @@ async function createDocument(args: any): Promise<string> {
     // Trigger immediate embedding
     await embeddingService.triggerImmediateEmbedding(document.id);
     
-    return `✅ Successfully created ${type === 'person' ? 'person profile' : 'document'}: **${name}**\n` +
+    const getTypeName = (type: string) => {
+      switch (type) {
+        case 'person': return 'person profile';
+        case 'document': return 'document';
+        case 'organization': return 'organization';
+        case 'issue': return 'issue';
+        case 'log': return 'log';
+        default: return 'document';
+      }
+    };
+    
+    return `✅ Successfully created ${getTypeName(type)}: **${name}**\n` +
       `ID: ${document.id}\n` +
       `The content has been indexed and will be available for search shortly.`;
   } catch (error) {
@@ -233,7 +309,18 @@ async function updateDocument(args: any): Promise<string> {
     // Trigger re-embedding after update
     await embeddingService.queueDocumentForEmbedding(documentId);
     
-    return `✅ Successfully updated ${document.type === 'person' ? 'person profile' : 'document'}: **${document.name}**\n` +
+    const getTypeName = (type: string) => {
+      switch (type) {
+        case 'person': return 'person profile';
+        case 'document': return 'document';
+        case 'organization': return 'organization';
+        case 'issue': return 'issue';
+        case 'log': return 'log';
+        default: return 'document';
+      }
+    };
+    
+    return `✅ Successfully updated ${getTypeName(document.type)}: **${document.name}**\n` +
       `The content has been re-indexed and will be available for search shortly.`;
   } catch (error) {
     return `Error updating document: ${error}`;
@@ -274,8 +361,19 @@ async function findSimilarDocuments(args: any): Promise<string> {
       return `No documents found with similarity >= ${threshold}`;
     }
     
+    const getIcon = (type: string) => {
+      switch (type) {
+        case 'person': return '👤';
+        case 'document': return '📄';
+        case 'organization': return '🏢';
+        case 'issue': return '📋';
+        case 'log': return '📝';
+        default: return '📄';
+      }
+    };
+    
     const summary = relevantDocs.map(item => 
-      `- ${item.document.type === 'person' ? '👤' : '📄'} **${item.document.name}** (Similarity: ${(item.similarity * 100).toFixed(1)}%)\n` +
+      `- ${getIcon(item.document.type)} **${item.document.name}** (Similarity: ${(item.similarity * 100).toFixed(1)}%)\n` +
       `  ${item.document.content.substring(0, 150)}${item.document.content.length > 150 ? '...' : ''}\n`
     ).join('\n');
     
@@ -290,7 +388,7 @@ async function parseMentions(args: any): Promise<string> {
     const { text } = args;
     
     // Simple regex to find @mentions in format @[type:name] or @[type:name|alias]
-    const mentionRegex = /@\[(person|document):([^|\]]+)(?:\|([^]]+))?\]/g;
+    const mentionRegex = /@\[(person|document|organization|issue|log):([^|\]]+)(?:\|([^]]+))?\]/g;
     const mentions = [];
     let match;
     
@@ -298,7 +396,7 @@ async function parseMentions(args: any): Promise<string> {
       const [fullMatch, type, name, alias] = match;
       
       // Try to find the document
-      const searchResult = await storage.searchDocuments(name, type as "person" | "document");
+      const searchResult = await storage.searchDocuments(name, type as "person" | "document" | "organization" | "issue" | "log");
       const foundDoc = searchResult.documents.find(doc => 
         doc.name.toLowerCase() === name.toLowerCase() ||
         doc.aliases.some(a => a.toLowerCase() === name.toLowerCase())
@@ -385,24 +483,35 @@ export async function chatWithGeminiFunctions(options: GeminiFunctionChatOptions
     const { messages, contextDocuments = [] } = options;
     
     // Build system instruction
-    let systemInstruction = `You are an AI assistant for an advanced document and knowledge management system. You help users organize, search, and understand their documents and information about people.
+    let systemInstruction = `You are an AI assistant for an advanced document and knowledge management system. You help users organize, search, and understand their documents, people, organizations, issues, and logs.
 
 You have access to the following functions to help users:
-- searchDocuments: Find documents and people by keywords
-- getDocumentDetails: Get full content of specific documents
-- createDocument: Create new documents or person profiles  
+- searchDocuments: Find documents, people, organizations, issues, and logs by keywords
+- getDocumentDetails: Get full content of specific documents (issues automatically include associated logs)
+- createDocument: Create new documents, person profiles, organizations, issues, or logs
 - updateDocument: Modify existing documents
 - findSimilarDocuments: Find semantically similar content
 - parseMentions: Analyze @mentions in text
 
 When users ask about finding, creating, or managing documents, proactively use these functions to help them. Always call the appropriate function rather than making assumptions about what exists in the knowledge base.
 
-Use @mentions like @[person:習近平] or @[document:項目計劃書] when referring to specific entities.`;
+Use @mentions like @[person:習近平], @[document:項目計劃書], @[organization:公司名稱], @[issue:問題標題], or @[log:日誌名稱] when referring to specific entities.`;
 
     if (contextDocuments.length > 0) {
       systemInstruction += `\n\nContext Documents (Currently available):`;
+      const getIcon = (type: string) => {
+        switch (type) {
+          case 'person': return '👤';
+          case 'document': return '📄';
+          case 'organization': return '🏢';
+          case 'issue': return '📋';
+          case 'log': return '📝';
+          default: return '📄';
+        }
+      };
+      
       contextDocuments.forEach((doc, index) => {
-        systemInstruction += `\n${index + 1}. ${doc.type === 'person' ? '👤' : '📄'} ${doc.name}`;
+        systemInstruction += `\n${index + 1}. ${getIcon(doc.type)} ${doc.name}`;
         if (doc.aliases.length > 0) {
           systemInstruction += ` (${doc.aliases.join(', ')})`;
         }

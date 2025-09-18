@@ -1,24 +1,24 @@
 // Reference: javascript_gemini blueprint integration  
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, FunctionDeclaration, Type } from "@google/genai";
 import { storage } from "./storage";
 import type { Document } from "@shared/schema";
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
 
 // Function calling tools for Gemini
-const searchDocumentsTool = {
+const searchDocumentsTool: FunctionDeclaration = {
   name: "search_documents",
-  description: "Search for documents and people by name, content, or aliases",
+  description: "Search for documents, people, organizations, issues, and logs by name, content, or aliases",
   parameters: {
-    type: "object",
+    type: Type.OBJECT,
     properties: {
       query: {
-        type: "string",
-        description: "Search query to find documents or people"
+        type: Type.STRING,
+        description: "Search query to find documents, people, organizations, issues, or logs"
       },
       type: {
-        type: "string",
-        enum: ["person", "document"],
+        type: Type.STRING,
+        enum: ["person", "document", "organization", "issue", "log"],
         description: "Filter by document type (optional)"
       }
     },
@@ -26,14 +26,14 @@ const searchDocumentsTool = {
   }
 };
 
-const getDocumentTool = {
+const getDocumentTool: FunctionDeclaration = {
   name: "get_document",
-  description: "Get detailed information about a specific document or person by ID",
+  description: "Get detailed information about a specific document, person, organization, issue, or log by ID. For issues, automatically includes associated logs.",
   parameters: {
-    type: "object",
+    type: Type.OBJECT,
     properties: {
       id: {
-        type: "string",
+        type: Type.STRING,
         description: "The document ID to retrieve"
       }
     },
@@ -41,28 +41,28 @@ const getDocumentTool = {
   }
 };
 
-const createDocumentTool = {
+const createDocumentTool: FunctionDeclaration = {
   name: "create_document",
-  description: "Create a new document or person entry",
+  description: "Create a new document, person profile, organization, issue, or log entry",
   parameters: {
-    type: "object",
+    type: Type.OBJECT,
     properties: {
       name: {
-        type: "string",
-        description: "Name of the document or person"
+        type: Type.STRING,
+        description: "Name of the document, person, organization, issue, or log"
       },
       type: {
-        type: "string",
-        enum: ["person", "document"],
+        type: Type.STRING,
+        enum: ["person", "document", "organization", "issue", "log"],
         description: "Type of entry to create"
       },
       content: {
-        type: "string",
+        type: Type.STRING,
         description: "Content or description"
       },
       aliases: {
-        type: "array",
-        items: { type: "string" },
+        type: Type.ARRAY,
+        items: { type: Type.STRING },
         description: "Alternative names or aliases"
       }
     },
@@ -70,27 +70,27 @@ const createDocumentTool = {
   }
 };
 
-const updateDocumentTool = {
+const updateDocumentTool: FunctionDeclaration = {
   name: "update_document",
-  description: "Update an existing document or person entry",
+  description: "Update an existing document, person profile, organization, issue, or log entry",
   parameters: {
-    type: "object",
+    type: Type.OBJECT,
     properties: {
       id: {
-        type: "string",
+        type: Type.STRING,
         description: "The document ID to update"
       },
       name: {
-        type: "string",
+        type: Type.STRING,
         description: "Updated name (optional)"
       },
       content: {
-        type: "string",
+        type: Type.STRING,
         description: "Updated content (optional)"
       },
       aliases: {
-        type: "array",
-        items: { type: "string" },
+        type: Type.ARRAY,
+        items: { type: Type.STRING },
         description: "Updated aliases (optional)"
       }
     },
@@ -115,9 +115,54 @@ async function handleGetDocument(args: any) {
   if (!document) {
     return { error: "Document not found", id };
   }
+  
+  let additionalInfo = "";
+  
+  // If this is an issue, find all associated logs
+  if (document.type === "issue") {
+    try {
+      const relationshipResults = await storage.findRelationships({
+        sourceId: id,
+        targetType: "log"
+      });
+      
+      if (relationshipResults.relationships.length > 0) {
+        // Get the actual log documents
+        const logIds = relationshipResults.relationships.map(r => r.targetId);
+        const logs = [];
+        
+        for (const logId of logIds) {
+          const log = await storage.getDocument(logId);
+          if (log) logs.push(log);
+        }
+        
+        // Sort logs by date field (same date = random order)
+        logs.sort((a, b) => {
+          if (a.date && b.date) {
+            if (a.date === b.date) {
+              return Math.random() - 0.5; // Random for same dates
+            }
+            return a.date.localeCompare(b.date);
+          }
+          if (a.date) return -1;
+          if (b.date) return 1;
+          return Math.random() - 0.5;
+        });
+        
+        additionalInfo = `\n\nAssociated Logs (${logs.length}):\n` +
+          logs.map(log => 
+            `- 📝 ${log.name}${log.date ? ` (${log.date})` : ''}\n` +
+            `  ${log.content.substring(0, 100)}${log.content.length > 100 ? '...' : ''}`
+          ).join('\n');
+      }
+    } catch (error) {
+      console.error('Error fetching associated logs:', error);
+    }
+  }
+  
   return {
     document,
-    message: `Retrieved ${document.type}: ${document.name}`
+    message: `Retrieved ${document.type}: ${document.name}${additionalInfo}`
   };
 }
 
@@ -171,15 +216,16 @@ export async function chatWithGemini(options: GeminiChatOptions): Promise<string
     const { messages, contextDocuments = [], enableFunctionCalling = true } = options;
     
     // Build system instruction with context
-    let systemInstruction = `You are an AI assistant specializing in document and knowledge management. You help users organize, search, and understand their documents and information about people.
+    let systemInstruction = `You are an AI assistant specializing in document and knowledge management. You help users organize, search, and understand their documents, people, organizations, issues, and logs.
 
 Key capabilities:
-- Search through documents and people entries
-- Retrieve detailed information about specific items
-- Create new document or person entries
+- Search through documents, people, organizations, issues, and logs
+- Retrieve detailed information about specific items (issues automatically include associated logs)
+- Create new entries of any type
 - Update existing entries
+- Access relationships between entities
 
-You have access to function calling tools to search, retrieve, create, and modify documents.`;
+You have access to function calling tools to search, retrieve, create, and modify all types of documents and entities.`;
 
     if (contextDocuments.length > 0) {
       systemInstruction += `\n\nContext Documents:`;
