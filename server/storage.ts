@@ -29,8 +29,8 @@ export interface IStorage {
   // Document operations
   getDocument(id: string): Promise<Document | undefined>;
   getAllDocuments(): Promise<Document[]>;
-  getDocumentsByType(type: "person" | "document" | "organization"): Promise<Document[]>;
-  searchDocuments(query: string, type?: "person" | "document" | "organization"): Promise<SearchResult>;
+  getDocumentsByType(type: "person" | "document" | "organization" | "issue"): Promise<Document[]>;
+  searchDocuments(query: string, type?: "person" | "document" | "organization" | "issue"): Promise<SearchResult>;
   createDocument(document: InsertDocument): Promise<Document>;
   updateDocument(id: string, updates: UpdateDocument): Promise<Document | undefined>;
   deleteDocument(id: string): Promise<boolean>;
@@ -156,6 +156,18 @@ export class MemStorage implements IStorage {
         type: "organization" as const,
         content: "中國最大的電子商務公司，旗下擁有淘寶、天貓、支付寶等知名平台，同時涉及雲計算、物流等領域。",
         aliases: ["阿里巴巴", "Alibaba", "阿里集團"]
+      },
+      {
+        name: "系統故障事件",
+        type: "issue" as const,
+        content: "2025年1月15日發生的主要服務器故障，導致系統停機2小時。根因分析顯示是硬盤故障引起。",
+        aliases: ["停機事件", "故障報告"]
+      },
+      {
+        name: "安全漏洞修復",
+        type: "issue" as const,
+        content: "發現並修復了用戶認證模組的安全漏洞，已更新相關安全補丁並通知所有用戶。",
+        aliases: ["安全事件", "漏洞報告", "安全補丁"]
       }
     ];
     
@@ -202,13 +214,13 @@ export class MemStorage implements IStorage {
     );
   }
 
-  async getDocumentsByType(type: "person" | "document" | "organization"): Promise<Document[]> {
+  async getDocumentsByType(type: "person" | "document" | "organization" | "issue"): Promise<Document[]> {
     return Array.from(this.documents.values())
       .filter(doc => doc.type === type)
       .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
   }
 
-  async searchDocuments(query: string, type?: "person" | "document" | "organization"): Promise<SearchResult> {
+  async searchDocuments(query: string, type?: "person" | "document" | "organization" | "issue"): Promise<SearchResult> {
     const allDocs = Array.from(this.documents.values());
     const lowerQuery = query.toLowerCase();
     

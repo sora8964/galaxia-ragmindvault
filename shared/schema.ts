@@ -13,7 +13,7 @@ export const users = pgTable("users", {
 export const documents = pgTable("documents", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull(),
-  type: text("type", { enum: ["person", "document", "organization"] }).notNull(),
+  type: text("type", { enum: ["person", "document", "organization", "issue"] }).notNull(),
   content: text("content").notNull().default(""),
   aliases: json("aliases").$type<string[]>().notNull().default([]),
   date: char("date", { length: 10 }), // YYYY-MM-DD format, nullable
@@ -196,7 +196,7 @@ export interface SearchResult {
 export interface MentionItem {
   id: string;
   name: string;
-  type: "person" | "document" | "organization";
+  type: "person" | "document" | "organization" | "issue";
   aliases: string[];
 }
 
@@ -210,7 +210,7 @@ export interface ParsedMention {
   start: number;
   end: number;
   raw: string;
-  type: "person" | "document";
+  type: "person" | "document" | "organization" | "issue";
   name: string;
   alias?: string;
   documentId?: string;
