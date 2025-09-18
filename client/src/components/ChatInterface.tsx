@@ -33,22 +33,50 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
   const [streamingMessageId, setStreamingMessageId] = useState<string | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
   const [mentionQuery, setMentionQuery] = useState('');
+  const [currentConversationId, setCurrentConversationId] = useState<string | null>(conversationId || null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
+  // Debug logging
+  console.log('ChatInterface props:', { conversationId, currentConversationId });
+
+  // Create new conversation mutation
+  const createConversationMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("POST", "/api/conversations", {
+        title: "新對話",
+        isActive: true
+      });
+      return response.json();
+    },
+    onSuccess: (newConversation) => {
+      console.log('Created new conversation:', newConversation);
+      setCurrentConversationId(newConversation.id);
+      queryClient.invalidateQueries({ queryKey: ['/api/conversations'] });
+    },
+    onError: (error) => {
+      console.error('Failed to create conversation:', error);
+      toast({
+        title: '錯誤',
+        description: '建立對話失敗，請再試一次',
+        variant: 'destructive'
+      });
+    }
+  });
+
   // Get conversation data
   const { data: conversation } = useQuery<Conversation>({
-    queryKey: ['/api/conversations', conversationId],
-    enabled: !!conversationId,
+    queryKey: ['/api/conversations', currentConversationId],
+    enabled: !!currentConversationId,
   });
 
   // Load conversation messages
   const { data: conversationMessages = [] } = useQuery<DbMessage[]>({
-    queryKey: ['/api/conversations', conversationId, 'messages'],
-    enabled: !!conversationId,
+    queryKey: ['/api/conversations', currentConversationId, 'messages'],
+    enabled: !!currentConversationId,
   });
 
   // Convert database messages to stream messages
@@ -64,7 +92,7 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
         isStreaming: false,
       }));
       setMessages(formattedMessages);
-    } else if (conversationId && messages.length === 0) {
+    } else if (currentConversationId && messages.length === 0) {
       // Add welcome message for new conversations only if no messages exist
       setMessages([{
         id: 'welcome',
@@ -73,7 +101,7 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
         timestamp: new Date(),
       }]);
     }
-  }, [conversationMessages, conversationId, messages.length]);
+  }, [conversationMessages, currentConversationId, messages.length]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -142,7 +170,33 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
   };
 
   const handleSendMessage = async () => {
-    if (!input.trim() || isStreaming || !conversationId) return;
+    console.log('handleSendMessage called:', { 
+      inputTrim: input.trim(), 
+      isStreaming, 
+      conversationId, 
+      currentConversationId 
+    });
+    
+    if (!input.trim() || isStreaming) return;
+
+    // Create conversation if none exists
+    let activeConversationId = currentConversationId;
+    if (!activeConversationId) {
+      console.log('No conversation ID, creating new conversation...');
+      try {
+        const newConversation = await createConversationMutation.mutateAsync();
+        activeConversationId = newConversation.id;
+        console.log('Created conversation:', activeConversationId);
+      } catch (error) {
+        console.error('Failed to create conversation:', error);
+        return;
+      }
+    }
+
+    if (!activeConversationId) {
+      console.error('Still no conversation ID after creation attempt');
+      return;
+    }
 
     const messageId = `msg-${Date.now()}`;
     const userMessage: StreamMessage = {
@@ -160,7 +214,8 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
 
     try {
       // Save user message to backend
-      await apiRequest("POST", `/api/conversations/${conversationId}/messages`, {
+      console.log('Saving user message to backend:', activeConversationId);
+      await apiRequest("POST", `/api/conversations/${activeConversationId}/messages`, {
         role: 'user',
         content: messageContent,
         contextDocuments: currentContextIds
@@ -200,7 +255,7 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
         body: JSON.stringify({
           messages: chatMessages,
           contextDocumentIds: currentContextIds,
-          conversationId: conversationId
+          conversationId: activeConversationId
         }),
         signal: abortController.signal,
       });
@@ -269,7 +324,7 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
                   
                   // Invalidate conversation messages and conversations list
                   queryClient.invalidateQueries({ 
-                    queryKey: ['/api/conversations', conversationId, 'messages'] 
+                    queryKey: ['/api/conversations', activeConversationId, 'messages'] 
                   });
                   queryClient.invalidateQueries({
                     queryKey: ['/api/conversations']
@@ -439,7 +494,7 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
           />
           <Button
             onClick={handleSendMessage}
-            disabled={!input.trim() || isStreaming}
+            disabled={!input.trim() || isStreaming || createConversationMutation.isPending}
             size="icon"
             className="absolute right-2 bottom-2 h-8 w-8"
             data-testid="button-send-message"
