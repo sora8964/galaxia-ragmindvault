@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect, useMemo } from "react";
-import { Send, Bot, User, Sparkles, Brain, Settings, MoreVertical, Edit, Trash2 } from "lucide-react";
+import { Send, Bot, User, Sparkles, Brain, Settings, MoreVertical, Edit, Trash2, Check, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -44,14 +45,15 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(conversationId || null);
   const [hoveredMessageId, setHoveredMessageId] = useState<string | null>(null);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editedContent, setEditedContent] = useState<string>('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const editTextareaRef = useRef<HTMLTextAreaElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Debug logging
-  console.log('ChatInterface props:', { conversationId, currentConversationId });
 
   // Smart merge function to combine database messages with local messages
   const mergeMessages = (dbMessages: StreamMessage[], localMsgs: StreamMessage[]): StreamMessage[] => {
@@ -77,6 +79,24 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
     return mergeMessages(databaseMessages, localMessages);
   }, [databaseMessages, localMessages]);
 
+  // Get conversation data
+  const { data: conversation } = useQuery<Conversation>({
+    queryKey: ['/api/conversations', currentConversationId],
+    enabled: !!currentConversationId,
+  });
+
+  // Load conversation messages
+  const { data: conversationMessages = [] } = useQuery<DbMessage[]>({
+    queryKey: ['/api/conversations', currentConversationId, 'messages'],
+    enabled: !!currentConversationId,
+  });
+
+  // Create a Set of persistent message IDs for edit permission checking
+  const persistedMessageIds = useMemo(() => 
+    new Set(conversationMessages.map(msg => msg.id)), 
+    [conversationMessages]
+  );
+
   // Create new conversation mutation
   const createConversationMutation = useMutation({
     mutationFn: async () => {
@@ -87,7 +107,6 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
       return response.json();
     },
     onSuccess: (newConversation) => {
-      console.log('Created new conversation:', newConversation);
       setCurrentConversationId(newConversation.id);
       queryClient.invalidateQueries({ queryKey: ['/api/conversations'] });
     },
@@ -101,16 +120,41 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
     }
   });
 
-  // Get conversation data
-  const { data: conversation } = useQuery<Conversation>({
-    queryKey: ['/api/conversations', currentConversationId],
-    enabled: !!currentConversationId,
-  });
-
-  // Load conversation messages
-  const { data: conversationMessages = [] } = useQuery<DbMessage[]>({
-    queryKey: ['/api/conversations', currentConversationId, 'messages'],
-    enabled: !!currentConversationId,
+  // Edit message mutation
+  const editMessageMutation = useMutation({
+    mutationFn: async ({ messageId, content }: { messageId: string; content: string }) => {
+      if (!currentConversationId) {
+        throw new Error('No conversation ID available');
+      }
+      const response = await apiRequest("PATCH", `/api/conversations/${currentConversationId}/messages/${messageId}`, {
+        content: content.trim()
+      });
+      return response.json();
+    },
+    onSuccess: () => {
+      // Exit edit mode
+      setEditingMessageId(null);
+      setEditedContent('');
+      setOpenMenuId(null);
+      
+      // Invalidate and refetch messages
+      queryClient.invalidateQueries({ 
+        queryKey: ['/api/conversations', currentConversationId, 'messages'] 
+      });
+      
+      toast({
+        title: '成功',
+        description: '消息已更新',
+      });
+    },
+    onError: (error) => {
+      console.error('Failed to edit message:', error);
+      toast({
+        title: '錯誤',
+        description: '更新消息失敗，請再試一次',
+        variant: 'destructive'
+      });
+    }
   });
 
   // Convert database messages to stream messages without overriding local state
@@ -204,23 +248,14 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
   };
 
   const handleSendMessage = async () => {
-    console.log('handleSendMessage called:', { 
-      inputTrim: input.trim(), 
-      isStreaming, 
-      conversationId, 
-      currentConversationId 
-    });
-    
     if (!input.trim() || isStreaming) return;
 
     // Create conversation if none exists
     let activeConversationId = currentConversationId;
     if (!activeConversationId) {
-      console.log('No conversation ID, creating new conversation...');
       try {
         const newConversation = await createConversationMutation.mutateAsync();
         activeConversationId = newConversation.id;
-        console.log('Created conversation:', activeConversationId);
       } catch (error) {
         console.error('Failed to create conversation:', error);
         return;
@@ -249,7 +284,6 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
 
     try {
       // Save user message to backend
-      console.log('Saving user message to backend:', activeConversationId);
       await apiRequest("POST", `/api/conversations/${activeConversationId}/messages`, {
         role: 'user',
         content: messageContent,
@@ -412,16 +446,66 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
     }
   };
 
-  // Event handlers for message actions (empty for now, will be implemented later)
+  // Event handlers for message actions
   const handleEditMessage = (messageId: string) => {
-    // TODO: Implement edit functionality
-    console.log('Edit message:', messageId);
+    // Find the message to edit
+    const messageToEdit = messages.find(msg => msg.id === messageId);
+    if (!messageToEdit) return;
+    
+    // Don't allow editing streaming messages
+    if (messageToEdit.isStreaming) {
+      toast({
+        title: '無法編輯',
+        description: '無法編輯正在接收的消息',
+        variant: 'destructive'
+      });
+      return;
+    }
+    
+    // Enter edit mode
+    setEditingMessageId(messageId);
+    setEditedContent(messageToEdit.content);
     setOpenMenuId(null);
+    
+    // Focus the edit textarea after state update
+    setTimeout(() => {
+      editTextareaRef.current?.focus();
+    }, 0);
+  };
+
+  const handleSaveEdit = () => {
+    if (!editingMessageId || !editedContent.trim()) {
+      toast({
+        title: '錯誤',
+        description: '消息內容不能為空',
+        variant: 'destructive'
+      });
+      return;
+    }
+    
+    editMessageMutation.mutate({
+      messageId: editingMessageId,
+      content: editedContent.trim()
+    });
+  };
+
+  const handleCancelEdit = () => {
+    setEditingMessageId(null);
+    setEditedContent('');
+  };
+
+  const handleEditKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      handleCancelEdit();
+    } else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      handleSaveEdit();
+    }
   };
 
   const handleDeleteMessage = (messageId: string) => {
     // TODO: Implement delete functionality
-    console.log('Delete message:', messageId);
     setOpenMenuId(null);
   };
 
@@ -494,34 +578,81 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
               >
                 <Card className={`${message.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-card'}`}>
                   <CardContent className="p-3">
-                    <div className="text-sm whitespace-pre-wrap">
-                      {message.content}
-                      {message.isStreaming && (
-                        <>
-                          {!message.content && (
-                            <div className="flex items-center gap-1 text-muted-foreground">
-                              <div className="flex space-x-1">
-                                <div className="w-2 h-2 bg-current rounded-full animate-bounce [animation-delay:-0.3s]"></div>
-                                <div className="w-2 h-2 bg-current rounded-full animate-bounce [animation-delay:-0.15s]"></div>
-                                <div className="w-2 h-2 bg-current rounded-full animate-bounce"></div>
-                              </div>
-                              <span className="text-xs ml-2">思考中...</span>
-                            </div>
+                    {editingMessageId === message.id ? (
+                      // Edit mode UI
+                      <div className="space-y-3" data-testid={`edit-form-${message.id}`}>
+                        <Textarea
+                          ref={editTextareaRef}
+                          value={editedContent}
+                          onChange={(e) => setEditedContent(e.target.value)}
+                          onKeyDown={handleEditKeyDown}
+                          className="min-h-[60px] resize-none border-0 text-sm"
+                          placeholder="編輯消息內容... (Esc取消, Ctrl+Enter保存)"
+                          data-testid={`textarea-edit-message-${message.id}`}
+                          disabled={editMessageMutation.isPending}
+                        />
+                        <div className="flex items-center justify-end gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={handleCancelEdit}
+                            disabled={editMessageMutation.isPending}
+                            data-testid={`button-cancel-edit-${message.id}`}
+                          >
+                            <X className="h-3 w-3 mr-1" />
+                            取消
+                          </Button>
+                          <Button
+                            size="sm"
+                            onClick={handleSaveEdit}
+                            disabled={editMessageMutation.isPending || !editedContent.trim()}
+                            data-testid={`button-save-edit-${message.id}`}
+                          >
+                            {editMessageMutation.isPending ? (
+                              <div className="w-3 h-3 border border-white border-t-transparent rounded-full animate-spin mr-1" />
+                            ) : (
+                              <Check className="h-3 w-3 mr-1" />
+                            )}
+                            保存
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      // Normal display mode
+                      <>
+                        <div className="text-sm whitespace-pre-wrap">
+                          {message.content}
+                          {message.isStreaming && (
+                            <>
+                              {!message.content && (
+                                <div className="flex items-center gap-1 text-muted-foreground">
+                                  <div className="flex space-x-1">
+                                    <div className="w-2 h-2 bg-current rounded-full animate-bounce [animation-delay:-0.3s]"></div>
+                                    <div className="w-2 h-2 bg-current rounded-full animate-bounce [animation-delay:-0.15s]"></div>
+                                    <div className="w-2 h-2 bg-current rounded-full animate-bounce"></div>
+                                  </div>
+                                  <span className="text-xs ml-2">思考中...</span>
+                                </div>
+                              )}
+                              {message.content && (
+                                <span className="inline-block w-0.5 h-4 bg-current animate-pulse ml-1"></span>
+                              )}
+                            </>
                           )}
-                          {message.content && (
-                            <span className="inline-block w-0.5 h-4 bg-current animate-pulse ml-1"></span>
-                          )}
-                        </>
-                      )}
-                    </div>
-                    <div className="text-xs opacity-70 mt-2">
-                      {message.timestamp.toLocaleTimeString()}
-                    </div>
+                        </div>
+                        <div className="text-xs opacity-70 mt-2">
+                          {message.timestamp.toLocaleTimeString()}
+                        </div>
+                      </>
+                    )}
                   </CardContent>
                 </Card>
                 
                 {/* Hover menu button */}
-                {(hoveredMessageId === message.id || openMenuId === message.id) && !message.isStreaming && (
+                {(hoveredMessageId === message.id || openMenuId === message.id) && 
+                 persistedMessageIds.has(message.id) && 
+                 !message.isStreaming && 
+                 editingMessageId !== message.id && (
                   <div className={`absolute top-2 ${message.role === 'user' ? 'left-2' : 'right-2'} z-10`}>
                     <DropdownMenu open={openMenuId === message.id} onOpenChange={(open) => setOpenMenuId(open ? message.id : null)}>
                       <DropdownMenuTrigger asChild>
