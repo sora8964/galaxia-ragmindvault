@@ -702,6 +702,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const relationship = await storage.createRelationship({
         sourceId: id,
         targetId: issueId,
+        sourceType: document.type,
+        targetType: issue.type,
+        relationKind: "related",
         relationshipType
       });
       

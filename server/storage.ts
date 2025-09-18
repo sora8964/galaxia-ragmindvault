@@ -727,10 +727,26 @@ export class MemStorage implements IStorage {
   async createRelationship(insertRelationship: InsertRelationship): Promise<Relationship> {
     const id = randomUUID();
     const now = new Date();
+    
+    // For backward compatibility, infer types from documents if not provided
+    let sourceType = insertRelationship.sourceType;
+    let targetType = insertRelationship.targetType;
+    
+    if (!sourceType || !targetType) {
+      const sourceDoc = await this.getDocument(insertRelationship.sourceId);
+      const targetDoc = await this.getDocument(insertRelationship.targetId);
+      
+      if (sourceDoc) sourceType = sourceDoc.type;
+      if (targetDoc) targetType = targetDoc.type;
+    }
+    
     const relationship: Relationship = {
       id,
       sourceId: insertRelationship.sourceId,
       targetId: insertRelationship.targetId,
+      sourceType: sourceType || "document", // Default fallback
+      targetType: targetType || "document", // Default fallback
+      relationKind: insertRelationship.relationKind || "related",
       relationshipType: insertRelationship.relationshipType,
       createdAt: now,
       updatedAt: now

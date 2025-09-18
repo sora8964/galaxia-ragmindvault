@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, char, timestamp, json, boolean, integer } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, char, timestamp, json, boolean, integer, unique, index } from "drizzle-orm/pg-core";
 import { vector } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -77,12 +77,27 @@ export const relationships = pgTable("relationships", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   sourceId: varchar("source_id").notNull(),
   targetId: varchar("target_id").notNull(),
-  relationshipType: text("relationship_type").notNull(), // e.g., "log_to_issue", "document_to_issue", etc.
+  sourceType: text("source_type", { enum: ["person", "document", "organization", "issue", "log"] }).notNull(),
+  targetType: text("target_type", { enum: ["person", "document", "organization", "issue", "log"] }).notNull(),
+  relationKind: text("relation_kind").notNull().default("related"),
+  relationshipType: text("relationship_type").notNull(), // Kept for backward compatibility
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+}, (table) => ({
+  // Unique index to prevent duplicate relationships
+  uniqueRelation: unique().on(table.sourceId, table.targetId, table.relationKind),
+  // Performance indexes
+  sourceIdIdx: index().on(table.sourceId),
+  targetIdIdx: index().on(table.targetId),
+  typeRelationIdx: index().on(table.sourceType, table.targetType, table.relationKind),
+}));
 
 // Schema definitions
+
+// Define DocumentType enum for type safety
+export const DocumentType = z.enum(["person", "document", "organization", "issue", "log"]);
+export type DocumentType = z.infer<typeof DocumentType>;
+
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
   password: true,
@@ -178,13 +193,32 @@ export const insertChunkSchema = createInsertSchema(chunks).omit({
 
 export const updateChunkSchema = insertChunkSchema.partial();
 
-export const insertRelationshipSchema = createInsertSchema(relationships).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-});
+// Create base schema without refinement for backward compatibility
+const baseInsertRelationshipSchema = createInsertSchema(relationships)
+  .omit({
+    id: true,
+    createdAt: true,
+    updatedAt: true,
+  })
+  .extend({
+    // Make new fields optional with defaults for backward compatibility
+    sourceType: DocumentType.optional(),
+    targetType: DocumentType.optional(), 
+    relationKind: z.string().optional().default("related"),
+  });
 
-export const updateRelationshipSchema = insertRelationshipSchema.partial();
+export const insertRelationshipSchema = baseInsertRelationshipSchema
+  .refine((data) => {
+    // Ensure sourceType and targetType are provided for new relationships
+    if (!data.sourceType || !data.targetType) {
+      return !!data.relationshipType; // Allow if using legacy relationshipType
+    }
+    return true;
+  }, {
+    message: "sourceType and targetType are required for new relationships",
+  });
+
+export const updateRelationshipSchema = baseInsertRelationshipSchema.partial();
 
 // Types
 export type InsertUser = z.infer<typeof insertUserSchema>;
