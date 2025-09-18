@@ -11,6 +11,8 @@ import { ChatInterface } from "./components/ChatInterface";
 import { DocumentEditor } from "./components/DocumentEditor";
 import { DocumentsList } from "./pages/documents-list";
 import { DocumentDetail } from "./pages/document-detail";
+import { LogDetails } from "./pages/log-details";
+import { DocumentDetails } from "./pages/document-details";
 import { PeopleList } from "./pages/people-list";
 import { OrganizationsList } from "./pages/organizations-list";
 import { IssuesList } from "./pages/issues-list";
@@ -70,7 +72,7 @@ function Router() {
       <Route path="/conversations" component={ConversationsPage} />
       <Route path="/conversations/:id" component={ConversationDetailPage} />
       <Route path="/documents" component={DocumentsPage} />
-      <Route path="/documents/:id" component={DocumentDetail} />
+      <Route path="/documents/:id" component={DocumentDetails} />
       <Route path="/people" component={PeoplePage} />
       <Route path="/people/:id" component={DocumentDetail} />
       <Route path="/organizations" component={OrganizationsPage} />
@@ -78,7 +80,7 @@ function Router() {
       <Route path="/issues" component={IssuesPage} />
       <Route path="/issues/:id" component={DocumentDetail} />
       <Route path="/logs" component={LogsPage} />
-      <Route path="/logs/:id" component={DocumentDetail} />
+      <Route path="/logs/:id" component={LogDetails} />
       <Route path="/settings" component={SettingsPage} />
       <Route component={NotFound} />
     </Switch>

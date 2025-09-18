@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { SimpleMentionSearch } from "@/components/SimpleMentionSearch";
-import { Plus, Calendar, Search, FileText, User } from "lucide-react";
+import { Plus, Calendar, Search, FileText, User, Eye } from "lucide-react";
 import { queryClient } from "@/lib/queryClient";
 import type { Document } from "@shared/schema";
 
@@ -305,8 +305,7 @@ export function BaseItemManager({
             {items.map((item: Document) => (
               <Card
                 key={item.id}
-                className="hover-elevate cursor-pointer"
-                onClick={() => handleItemClick(item)}
+                className="hover-elevate"
                 data-testid={`card-${itemType}-${item.id}`}
               >
                 <CardHeader>
@@ -350,6 +349,20 @@ export function BaseItemManager({
                       )}
                     </div>
                   )}
+                  <div className="flex justify-end mt-4 pt-3 border-t">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleItemClick(item);
+                      }}
+                      data-testid={`button-view-details-${item.id}`}
+                    >
+                      <Eye className="w-4 h-4 mr-1" />
+                      查看詳情
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
             ))}
