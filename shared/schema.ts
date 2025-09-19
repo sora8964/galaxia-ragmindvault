@@ -10,7 +10,7 @@ export const users = pgTable("users", {
   password: text("password").notNull(),
 });
 
-export const documents = pgTable("documents", {
+export const objects = pgTable("objects", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull(),
   type: text("type", { enum: ["person", "document", "organization", "issue", "log"] }).notNull(),
@@ -61,7 +61,7 @@ export const messages = pgTable("messages", {
 
 export const chunks = pgTable("chunks", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  documentId: varchar("document_id").notNull().references(() => documents.id, { onDelete: "cascade" }),
+  objectId: varchar("object_id").notNull().references(() => objects.id, { onDelete: "cascade" }),
   content: text("content").notNull(),
   chunkIndex: integer("chunk_index").notNull(), // 0, 1, 2... for ordering
   startPosition: integer("start_position").notNull(), // Start character position in original content
@@ -132,7 +132,7 @@ const dateValidation = z
   }, "Date must be in YYYY-MM-DD format")
   .transform((val) => val === "" ? null : val); // Normalize empty strings to null
 
-export const insertDocumentSchema = createInsertSchema(documents)
+export const insertObjectSchema = createInsertSchema(objects)
   .omit({
     id: true,
     createdAt: true,
@@ -152,7 +152,7 @@ export const insertDocumentSchema = createInsertSchema(documents)
     path: ["date"]
   });
 
-export const updateDocumentSchema = createInsertSchema(documents)
+export const updateObjectSchema = createInsertSchema(objects)
   .omit({
     id: true,
     createdAt: true,
@@ -228,9 +228,9 @@ export const updateRelationshipSchema = baseInsertRelationshipSchema.partial();
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 
-export type InsertDocument = z.infer<typeof insertDocumentSchema>;
-export type UpdateDocument = z.infer<typeof updateDocumentSchema>;
-export type Document = typeof documents.$inferSelect;
+export type InsertObject = z.infer<typeof insertObjectSchema>;
+export type UpdateObject = z.infer<typeof updateObjectSchema>;
+export type AppObject = typeof objects.$inferSelect;
 
 export type InsertConversation = z.infer<typeof insertConversationSchema>;
 export type Conversation = typeof conversations.$inferSelect;
@@ -249,7 +249,7 @@ export type Relationship = typeof relationships.$inferSelect;
 
 // API Response types
 export interface SearchResult {
-  documents: Document[];
+  objects: AppObject[];
   total: number;
 }
 
@@ -261,7 +261,7 @@ export interface MentionItem {
 }
 
 export interface ContextSuggestion {
-  document: Document;
+  object: AppObject;
   relevance: number;
   reason: string;
 }

@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage, type RelationshipFilters } from "./storage";
-import { insertDocumentSchema, updateDocumentSchema, insertConversationSchema, insertMessageSchema, updateMessageSchema, parseMentionsSchema, updateAppConfigSchema, insertRelationshipSchema, updateRelationshipSchema, DocumentType } from "@shared/schema";
+import { insertObjectSchema, updateObjectSchema, insertConversationSchema, insertMessageSchema, updateMessageSchema, parseMentionsSchema, updateAppConfigSchema, insertRelationshipSchema, updateRelationshipSchema, DocumentType } from "@shared/schema";
 import { chatWithGemini, extractTextFromPDF, extractTextFromWord, generateTextEmbedding } from "./gemini-simple";
 import { chatWithGeminiFunctions } from "./gemini-functions";
 import { embeddingService } from "./embedding-service";
@@ -78,7 +78,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       // Preprocess data to normalize empty strings
       const preprocessedData = preprocessDocumentData(req.body);
-      const validatedData = insertDocumentSchema.parse(preprocessedData);
+      const validatedData = insertObjectSchema.parse(preprocessedData);
       
       const document = await storage.createDocument(validatedData);
       
@@ -101,7 +101,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       // Preprocess data to normalize empty strings
       const preprocessedData = preprocessDocumentData(req.body);
-      const validatedData = updateDocumentSchema.parse(preprocessedData);
+      const validatedData = updateObjectSchema.parse(preprocessedData);
       
       const document = await storage.updateDocument(req.params.id, validatedData);
       if (!document) {
