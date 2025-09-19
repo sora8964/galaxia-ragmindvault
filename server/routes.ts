@@ -38,7 +38,7 @@ function preprocessDocumentData(data: any) {
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Document routes
-  app.get("/api/documents", async (req, res) => {
+  app.get("/api/objects", async (req, res) => {
     try {
       const { type, search } = req.query;
       
@@ -61,7 +61,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/documents/:id", async (req, res) => {
+  app.get("/api/objects/:id", async (req, res) => {
     try {
       const document = await storage.getDocument(req.params.id);
       if (!document) {
@@ -74,7 +74,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/documents", async (req, res) => {
+  app.post("/api/objects", async (req, res) => {
     try {
       // Preprocess data to normalize empty strings
       const preprocessedData = preprocessDocumentData(req.body);
@@ -97,7 +97,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/documents/:id", async (req, res) => {
+  app.put("/api/objects/:id", async (req, res) => {
     try {
       // Preprocess data to normalize empty strings
       const preprocessedData = preprocessDocumentData(req.body);
@@ -121,7 +121,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/documents/:id", async (req, res) => {
+  app.delete("/api/objects/:id", async (req, res) => {
     try {
       const success = await storage.deleteDocument(req.params.id);
       if (!success) {
@@ -554,7 +554,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Create document from Word upload
-  app.post("/api/documents/word-upload", async (req, res) => {
+  app.post("/api/objects/word-upload", async (req, res) => {
     try {
       const { wordBase64, filename, name } = req.body;
       
@@ -589,7 +589,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Create document from PDF upload  
-  app.post("/api/documents/pdf-upload", async (req, res) => {
+  app.post("/api/objects/pdf-upload", async (req, res) => {
     try {
       const { pdfBase64, filename, name } = req.body;
       
@@ -709,7 +709,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Enhanced document relationships endpoint with direction and filtering support
-  app.get("/api/documents/:id/relationships", async (req, res) => {
+  app.get("/api/objects/:id/relationships", async (req, res) => {
     try {
       const { id } = req.params;
       const validatedQuery = documentRelationshipQuerySchema.parse(req.query);
@@ -851,7 +851,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Document-issue relationship endpoints
-  app.get("/api/documents/:id/related-issues", async (req, res) => {
+  app.get("/api/objects/:id/related-issues", async (req, res) => {
     try {
       const { id } = req.params;
       
@@ -887,7 +887,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/documents/:id/relate-to-issue", async (req, res) => {
+  app.post("/api/objects/:id/relate-to-issue", async (req, res) => {
     try {
       const { id } = req.params;
       const { issueId } = req.body;
@@ -949,12 +949,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/documents/:documentId/relationships/:issueId", async (req, res) => {
+  app.delete("/api/objects/:objectId/relationships/:issueId", async (req, res) => {
     try {
-      const { documentId, issueId } = req.params;
+      const { objectId, issueId } = req.params;
       
       // Verify both documents exist
-      const document = await storage.getDocument(documentId);
+      const document = await storage.getDocument(objectId);
       if (!document) {
         return res.status(404).json({ error: "Document not found" });
       }
@@ -965,7 +965,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Find and delete the relationship
-      const relationships = await storage.getRelationshipBetween(documentId, issueId);
+      const relationships = await storage.getRelationshipBetween(objectId, issueId);
       const relationshipType = `${document.type}_to_issue`;
       const targetRel = relationships.find(rel => rel.relationshipType === relationshipType);
       
