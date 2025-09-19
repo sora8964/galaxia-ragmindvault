@@ -12,6 +12,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarHeader,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import {
@@ -37,6 +38,7 @@ import type { Conversation } from "@shared/schema";
 export function AppSidebar() {
   const [location, navigate] = useLocation();
   const { toast } = useToast();
+  const { isMobile, setOpenMobile } = useSidebar();
   const [isRenameDialogOpen, setIsRenameDialogOpen] = useState(false);
   const [editingConversation, setEditingConversation] = useState<{id: string, title: string} | null>(null);
   const [newTitle, setNewTitle] = useState("");
@@ -147,6 +149,13 @@ export function AppSidebar() {
   // Get current conversation ID from URL
   const currentConversationId = location.match(/^\/conversations\/([^\/]+)/)?.[1];
 
+  // Handle navigation and close sidebar on mobile
+  const handleNavigation = () => {
+    if (isMobile) {
+      setOpenMobile(false);
+    }
+  };
+
   return (
     <Sidebar>
       <SidebarHeader className="p-4">
@@ -189,7 +198,7 @@ export function AppSidebar() {
                         data-testid={`link-conversation-${conversation.id}`}
                         className={currentConversationId === conversation.id ? "bg-sidebar-accent" : ""}
                       >
-                        <Link href={`/conversations/${conversation.id}`}>
+                        <Link href={`/conversations/${conversation.id}`} onClick={handleNavigation}>
                           <MessageSquare className="h-4 w-4" />
                           <span className="truncate flex-1">{conversation.title}</span>
                         </Link>
@@ -240,7 +249,7 @@ export function AppSidebar() {
             <SidebarMenu>
               <SidebarMenuItem>
                 <SidebarMenuButton asChild data-testid="link-documents">
-                  <Link href="/documents">
+                  <Link href="/documents" onClick={handleNavigation}>
                     <FileText className="h-4 w-4" />
                     <span>文件</span>
                   </Link>
@@ -248,7 +257,7 @@ export function AppSidebar() {
               </SidebarMenuItem>
               <SidebarMenuItem>
                 <SidebarMenuButton asChild data-testid="link-people">
-                  <Link href="/people">
+                  <Link href="/people" onClick={handleNavigation}>
                     <User className="h-4 w-4" />
                     <span>人員</span>
                   </Link>
@@ -256,7 +265,7 @@ export function AppSidebar() {
               </SidebarMenuItem>
               <SidebarMenuItem>
                 <SidebarMenuButton asChild data-testid="link-organizations">
-                  <Link href="/organizations">
+                  <Link href="/organizations" onClick={handleNavigation}>
                     <Building className="h-4 w-4" />
                     <span>組織</span>
                   </Link>
@@ -264,7 +273,7 @@ export function AppSidebar() {
               </SidebarMenuItem>
               <SidebarMenuItem>
                 <SidebarMenuButton asChild data-testid="link-issues">
-                  <Link href="/issues">
+                  <Link href="/issues" onClick={handleNavigation}>
                     <AlertTriangle className="h-4 w-4" />
                     <span>議題</span>
                   </Link>
@@ -272,7 +281,7 @@ export function AppSidebar() {
               </SidebarMenuItem>
               <SidebarMenuItem>
                 <SidebarMenuButton asChild data-testid="link-logs">
-                  <Link href="/logs">
+                  <Link href="/logs" onClick={handleNavigation}>
                     <Clock className="h-4 w-4" />
                     <span>日誌</span>
                   </Link>
@@ -280,7 +289,7 @@ export function AppSidebar() {
               </SidebarMenuItem>
               <SidebarMenuItem>
                 <SidebarMenuButton asChild data-testid="link-settings">
-                  <Link href="/settings">
+                  <Link href="/settings" onClick={handleNavigation}>
                     <Settings className="h-4 w-4" />
                     <span>設定</span>
                   </Link>
