@@ -50,10 +50,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         res.json(result);
       } else if (type) {
         const documents = await storage.getDocumentsByType(type as "person" | "document" | "organization" | "issue" | "log");
-        res.json({ documents, total: documents.length });
+        res.json({ objects: documents, total: documents.length });
       } else {
         const documents = await storage.getAllDocuments();
-        res.json({ documents, total: documents.length });
+        res.json({ objects: documents, total: documents.length });
       }
     } catch (error) {
       console.error('Error fetching documents:', error);

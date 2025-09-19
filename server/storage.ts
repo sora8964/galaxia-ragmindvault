@@ -1140,7 +1140,7 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(objects.updatedAt));
     
     return {
-      documents: result,
+      objects: result,
       total: result.length
     };
   }
