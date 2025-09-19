@@ -17,7 +17,7 @@ import type { Document } from "@shared/schema";
 
 export function DocumentDetail() {
   const { id } = useParams<{ id: string }>();
-  const [, setLocation] = useLocation();
+  const [location, setLocation] = useLocation();
   const { toast } = useToast();
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState({
@@ -25,6 +25,15 @@ export function DocumentDetail() {
     content: "",
     aliases: [] as string[]
   });
+
+  // Function to determine the correct list path based on current path
+  const getListPath = () => {
+    if (location.startsWith('/people/')) return '/people';
+    if (location.startsWith('/organizations/')) return '/organizations';
+    if (location.startsWith('/issues/')) return '/issues';
+    if (location.startsWith('/documents/')) return '/documents';
+    return '/documents'; // fallback
+  };
 
   // Fetch document details
   const { data: document, isLoading, error } = useQuery({
@@ -98,7 +107,7 @@ export function DocumentDetail() {
         title: "文件已刪除",
         description: "文件已成功刪除"
       });
-      setLocation("/documents");
+      setLocation(getListPath());
     },
     onError: () => {
       toast({
@@ -145,7 +154,7 @@ export function DocumentDetail() {
           <FileText className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
           <h3 className="text-lg font-medium mb-2">找不到文件</h3>
           <p className="text-muted-foreground mb-4">您要查看的文件不存在或已被刪除</p>
-          <Button onClick={() => setLocation("/documents")}>
+          <Button onClick={() => setLocation(getListPath())}>
             <ArrowLeft className="w-4 h-4 mr-2" />
             返回文件列表
           </Button>
@@ -191,7 +200,7 @@ export function DocumentDetail() {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => setLocation("/documents")}
+              onClick={() => setLocation(getListPath())}
               data-testid="button-back-to-list"
             >
               <ArrowLeft className="w-4 h-4" />
