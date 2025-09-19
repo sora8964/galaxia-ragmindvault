@@ -2,8 +2,8 @@ import {
   type User, 
   type InsertUser,
   type Document,
-  type InsertDocument,
-  type UpdateDocument,
+  type InsertObject,
+  type UpdateObject,
   type Conversation,
   type InsertConversation,
   type Message,
@@ -48,8 +48,8 @@ export interface IStorage {
   getAllDocuments(): Promise<Document[]>;
   getDocumentsByType(type: "person" | "document" | "organization" | "issue" | "log"): Promise<Document[]>;
   searchDocuments(query: string, type?: "person" | "document" | "organization" | "issue" | "log"): Promise<SearchResult>;
-  createDocument(document: InsertDocument): Promise<Document>;
-  updateDocument(id: string, updates: UpdateDocument): Promise<Document | undefined>;
+  createDocument(document: InsertObject): Promise<Document>;
+  updateDocument(id: string, updates: UpdateObject): Promise<Document | undefined>;
   deleteDocument(id: string): Promise<boolean>;
   getMentionSuggestions(query: string): Promise<MentionItem[]>;
   
@@ -315,7 +315,7 @@ export class MemStorage implements IStorage {
     };
   }
 
-  async createDocument(insertDocument: InsertDocument): Promise<Document> {
+  async createDocument(insertDocument: InsertObject): Promise<Document> {
     const id = randomUUID();
     const now = new Date();
     const document: Document = {
@@ -338,7 +338,7 @@ export class MemStorage implements IStorage {
     return document;
   }
 
-  async updateDocument(id: string, updates: UpdateDocument): Promise<Document | undefined> {
+  async updateDocument(id: string, updates: UpdateObject): Promise<Document | undefined> {
     const existing = this.documents.get(id);
     if (!existing) return undefined;
     
@@ -1083,4 +1083,283 @@ export class MemStorage implements IStorage {
   }
 }
 
-export const storage = new MemStorage();
+import { db } from "./db";
+import { objects, conversations, messages, chunks, relationships, users } from "@shared/schema";
+import { eq, ilike, or, desc, and } from "drizzle-orm";
+
+// Database storage implementation that writes to PostgreSQL
+export class DatabaseStorage implements IStorage {
+  // User operations
+  async getUser(id: string): Promise<User | undefined> {
+    const result = await db.select().from(users).where(eq(users.id, id));
+    return result[0];
+  }
+
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    const result = await db.select().from(users).where(eq(users.username, username));
+    return result[0];
+  }
+
+  async createUser(user: InsertUser): Promise<User> {
+    const result = await db.insert(users).values(user).returning();
+    return result[0];
+  }
+
+  // Document operations  
+  async getDocument(id: string): Promise<Document | undefined> {
+    const result = await db.select().from(objects).where(eq(objects.id, id));
+    return result[0];
+  }
+
+  async getAllDocuments(): Promise<Document[]> {
+    const result = await db.select().from(objects).orderBy(desc(objects.updatedAt));
+    return result;
+  }
+
+  async getDocumentsByType(type: "person" | "document" | "organization" | "issue" | "log"): Promise<Document[]> {
+    const result = await db.select().from(objects)
+      .where(eq(objects.type, type))
+      .orderBy(desc(objects.updatedAt));
+    return result;
+  }
+
+  async searchDocuments(query: string, type?: "person" | "document" | "organization" | "issue" | "log"): Promise<SearchResult> {
+    const lowerQuery = `%${query.toLowerCase()}%`;
+    
+    let whereCondition = or(
+      ilike(objects.name, lowerQuery),
+      ilike(objects.content, lowerQuery)
+    );
+    
+    if (type) {
+      whereCondition = and(eq(objects.type, type), whereCondition);
+    }
+    
+    const result = await db.select().from(objects)
+      .where(whereCondition)
+      .orderBy(desc(objects.updatedAt));
+    
+    return {
+      documents: result,
+      total: result.length
+    };
+  }
+
+  async createDocument(insertDocument: InsertObject): Promise<Document> {
+    const result = await db.insert(objects).values(insertDocument).returning();
+    return result[0];
+  }
+
+  async updateDocument(id: string, updates: UpdateObject): Promise<Document | undefined> {
+    const result = await db.update(objects)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(objects.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async deleteDocument(id: string): Promise<boolean> {
+    // Also cleanup related relationships
+    await this.cleanupRelationshipsForDocument(id);
+    
+    const result = await db.delete(objects).where(eq(objects.id, id));
+    return result.rowCount > 0;
+  }
+
+  async getMentionSuggestions(query: string): Promise<MentionItem[]> {
+    const lowerQuery = `%${query.toLowerCase()}%`;
+    
+    const result = await db.select({
+      id: objects.id,
+      name: objects.name,
+      type: objects.type,
+      aliases: objects.aliases
+    }).from(objects)
+      .where(or(
+        ilike(objects.name, lowerQuery),
+        ilike(objects.content, lowerQuery)
+      ))
+      .limit(10);
+    
+    return result.map(doc => ({
+      id: doc.id,
+      name: doc.name,
+      type: doc.type as DocumentType,
+      aliases: doc.aliases || []
+    }));
+  }
+
+  // Embedding operations (keep as stubs for now)
+  async updateDocumentEmbedding(id: string, embedding: number[]): Promise<boolean> {
+    const result = await db.update(objects)
+      .set({ 
+        embedding: embedding as any,
+        hasEmbedding: true,
+        embeddingStatus: "completed"
+      })
+      .where(eq(objects.id, id));
+    return result.rowCount > 0;
+  }
+
+  async searchDocumentsByVector(queryVector: number[], limit?: number): Promise<Document[]> {
+    // For now, return empty - vector search would need special SQL
+    return [];
+  }
+
+  async getDocumentsNeedingEmbedding(): Promise<Document[]> {
+    const result = await db.select().from(objects)
+      .where(eq(objects.needsEmbedding, true));
+    return result;
+  }
+
+  // Chunk operations (keep as stubs)
+  async getChunksByDocumentId(documentId: string): Promise<Chunk[]> {
+    const result = await db.select().from(chunks).where(eq(chunks.objectId, documentId));
+    return result;
+  }
+
+  async createChunk(chunk: InsertChunk): Promise<Chunk> {
+    const result = await db.insert(chunks).values(chunk).returning();
+    return result[0];
+  }
+
+  async updateChunk(id: string, updates: UpdateChunk): Promise<Chunk | undefined> {
+    const result = await db.update(chunks)
+      .set(updates)
+      .where(eq(chunks.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async updateChunkEmbedding(id: string, embedding: number[]): Promise<boolean> {
+    const result = await db.update(chunks)
+      .set({ embedding: embedding as any })
+      .where(eq(chunks.id, id));
+    return result.rowCount > 0;
+  }
+
+  async deleteChunk(id: string): Promise<boolean> {
+    const result = await db.delete(chunks).where(eq(chunks.id, id));
+    return result.rowCount > 0;
+  }
+
+  async deleteChunksByDocumentId(documentId: string): Promise<boolean> {
+    const result = await db.delete(chunks).where(eq(chunks.objectId, documentId));
+    return result.rowCount > 0;
+  }
+
+  async searchChunksByVector(queryVector: number[], limit?: number): Promise<Array<Chunk & { document: Document }>> {
+    // For now, return empty - vector search would need special SQL
+    return [];
+  }
+
+  // Mention parsing operations (keep as stubs)
+  async parseMentions(text: string): Promise<ParsedMention[]> {
+    return [];
+  }
+
+  async resolveMentionDocuments(mentions: ParsedMention[]): Promise<string[]> {
+    return [];
+  }
+
+  // Conversation operations
+  async getConversation(id: string): Promise<Conversation | undefined> {
+    const result = await db.select().from(conversations).where(eq(conversations.id, id));
+    return result[0];
+  }
+
+  async getAllConversations(): Promise<Conversation[]> {
+    const result = await db.select().from(conversations).orderBy(desc(conversations.updatedAt));
+    return result;
+  }
+
+  async createConversation(conversation: InsertConversation): Promise<Conversation> {
+    const result = await db.insert(conversations).values(conversation).returning();
+    return result[0];
+  }
+
+  async updateConversation(id: string, updates: Partial<Conversation>): Promise<Conversation | undefined> {
+    const result = await db.update(conversations)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(conversations.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async deleteConversation(id: string): Promise<boolean> {
+    const result = await db.delete(conversations).where(eq(conversations.id, id));
+    return result.rowCount > 0;
+  }
+
+  // Message operations
+  async getMessage(id: string): Promise<Message | undefined> {
+    const result = await db.select().from(messages).where(eq(messages.id, id));
+    return result[0];
+  }
+
+  async getMessagesByConversationId(conversationId: string): Promise<Message[]> {
+    const result = await db.select().from(messages)
+      .where(eq(messages.conversationId, conversationId))
+      .orderBy(messages.createdAt);
+    return result;
+  }
+
+  async createMessage(message: InsertMessage): Promise<Message> {
+    const result = await db.insert(messages).values(message).returning();
+    return result[0];
+  }
+
+  async updateMessage(id: string, updates: UpdateMessage): Promise<Message | undefined> {
+    const result = await db.update(messages)
+      .set(updates)
+      .where(eq(messages.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async deleteMessage(id: string): Promise<boolean> {
+    const result = await db.delete(messages).where(eq(messages.id, id));
+    return result.rowCount > 0;
+  }
+
+  // Relationship operations (keep as stubs for now)
+  async getRelationships(filters: RelationshipFilters): Promise<Relationship[]> {
+    let query = db.select().from(relationships);
+    
+    if (filters.sourceId) {
+      query = query.where(eq(relationships.sourceId, filters.sourceId));
+    }
+    
+    return query.limit(filters.limit || 50);
+  }
+
+  async getRelationshipsWithDocuments(filters: RelationshipFilters): Promise<Array<Relationship & { sourceDocument: Document; targetDocument: Document }>> {
+    return [];
+  }
+
+  async createRelationship(relationship: InsertRelationship): Promise<Relationship> {
+    const result = await db.insert(relationships).values(relationship).returning();
+    return result[0];
+  }
+
+  async deleteRelationship(id: string): Promise<boolean> {
+    const result = await db.delete(relationships).where(eq(relationships.id, id));
+    return result.rowCount > 0;
+  }
+
+  async deleteRelationshipsByType(relationshipType: string): Promise<boolean> {
+    const result = await db.delete(relationships).where(eq(relationships.relationKind, relationshipType));
+    return result.rowCount > 0;
+  }
+
+  async cleanupRelationshipsForDocument(documentId: string): Promise<boolean> {
+    const result = await db.delete(relationships)
+      .where(or(
+        eq(relationships.sourceId, documentId),
+        eq(relationships.targetId, documentId)
+      ));
+    return result.rowCount > 0;
+  }
+}
+
+export const storage = new DatabaseStorage();
