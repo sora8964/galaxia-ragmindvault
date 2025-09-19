@@ -1013,6 +1013,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Temporary aliases for migration compatibility (remove after frontend migration)
+  app.get("/api/documents", (req, res, next) => req.url = "/api/objects" && next());
+  app.get("/api/documents/:id", (req, res, next) => req.url = `/api/objects/${req.params.id}` && next());
+  app.put("/api/documents/:id", (req, res, next) => req.url = `/api/objects/${req.params.id}` && next());
+  app.delete("/api/documents/:id", (req, res, next) => req.url = `/api/objects/${req.params.id}` && next());
+  app.get("/api/documents/:id/relationships", (req, res, next) => req.url = `/api/objects/${req.params.id}/relationships` && next());
+  app.post("/api/documents/:objectId/relationships/:issueId", (req, res, next) => req.url = `/api/objects/${req.params.objectId}/relationships/${req.params.issueId}` && next());
+  app.delete("/api/documents/:objectId/relationships/:issueId", (req, res, next) => req.url = `/api/objects/${req.params.objectId}/relationships/${req.params.issueId}` && next());
+
   // Health check
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok", timestamp: new Date().toISOString() });

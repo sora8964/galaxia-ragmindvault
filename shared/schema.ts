@@ -344,3 +344,7 @@ export const updateAppConfigSchema = insertAppConfigSchema.partial();
 
 export type InsertAppConfig = z.infer<typeof insertAppConfigSchema>;
 export type UpdateAppConfig = z.infer<typeof updateAppConfigSchema>;
+
+// Temporary aliases for migration compatibility
+export type Document = AppObject;
+export type DocumentType = ObjectType;
