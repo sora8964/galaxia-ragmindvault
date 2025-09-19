@@ -13,6 +13,8 @@ import { DocumentsList } from "./pages/documents-list";
 import { DocumentDetail } from "./pages/document-detail";
 import { LogDetails } from "./pages/log-details";
 import { DocumentDetails } from "./pages/document-details";
+import { MeetingsList } from "./pages/meetings-list";
+import { MeetingDetails } from "./pages/meeting-details";
 import { PeopleList } from "./pages/people-list";
 import { OrganizationsList } from "./pages/organizations-list";
 import { IssuesList } from "./pages/issues-list";
@@ -45,6 +47,10 @@ function DocumentsPage() {
   return <DocumentsList />;
 }
 
+function MeetingsPage() {
+  return <MeetingsList />;
+}
+
 function PeoplePage() {
   return <PeopleList />;
 }
@@ -73,6 +79,8 @@ function Router() {
       <Route path="/conversations/:id" component={ConversationDetailPage} />
       <Route path="/documents" component={DocumentsPage} />
       <Route path="/documents/:id" component={DocumentDetails} />
+      <Route path="/meetings" component={MeetingsPage} />
+      <Route path="/meetings/:id" component={MeetingDetails} />
       <Route path="/people" component={PeoplePage} />
       <Route path="/people/:id" component={DocumentDetail} />
       <Route path="/organizations" component={OrganizationsPage} />
