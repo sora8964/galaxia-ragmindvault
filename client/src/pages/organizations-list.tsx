@@ -7,11 +7,6 @@ import type { Document } from "@shared/schema";
 export function OrganizationsList() {
   const [isDragOver, setIsDragOver] = useState(false);
 
-  const handleItemClick = (item: Document) => {
-    // Navigate to organization detail page
-    window.location.href = `/organizations/${item.id}`;
-  };
-
   const renderAdditionalButtons = () => {
     return (
       <FileUploadFeature 
@@ -50,7 +45,6 @@ export function OrganizationsList() {
         dialogTitle="新增組織"
         dialogDescription="建立新的組織檔案，包含名稱、描述和相關別名"
         renderAdditionalButtons={renderAdditionalButtons}
-        onItemClick={handleItemClick}
         getIcon={getIcon}
       />
     </div>

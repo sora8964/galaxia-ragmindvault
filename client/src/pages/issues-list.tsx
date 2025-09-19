@@ -3,11 +3,6 @@ import { AlertTriangle } from "lucide-react";
 import type { Document } from "@shared/schema";
 
 export function IssuesList() {
-  const handleItemClick = (item: Document) => {
-    // Navigate to issue detail page
-    window.location.href = `/issues/${item.id}`;
-  };
-
   const getIcon = () => <AlertTriangle className="h-4 w-4" />;
 
   return (
@@ -21,7 +16,6 @@ export function IssuesList() {
       emptyStateDescription="開始記錄您的第一個議題或問題"
       dialogTitle="新增議題"
       dialogDescription="創建新的議題記錄，包含名稱、內容和相關別名"
-      onItemClick={handleItemClick}
       getIcon={getIcon}
     />
   );
