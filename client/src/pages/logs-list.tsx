@@ -1,6 +1,6 @@
 import { BaseItemManager } from "@/components/BaseItemManager";
 import { Clock } from "lucide-react";
-import type { Document } from "@shared/schema";
+import type { AppObject } from "@shared/schema";
 
 export function LogsList() {
   const getIcon = () => <Clock className="mx-auto h-12 w-12 text-muted-foreground mb-4" />;
@@ -10,7 +10,7 @@ export function LogsList() {
       itemType="log"
       title="日誌管理"
       description="管理和查看系統日誌、活動記錄和操作日誌"
-      apiEndpoint="/api/documents"
+      apiEndpoint="/api/objects"
       createButtonText="新增日誌"
       emptyStateTitle="尚無日誌記錄"
       emptyStateDescription="開始記錄您的第一個日誌條目"

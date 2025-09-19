@@ -2,7 +2,7 @@ import { useState } from "react";
 import { BaseItemManager } from "@/components/BaseItemManager";
 import { FileUploadFeature } from "@/components/FileUploadFeature";
 import { Building } from "lucide-react";
-import type { Document } from "@shared/schema";
+import type { AppObject } from "@shared/schema";
 
 export function OrganizationsList() {
   const [isDragOver, setIsDragOver] = useState(false);
@@ -38,7 +38,7 @@ export function OrganizationsList() {
         itemType="organization"
         title="組織管理"
         description="管理組織資料，包含基本資訊、描述和別名設定"
-        apiEndpoint="/api/documents"
+        apiEndpoint="/api/objects"
         createButtonText="新增組織"
         emptyStateTitle="尚無組織資料"
         emptyStateDescription="開始建立您的第一個組織檔案"

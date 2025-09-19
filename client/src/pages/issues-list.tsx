@@ -1,6 +1,6 @@
 import { BaseItemManager } from "@/components/BaseItemManager";
 import { AlertTriangle } from "lucide-react";
-import type { Document } from "@shared/schema";
+import type { AppObject } from "@shared/schema";
 
 export function IssuesList() {
   const getIcon = () => <AlertTriangle className="h-4 w-4" />;
@@ -10,7 +10,7 @@ export function IssuesList() {
       itemType="issue"
       title="議題管理"
       description="管理和追蹤系統議題、故障和問題報告"
-      apiEndpoint="/api/documents"
+      apiEndpoint="/api/objects"
       createButtonText="新增議題"
       emptyStateTitle="尚無議題記錄"
       emptyStateDescription="開始記錄您的第一個議題或問題"

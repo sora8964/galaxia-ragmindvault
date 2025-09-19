@@ -13,7 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { SimpleMentionSearch } from "@/components/SimpleMentionSearch";
 import { Plus, Calendar, Search, FileText, User, Eye } from "lucide-react";
 import { queryClient } from "@/lib/queryClient";
-import type { Document } from "@shared/schema";
+import type { AppObject } from "@shared/schema";
 
 interface BaseItemForm {
   name: string;
@@ -33,7 +33,7 @@ interface BaseItemManagerProps {
   dialogTitle: string;
   dialogDescription: string;
   renderAdditionalButtons?: () => ReactNode;
-  onItemClick?: (item: Document) => void;
+  onItemClick?: (item: AppObject) => void;
   getIcon?: () => ReactNode;
 }
 
@@ -122,7 +122,7 @@ export function BaseItemManager({
     }));
   };
 
-  const handleItemClick = (item: Document) => {
+  const handleItemClick = (item: AppObject) => {
     if (onItemClick) {
       onItemClick(item);
     } else {
@@ -134,7 +134,7 @@ export function BaseItemManager({
   const defaultIcon = itemType === "document" ? <FileText className="w-4 h-4" /> : <User className="w-4 h-4" />;
   const icon = getIcon ? getIcon() : defaultIcon;
 
-  const items = itemsData?.documents || [];
+  const items = itemsData?.objects || [];
 
   return (
     <div className="p-6 h-full overflow-y-auto">
@@ -302,7 +302,7 @@ export function BaseItemManager({
           </div>
         ) : (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {items.map((item: Document) => (
+            {items.map((item: AppObject) => (
               <Card
                 key={item.id}
                 className="hover-elevate"

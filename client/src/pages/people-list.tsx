@@ -7,7 +7,7 @@ export function PeopleList() {
       itemType="person"
       title="人員管理"
       description="管理和搜索您的人員資料"
-      apiEndpoint="/api/documents"
+      apiEndpoint="/api/objects"
       createButtonText="新增人員"
       emptyStateTitle="還沒有人員"
       emptyStateDescription="創建新人員檔案開始使用"

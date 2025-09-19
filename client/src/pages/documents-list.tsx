@@ -34,7 +34,7 @@ export function DocumentsList() {
         itemType="document"
         title="文件管理"
         description="管理和搜索您的文件"
-        apiEndpoint="/api/documents"
+        apiEndpoint="/api/objects"
         createButtonText="新增文件"
         emptyStateTitle="還沒有文件"
         emptyStateDescription="上傳文件或創建新文件開始使用"
