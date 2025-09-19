@@ -10,7 +10,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { useToast } from "@/hooks/use-toast";
 import { Search, Plus, Trash2, Link, FileText, Calendar, User, Building, AlertTriangle, BookOpen, ArrowRight, ArrowLeft } from "lucide-react";
 import { queryClient } from "@/lib/queryClient";
-import type { Document, Relationship, DocumentType } from "@shared/schema";
+import type { AppObject, Relationship, DocumentType } from "@shared/schema";
 
 interface RelationshipManagerGenericProps {
   sourceId: string;
@@ -20,7 +20,7 @@ interface RelationshipManagerGenericProps {
 
 interface RelationshipWithDocument {
   relationship: Relationship;
-  relatedDocument: Document;
+  relatedDocument: AppObject;
   direction: "outgoing" | "incoming";
 }
 
@@ -58,9 +58,9 @@ export function RelationshipManagerGeneric({ sourceId, sourceType, className }: 
 
   // Fetch existing relationships
   const { data: relationshipData, isLoading: isLoadingRelationships } = useQuery({
-    queryKey: ["/api/documents", sourceId, "relationships"],
+    queryKey: ["/api/objects", sourceId, "relationships"],
     queryFn: async (): Promise<RelationshipResponse> => {
-      const response = await fetch(`/api/documents/${sourceId}/relationships?direction=both`);
+      const response = await fetch(`/api/objects/${sourceId}/relationships?direction=both`);
       if (!response.ok) throw new Error("Failed to fetch relationships");
       return response.json();
     }
@@ -68,7 +68,7 @@ export function RelationshipManagerGeneric({ sourceId, sourceType, className }: 
 
   // Search for documents to relate
   const { data: searchData, isLoading: isSearching } = useQuery({
-    queryKey: ["/api/documents", { type: selectedTargetType, search: searchQuery }],
+    queryKey: ["/api/objects", { type: selectedTargetType, search: searchQuery }],
     queryFn: async () => {
       if (!searchQuery.trim() || !selectedTargetType) return { documents: [], total: 0 };
       
@@ -77,7 +77,7 @@ export function RelationshipManagerGeneric({ sourceId, sourceType, className }: 
         search: searchQuery.trim() 
       });
       
-      const response = await fetch(`/api/documents?${params}`);
+      const response = await fetch(`/api/objects?${params}`);
       if (!response.ok) throw new Error("Failed to search documents");
       return response.json();
     },
@@ -112,7 +112,7 @@ export function RelationshipManagerGeneric({ sourceId, sourceType, className }: 
     },
     onSuccess: () => {
       // Invalidate both document-scoped and general relationship queries
-      queryClient.invalidateQueries({ queryKey: ["/api/documents", sourceId, "relationships"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/objects", sourceId, "relationships"] });
       queryClient.invalidateQueries({ queryKey: ["/api/relationships"] });
       setSearchQuery("");
       toast({
@@ -140,7 +140,7 @@ export function RelationshipManagerGeneric({ sourceId, sourceType, className }: 
     },
     onSuccess: () => {
       // Invalidate both document-scoped and general relationship queries
-      queryClient.invalidateQueries({ queryKey: ["/api/documents", sourceId, "relationships"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/objects", sourceId, "relationships"] });
       queryClient.invalidateQueries({ queryKey: ["/api/relationships"] });
       toast({
         title: "關聯已刪除",

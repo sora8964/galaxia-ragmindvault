@@ -48,8 +48,8 @@ export function FileUploadFeature({ isDragOver, setIsDragOver }: FileUploadFeatu
             ));
             
             const endpoint = file.name.toLowerCase().endsWith('.pdf') 
-              ? "/api/documents/pdf-upload"
-              : "/api/documents/word-upload";
+              ? "/api/objects/pdf-upload"
+              : "/api/objects/word-upload";
             
             const response = await fetch(endpoint, {
               method: "POST",
@@ -80,7 +80,7 @@ export function FileUploadFeature({ isDragOver, setIsDragOver }: FileUploadFeatu
               } : f
             ));
             
-            queryClient.invalidateQueries({ queryKey: ["/api/documents"] });
+            queryClient.invalidateQueries({ queryKey: ["/api/objects"] });
             resolve(data);
           } catch (error) {
             setUploadingFiles(prev => prev.map(f => 

@@ -14,7 +14,7 @@ import { SimpleMentionSearch } from "@/components/SimpleMentionSearch";
 import { RelationshipManagerGeneric } from "@/components/RelationshipManagerGeneric";
 import { ArrowLeft, Save, Trash2, FileText, Calendar, Tag } from "lucide-react";
 import { queryClient } from "@/lib/queryClient";
-import type { Document } from "@shared/schema";
+import type { AppObject } from "@shared/schema";
 
 export function DocumentDetails() {
   const { id } = useParams<{ id: string }>();
@@ -30,10 +30,10 @@ export function DocumentDetails() {
 
   // Fetch document details
   const { data: document, isLoading, error } = useQuery({
-    queryKey: ["/api/documents", id],
-    queryFn: async (): Promise<Document> => {
+    queryKey: ["/api/objects", id],
+    queryFn: async (): Promise<AppObject> => {
       if (!id) throw new Error("No document ID");
-      const response = await fetch(`/api/documents/${id}`);
+      const response = await fetch(`/api/objects/${id}`);
       if (!response.ok) throw new Error("Failed to fetch document");
       return response.json();
     },
@@ -55,7 +55,7 @@ export function DocumentDetails() {
   // Update document mutation
   const updateDocumentMutation = useMutation({
     mutationFn: async (data: typeof editForm) => {
-      const response = await fetch(`/api/documents/${id}`, {
+      const response = await fetch(`/api/objects/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -71,8 +71,8 @@ export function DocumentDetails() {
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/documents", id] });
-      queryClient.invalidateQueries({ queryKey: ["/api/documents"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/objects", id] });
+      queryClient.invalidateQueries({ queryKey: ["/api/objects"] });
       setIsEditing(false);
       toast({
         title: "文件已更新",
@@ -91,14 +91,14 @@ export function DocumentDetails() {
   // Delete document mutation
   const deleteDocumentMutation = useMutation({
     mutationFn: async () => {
-      const response = await fetch(`/api/documents/${id}`, {
+      const response = await fetch(`/api/objects/${id}`, {
         method: "DELETE"
       });
       
       if (!response.ok) throw new Error("Failed to delete document");
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/documents"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/objects"] });
       toast({
         title: "文件已刪除",
         description: "文件已成功刪除"
@@ -445,7 +445,7 @@ export function DocumentDetails() {
                   ) : (
                     <div className="flex flex-wrap gap-2">
                       {document.aliases.length > 0 ? (
-                        document.aliases.map((alias, index) => (
+                        document.aliases.map((alias: string, index: number) => (
                           <Badge key={index} variant="outline">
                             {alias}
                           </Badge>
