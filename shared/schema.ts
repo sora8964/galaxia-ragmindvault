@@ -13,7 +13,7 @@ export const users = pgTable("users", {
 export const objects = pgTable("objects", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull(),
-  type: text("type", { enum: ["person", "document", "organization", "issue", "log"] }).notNull(),
+  type: text("type", { enum: ["person", "document", "organization", "issue", "log", "meeting"] }).notNull(),
   content: text("content").notNull().default(""),
   aliases: json("aliases").$type<string[]>().notNull().default([]),
   date: char("date", { length: 10 }), // YYYY-MM-DD format, nullable
@@ -77,8 +77,8 @@ export const relationships = pgTable("relationships", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   sourceId: varchar("source_id").notNull(),
   targetId: varchar("target_id").notNull(),
-  sourceType: text("source_type", { enum: ["person", "document", "organization", "issue", "log"] }).notNull(),
-  targetType: text("target_type", { enum: ["person", "document", "organization", "issue", "log"] }).notNull(),
+  sourceType: text("source_type", { enum: ["person", "document", "organization", "issue", "log", "meeting"] }).notNull(),
+  targetType: text("target_type", { enum: ["person", "document", "organization", "issue", "log", "meeting"] }).notNull(),
   relationKind: text("relation_kind").notNull().default("related"),
   relationshipType: text("relationship_type"), // Made nullable for new schema compatibility
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -95,7 +95,7 @@ export const relationships = pgTable("relationships", {
 // Schema definitions
 
 // Define DocumentType enum for type safety
-export const DocumentType = z.enum(["person", "document", "organization", "issue", "log"]);
+export const DocumentType = z.enum(["person", "document", "organization", "issue", "log", "meeting"]);
 export type DocumentType = z.infer<typeof DocumentType>;
 
 export const insertUserSchema = createInsertSchema(users).pick({
