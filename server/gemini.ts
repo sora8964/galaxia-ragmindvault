@@ -8,17 +8,17 @@ const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
 // Function calling tools for Gemini
 const searchDocumentsTool: FunctionDeclaration = {
   name: "search_documents",
-  description: "Search for documents, people, organizations, issues, and logs by name, content, or aliases",
+  description: "Search for documents, people, organizations, issues, logs, and meetings by name, content, or aliases",
   parameters: {
     type: Type.OBJECT,
     properties: {
       query: {
         type: Type.STRING,
-        description: "Search query to find documents, people, organizations, issues, or logs"
+        description: "Search query to find documents, people, organizations, issues, logs, or meetings"
       },
       type: {
         type: Type.STRING,
-        enum: ["person", "document", "organization", "issue", "log"],
+        enum: ["person", "document", "organization", "issue", "log", "meeting"],
         description: "Filter by document type (optional)"
       }
     },
@@ -28,7 +28,7 @@ const searchDocumentsTool: FunctionDeclaration = {
 
 const getDocumentTool: FunctionDeclaration = {
   name: "get_document",
-  description: "Get detailed information about a specific document, person, organization, issue, or log by ID. For issues, automatically includes associated logs.",
+  description: "Get detailed information about a specific document, person, organization, issue, log, or meeting by ID. For issues, automatically includes associated logs.",
   parameters: {
     type: Type.OBJECT,
     properties: {
@@ -43,17 +43,17 @@ const getDocumentTool: FunctionDeclaration = {
 
 const createDocumentTool: FunctionDeclaration = {
   name: "create_document",
-  description: "Create a new document, person profile, organization, issue, or log entry",
+  description: "Create a new document, person profile, organization, issue, log, or meeting entry",
   parameters: {
     type: Type.OBJECT,
     properties: {
       name: {
         type: Type.STRING,
-        description: "Name of the document, person, organization, issue, or log"
+        description: "Name of the document, person, organization, issue, log, or meeting"
       },
       type: {
         type: Type.STRING,
-        enum: ["person", "document", "organization", "issue", "log"],
+        enum: ["person", "document", "organization", "issue", "log", "meeting"],
         description: "Type of entry to create"
       },
       content: {
@@ -72,7 +72,7 @@ const createDocumentTool: FunctionDeclaration = {
 
 const updateDocumentTool: FunctionDeclaration = {
   name: "update_document",
-  description: "Update an existing document, person profile, organization, issue, or log entry",
+  description: "Update an existing document, person profile, organization, issue, log, or meeting entry",
   parameters: {
     type: Type.OBJECT,
     properties: {

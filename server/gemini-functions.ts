@@ -11,7 +11,7 @@ const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
 const functions = {
   searchDocuments: {
     name: "searchDocuments",
-    description: "Search for documents, people, organizations, issues, and logs in the knowledge base using keywords",
+    description: "Search for documents, people, organizations, issues, logs, and meetings in the knowledge base using keywords",
     parameters: {
       type: "object",
       properties: {
@@ -21,7 +21,7 @@ const functions = {
         },
         type: {
           type: "string",
-          description: "Filter by document type: person, document, organization, issue, or log (optional)"
+          description: "Filter by document type: person, document, organization, issue, log, or meeting (optional)"
         },
         limit: {
           type: "number",
@@ -34,7 +34,7 @@ const functions = {
 
   getDocumentDetails: {
     name: "getDocumentDetails",
-    description: "Get the full content and details of a specific document, person, organization, issue, or log. For issues, automatically includes all associated logs.",
+    description: "Get the full content and details of a specific document, person, organization, issue, log, or meeting. For issues, automatically includes all associated logs.",
     parameters: {
       type: "object",
       properties: {
@@ -49,17 +49,17 @@ const functions = {
 
   createDocument: {
     name: "createDocument",
-    description: "Create a new document, person profile, organization, issue, or log entry in the knowledge base",
+    description: "Create a new document, person profile, organization, issue, log, or meeting entry in the knowledge base",
     parameters: {
       type: "object",
       properties: {
         name: {
           type: "string",
-          description: "The name/title of the document, person, organization, issue, or log"
+          description: "The name/title of the document, person, organization, issue, log, or meeting"
         },
         type: {
           type: "string",
-          description: "Type of entry: person, document, organization, issue, or log"
+          description: "Type of entry: person, document, organization, issue, log, or meeting"
         },
         content: {
           type: "string",
@@ -77,7 +77,7 @@ const functions = {
 
   updateDocument: {
     name: "updateDocument",
-    description: "Update an existing document, person profile, organization, issue, or log entry",
+    description: "Update an existing document, person profile, organization, issue, log, or meeting entry",
     parameters: {
       type: "object",
       properties: {
@@ -161,6 +161,7 @@ async function searchDocuments(args: any): Promise<string> {
         case 'organization': return '🏢';
         case 'issue': return '📋';
         case 'log': return '📝';
+        case 'meeting': return '👥';
         default: return '📄';
       }
     };
@@ -193,6 +194,7 @@ async function getDocumentDetails(args: any): Promise<string> {
         case 'organization': return '🏢 Organization';
         case 'issue': return '📋 Issue';
         case 'log': return '📝 Log';
+        case 'meeting': return '👥 Meeting';
         default: return '📄 Document';
       }
     };
@@ -280,6 +282,7 @@ async function createDocument(args: any): Promise<string> {
         case 'organization': return 'organization';
         case 'issue': return 'issue';
         case 'log': return 'log';
+        case 'meeting': return 'meeting';
         default: return 'document';
       }
     };
@@ -316,6 +319,7 @@ async function updateDocument(args: any): Promise<string> {
         case 'organization': return 'organization';
         case 'issue': return 'issue';
         case 'log': return 'log';
+        case 'meeting': return 'meeting';
         default: return 'document';
       }
     };
@@ -368,6 +372,7 @@ async function findSimilarDocuments(args: any): Promise<string> {
         case 'organization': return '🏢';
         case 'issue': return '📋';
         case 'log': return '📝';
+        case 'meeting': return '👥';
         default: return '📄';
       }
     };
@@ -388,7 +393,7 @@ async function parseMentions(args: any): Promise<string> {
     const { text } = args;
     
     // Simple regex to find @mentions in format @[type:name] or @[type:name|alias]
-    const mentionRegex = /@\[(person|document|organization|issue|log):([^|\]]+)(?:\|([^]]+))?\]/g;
+    const mentionRegex = /@\[(person|document|organization|issue|log|meeting):([^|\]]+)(?:\|([^]]+))?\]/g;
     const mentions = [];
     let match;
     
@@ -483,19 +488,19 @@ export async function chatWithGeminiFunctions(options: GeminiFunctionChatOptions
     const { messages, contextDocuments = [] } = options;
     
     // Build system instruction
-    let systemInstruction = `You are an AI assistant for an advanced document and knowledge management system. You help users organize, search, and understand their documents, people, organizations, issues, and logs.
+    let systemInstruction = `You are an AI assistant for an advanced document and knowledge management system. You help users organize, search, and understand their documents, people, organizations, issues, logs, and meetings.
 
 You have access to the following functions to help users:
-- searchDocuments: Find documents, people, organizations, issues, and logs by keywords
+- searchDocuments: Find documents, people, organizations, issues, logs, and meetings by keywords
 - getDocumentDetails: Get full content of specific documents (issues automatically include associated logs)
-- createDocument: Create new documents, person profiles, organizations, issues, or logs
+- createDocument: Create new documents, person profiles, organizations, issues, logs, or meetings
 - updateDocument: Modify existing documents
 - findSimilarDocuments: Find semantically similar content
 - parseMentions: Analyze @mentions in text
 
 When users ask about finding, creating, or managing documents, proactively use these functions to help them. Always call the appropriate function rather than making assumptions about what exists in the knowledge base.
 
-Use @mentions like @[person:習近平], @[document:項目計劃書], @[organization:公司名稱], @[issue:問題標題], or @[log:日誌名稱] when referring to specific entities.`;
+Use @mentions like @[person:習近平], @[document:項目計劃書], @[organization:公司名稱], @[issue:問題標題], @[log:日誌名稱], or @[meeting:會議名稱] when referring to specific entities.`;
 
     if (contextDocuments.length > 0) {
       systemInstruction += `\n\nContext Documents (Currently available):`;
