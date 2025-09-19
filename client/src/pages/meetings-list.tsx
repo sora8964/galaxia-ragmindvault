@@ -11,6 +11,7 @@ export function MeetingsList() {
     <FileUploadFeature 
       isDragOver={isDragOver}
       setIsDragOver={setIsDragOver}
+      objectType="meeting"
     />
   );
 

@@ -556,10 +556,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Create document from Word upload
   app.post("/api/objects/word-upload", async (req, res) => {
     try {
-      const { wordBase64, filename, name } = req.body;
+      const { wordBase64, filename, name, objectType = "document" } = req.body;
       
       if (!wordBase64) {
         return res.status(400).json({ error: "Word document data is required" });
+      }
+      
+      // Validate objectType
+      if (!["document", "meeting"].includes(objectType)) {
+        return res.status(400).json({ error: "Invalid objectType. Must be 'document' or 'meeting'" });
       }
       
       // Extract text from Word document
@@ -568,7 +573,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Create document entry
       const documentData = {
         name: name || filename?.replace(/\.[^/.]+$/, "") || "Untitled Document",
-        type: "document" as const,
+        type: objectType as "document" | "meeting",
         content: extractedText,
         aliases: [],
         isFromOCR: false, // Word extraction is direct, no OCR needed
@@ -591,10 +596,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Create document from PDF upload  
   app.post("/api/objects/pdf-upload", async (req, res) => {
     try {
-      const { pdfBase64, filename, name } = req.body;
+      const { pdfBase64, filename, name, objectType = "document" } = req.body;
       
       if (!pdfBase64) {
         return res.status(400).json({ error: "PDF data is required" });
+      }
+      
+      // Validate objectType
+      if (!["document", "meeting"].includes(objectType)) {
+        return res.status(400).json({ error: "Invalid objectType. Must be 'document' or 'meeting'" });
       }
       
       // Extract text from PDF
@@ -603,7 +613,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Create document entry
       const documentData = {
         name: name || filename?.replace(/\.[^/.]+$/, "") || "Untitled Document",
-        type: "document" as const,
+        type: objectType as "document" | "meeting",
         content: extractedText,
         aliases: [],
         isFromOCR: true, // PDF requires OCR, wait for user edit

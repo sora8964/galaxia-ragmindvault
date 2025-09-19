@@ -20,9 +20,10 @@ interface UploadingFile {
 interface FileUploadFeatureProps {
   isDragOver: boolean;
   setIsDragOver: (isDragOver: boolean) => void;
+  objectType?: "document" | "meeting";
 }
 
-export function FileUploadFeature({ isDragOver, setIsDragOver }: FileUploadFeatureProps) {
+export function FileUploadFeature({ isDragOver, setIsDragOver, objectType = "document" }: FileUploadFeatureProps) {
   const { toast } = useToast();
   const [uploadingFiles, setUploadingFiles] = useState<UploadingFile[]>([]);
 
@@ -57,7 +58,8 @@ export function FileUploadFeature({ isDragOver, setIsDragOver }: FileUploadFeatu
               body: JSON.stringify({
                 [file.name.toLowerCase().endsWith('.pdf') ? 'pdfBase64' : 'wordBase64']: base64Data,
                 filename: file.name,
-                name: file.name.replace(/\.[^/.]+$/, "")
+                name: file.name.replace(/\.[^/.]+$/, ""),
+                objectType
               })
             });
             
@@ -106,7 +108,7 @@ export function FileUploadFeature({ isDragOver, setIsDragOver }: FileUploadFeatu
       ));
       throw error;
     }
-  }, []);
+  }, [objectType]);
 
   // Handle multiple files
   const handleFiles = useCallback((files: File[]) => {
