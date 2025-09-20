@@ -1175,7 +1175,7 @@ export class DatabaseStorage implements IStorage {
     await this.cleanupRelationshipsForDocument(id);
     
     const result = await db.delete(objects).where(eq(objects.id, id));
-    return result.rowCount > 0;
+    return (result.rowCount || 0) > 0;
   }
 
   async getMentionSuggestions(query: string): Promise<MentionItem[]> {
@@ -1210,7 +1210,7 @@ export class DatabaseStorage implements IStorage {
         embeddingStatus: "completed"
       })
       .where(eq(objects.id, id));
-    return result.rowCount > 0;
+    return (result.rowCount || 0) > 0;
   }
 
   async searchDocumentsByVector(queryVector: number[], limit: number = 10): Promise<Document[]> {
@@ -1282,17 +1282,17 @@ export class DatabaseStorage implements IStorage {
     const result = await db.update(chunks)
       .set({ embedding: embedding as any })
       .where(eq(chunks.id, id));
-    return result.rowCount > 0;
+    return (result.rowCount || 0) > 0;
   }
 
   async deleteChunk(id: string): Promise<boolean> {
     const result = await db.delete(chunks).where(eq(chunks.id, id));
-    return result.rowCount > 0;
+    return (result.rowCount || 0) > 0;
   }
 
   async deleteChunksByDocumentId(documentId: string): Promise<boolean> {
     const result = await db.delete(chunks).where(eq(chunks.objectId, documentId));
-    return result.rowCount > 0;
+    return (result.rowCount || 0) > 0;
   }
 
   async searchChunksByVector(queryVector: number[], limit: number = 10): Promise<Array<Chunk & { document: Document }>> {
@@ -1440,7 +1440,30 @@ export class DatabaseStorage implements IStorage {
 
   async deleteMessage(id: string): Promise<boolean> {
     const result = await db.delete(messages).where(eq(messages.id, id));
-    return result.rowCount > 0;
+    return (result.rowCount || 0) > 0;
+  }
+
+  // Add the missing deleteMessagesAfter method
+  async deleteMessagesAfter(conversationId: string, messageId: string): Promise<boolean> {
+    // Get the timestamp of the message to delete after
+    const messageResult = await db.select({ createdAt: messages.createdAt })
+      .from(messages)
+      .where(eq(messages.id, messageId));
+    
+    if (messageResult.length === 0) {
+      return false;
+    }
+    
+    const cutoffTime = messageResult[0].createdAt;
+    
+    // Delete all messages in the conversation that were created after this message
+    const result = await db.delete(messages)
+      .where(and(
+        eq(messages.conversationId, conversationId),
+        sql`${messages.createdAt} > ${cutoffTime}`
+      ));
+    
+    return (result.rowCount || 0) > 0;
   }
 
   // Relationship operations (keep as stubs for now)
@@ -1465,12 +1488,12 @@ export class DatabaseStorage implements IStorage {
 
   async deleteRelationship(id: string): Promise<boolean> {
     const result = await db.delete(relationships).where(eq(relationships.id, id));
-    return result.rowCount > 0;
+    return (result.rowCount || 0) > 0;
   }
 
   async deleteRelationshipsByType(relationshipType: string): Promise<boolean> {
     const result = await db.delete(relationships).where(eq(relationships.relationKind, relationshipType));
-    return result.rowCount > 0;
+    return (result.rowCount || 0) > 0;
   }
 
   async cleanupRelationshipsForDocument(documentId: string): Promise<boolean> {
@@ -1479,7 +1502,7 @@ export class DatabaseStorage implements IStorage {
         eq(relationships.sourceId, documentId),
         eq(relationships.targetId, documentId)
       ));
-    return result.rowCount > 0;
+    return (result.rowCount || 0) > 0;
   }
 
   async findRelationships(filters: RelationshipFilters): Promise<{ relationships: Relationship[]; total: number }> {
@@ -1494,6 +1517,104 @@ export class DatabaseStorage implements IStorage {
       relationships: result,
       total: result.length
     };
+  }
+
+  // Add missing relationship methods that are used by routes
+  async getRelationship(id: string): Promise<Relationship | undefined> {
+    const result = await db.select().from(relationships).where(eq(relationships.id, id));
+    return result[0];
+  }
+
+  async getRelationshipsBySource(sourceId: string): Promise<Relationship[]> {
+    const result = await db.select().from(relationships)
+      .where(eq(relationships.sourceId, sourceId));
+    return result;
+  }
+
+  async getRelationshipsByTarget(targetId: string): Promise<Relationship[]> {
+    const result = await db.select().from(relationships)
+      .where(eq(relationships.targetId, targetId));
+    return result;
+  }
+
+  async getRelationshipsByType(relationshipType: string): Promise<Relationship[]> {
+    const result = await db.select().from(relationships)
+      .where(eq(relationships.relationKind, relationshipType));
+    return result;
+  }
+
+  async getRelationshipsByKind(relationKind: string): Promise<Relationship[]> {
+    const result = await db.select().from(relationships)
+      .where(eq(relationships.relationKind, relationKind));
+    return result;
+  }
+
+  async getRelationshipsBySourceAndType(sourceId: string, relationshipType: string): Promise<Relationship[]> {
+    const result = await db.select().from(relationships)
+      .where(and(
+        eq(relationships.sourceId, sourceId),
+        eq(relationships.relationKind, relationshipType)
+      ));
+    return result;
+  }
+
+  async getRelationshipsByTargetAndType(targetId: string, relationshipType: string): Promise<Relationship[]> {
+    const result = await db.select().from(relationships)
+      .where(and(
+        eq(relationships.targetId, targetId),
+        eq(relationships.relationKind, relationshipType)
+      ));
+    return result;
+  }
+
+  async getRelationshipsBySourceAndKind(sourceId: string, relationKind: string): Promise<Relationship[]> {
+    const result = await db.select().from(relationships)
+      .where(and(
+        eq(relationships.sourceId, sourceId),
+        eq(relationships.relationKind, relationKind)
+      ));
+    return result;
+  }
+
+  async getRelationshipsByTargetAndKind(targetId: string, relationKind: string): Promise<Relationship[]> {
+    const result = await db.select().from(relationships)
+      .where(and(
+        eq(relationships.targetId, targetId),
+        eq(relationships.relationKind, relationKind)
+      ));
+    return result;
+  }
+
+  async getRelationshipBetween(sourceId: string, targetId: string): Promise<Relationship[]> {
+    const result = await db.select().from(relationships)
+      .where(and(
+        eq(relationships.sourceId, sourceId),
+        eq(relationships.targetId, targetId)
+      ));
+    return result;
+  }
+
+  async createBulkRelationships(insertRelationships: InsertRelationship[]): Promise<Relationship[]> {
+    const result = await db.insert(relationships).values(insertRelationships).returning();
+    return result;
+  }
+
+  async updateRelationship(id: string, updates: UpdateRelationship): Promise<Relationship | undefined> {
+    const result = await db.update(relationships)
+      .set(updates)
+      .where(eq(relationships.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async deleteRelationshipsBySource(sourceId: string): Promise<boolean> {
+    const result = await db.delete(relationships).where(eq(relationships.sourceId, sourceId));
+    return (result.rowCount || 0) > 0;
+  }
+
+  async deleteRelationshipsByTarget(targetId: string): Promise<boolean> {
+    const result = await db.delete(relationships).where(eq(relationships.targetId, targetId));
+    return (result.rowCount || 0) > 0;
   }
 
   // Settings operations
@@ -1556,6 +1677,45 @@ export class DatabaseStorage implements IStorage {
     };
     
     return updatedConfig;
+  }
+
+  // Add missing mention parsing methods
+  async parseMentions(text: string): Promise<ParsedMention[]> {
+    const mentions: ParsedMention[] = [];
+    const mentionRegex = /@([^\s@]+)/g;
+    let match;
+    
+    while ((match = mentionRegex.exec(text)) !== null) {
+      mentions.push({
+        text: match[0],
+        name: match[1],
+        startIndex: match.index,
+        endIndex: match.index + match[0].length
+      });
+    }
+    
+    return mentions;
+  }
+
+  async resolveMentionDocuments(mentions: ParsedMention[]): Promise<string[]> {
+    const documentIds: string[] = [];
+    
+    for (const mention of mentions) {
+      // Try to find document by name or alias
+      const result = await db.select({ id: objects.id })
+        .from(objects)
+        .where(or(
+          eq(objects.name, mention.name),
+          sql`${mention.name} = ANY(${objects.aliases})`
+        ))
+        .limit(1);
+      
+      if (result.length > 0) {
+        documentIds.push(result[0].id);
+      }
+    }
+    
+    return documentIds;
   }
 }
 
