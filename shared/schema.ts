@@ -17,6 +17,12 @@ export const objects = pgTable("objects", {
   content: text("content").notNull().default(""),
   aliases: json("aliases").$type<string[]>().notNull().default([]),
   date: char("date", { length: 10 }), // YYYY-MM-DD format, nullable
+  // File-related fields for GCP Storage
+  originalFileName: text("original_file_name"), // Original filename for uploaded files
+  filePath: text("file_path"), // GCP Storage path: {type}/{id}.extension
+  fileSize: integer("file_size"), // File size in bytes
+  mimeType: text("mime_type"), // MIME type of the uploaded file
+  hasFile: boolean("has_file").notNull().default(false), // Whether this object has an associated file
   embedding: vector("embedding", { dimensions: 2000 }),
   hasEmbedding: boolean("has_embedding").notNull().default(false),
   embeddingStatus: text("embedding_status", { enum: ["pending", "completed", "failed"] }).notNull().default("pending"),
