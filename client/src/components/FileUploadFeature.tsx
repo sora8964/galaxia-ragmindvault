@@ -214,96 +214,116 @@ export function FileUploadFeature({ isDragOver, setIsDragOver, objectType = "doc
   };
 
   return (
-    <>
-      {/* Drag overlay */}
-      {isDragOver && (
-        <div className="fixed inset-0 bg-primary/10 border-2 border-dashed border-primary z-50 flex items-center justify-center">
-          <div className="bg-background p-8 rounded-lg shadow-lg text-center">
-            <Upload className="h-12 w-12 mx-auto mb-4 text-primary" />
-            <p className="text-lg font-medium">拖放文件到這裡上傳</p>
-            <p className="text-sm text-muted-foreground">支援 PDF、DOC、DOCX 格式</p>
-          </div>
-        </div>
-      )}
+    <div className="relative">
+      {/* Upload button and input */}
+      <div className="flex flex-col gap-4">
+        <Button
+          onClick={() => document.getElementById('file-upload')?.click()}
+          disabled={uploadingFiles.some(f => f.status === 'uploading' || f.status === 'processing')}
+          data-testid="button-upload-file"
+        >
+          <Upload className="w-4 h-4 mr-2" />
+          上傳文件
+        </Button>
+        <input
+          id="file-upload"
+          type="file"
+          accept=".pdf,.doc,.docx"
+          multiple
+          onChange={handleFileUpload}
+          className="hidden"
+        />
 
-      {/* Upload button */}
-      <Button
-        onClick={() => document.getElementById('file-upload')?.click()}
-        disabled={uploadingFiles.some(f => f.status === 'uploading' || f.status === 'processing')}
-        data-testid="button-upload-file"
-      >
-        <Upload className="w-4 h-4 mr-2" />
-        上傳文件
-      </Button>
-      <input
-        id="file-upload"
-        type="file"
-        accept=".pdf,.doc,.docx"
-        multiple
-        onChange={handleFileUpload}
-        className="hidden"
-      />
-
-      {/* Uploading files progress */}
-      {uploadingFiles.length > 0 && (
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Upload className="h-5 w-5" />
-              上傳進度 ({uploadingFiles.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {uploadingFiles.map((file) => (
-              <div key={file.id} className="p-4 border rounded-lg space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <FileText className="h-5 w-5 text-primary flex-shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium truncate">{file.name}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {formatFileSize(file.size)}
-                      </p>
+        {/* Uploading files progress - positioned right after upload button */}
+        {uploadingFiles.length > 0 && (
+          <Card className="w-full max-w-2xl">
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Upload className="h-5 w-5" />
+                上傳進度 ({uploadingFiles.length})
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {uploadingFiles.map((file) => (
+                <div key={file.id} className="p-4 border rounded-lg space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <FileText className="h-5 w-5 text-primary flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium truncate">{file.name}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {formatFileSize(file.size)}
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center gap-2">
+                      <Badge variant="secondary" className="flex items-center gap-1">
+                        {getStatusIcon(file.status)}
+                        <span>{getStatusText(file.status)}</span>
+                      </Badge>
+                      {(file.status === 'completed' || file.status === 'error') && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => removeUploadingFile(file.id)}
+                          data-testid={`button-remove-upload-${file.id}`}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      )}
                     </div>
                   </div>
                   
-                  <div className="flex items-center gap-2">
-                    <Badge variant="secondary" className="flex items-center gap-1">
-                      {getStatusIcon(file.status)}
-                      <span>{getStatusText(file.status)}</span>
-                    </Badge>
-                    {(file.status === 'completed' || file.status === 'error') && (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => removeUploadingFile(file.id)}
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    )}
-                  </div>
+                  {(file.status === 'uploading' || file.status === 'processing') && (
+                    <Progress value={file.progress} className="h-2" />
+                  )}
+                  
+                  {file.status === 'completed' && file.extractedText && (
+                    <div className="mt-3 p-3 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded-md">
+                      <div className="flex items-center gap-2 mb-2">
+                        <CheckCircle className="h-4 w-4 text-green-600" />
+                        <p className="text-sm font-medium text-green-800 dark:text-green-200">上傳成功！</p>
+                      </div>
+                      <p className="text-sm text-muted-foreground mb-2">提取的文本預覽:</p>
+                      <p className="text-sm">{file.extractedText}</p>
+                    </div>
+                  )}
+                  
+                  {file.status === 'completed' && !file.extractedText && (
+                    <div className="mt-3 p-3 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded-md">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle className="h-4 w-4 text-green-600" />
+                        <p className="text-sm font-medium text-green-800 dark:text-green-200">文件上傳成功！</p>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {file.status === 'error' && file.error && (
+                    <div className="mt-3 p-3 bg-destructive/10 border border-destructive/20 rounded-md">
+                      <div className="flex items-center gap-2">
+                        <AlertCircle className="h-4 w-4 text-destructive" />
+                        <p className="text-sm text-destructive font-medium">上傳失敗</p>
+                      </div>
+                      <p className="text-sm text-destructive mt-1">{file.error}</p>
+                    </div>
+                  )}
                 </div>
-                
-                {(file.status === 'uploading' || file.status === 'processing') && (
-                  <Progress value={file.progress} className="h-2" />
-                )}
-                
-                {file.status === 'completed' && file.extractedText && (
-                  <div className="mt-3 p-3 bg-muted rounded-md">
-                    <p className="text-sm text-muted-foreground mb-2">提取的文本預覽:</p>
-                    <p className="text-sm">{file.extractedText}</p>
-                  </div>
-                )}
-                
-                {file.status === 'error' && file.error && (
-                  <div className="mt-3 p-3 bg-destructive/10 border border-destructive/20 rounded-md">
-                    <p className="text-sm text-destructive">{file.error}</p>
-                  </div>
-                )}
-              </div>
-            ))}
-          </CardContent>
-        </Card>
+              ))}
+            </CardContent>
+          </Card>
+        )}
+      </div>
+
+      {/* Drag overlay - now constrained to component container */}
+      {isDragOver && (
+        <div className="absolute inset-0 bg-primary/10 border-2 border-dashed border-primary z-10 flex items-center justify-center rounded-lg min-h-[200px]">
+          <div className="bg-background p-6 rounded-lg shadow-lg text-center">
+            <Upload className="h-10 w-10 mx-auto mb-3 text-primary" />
+            <p className="font-medium">拖放文件到這裡上傳</p>
+            <p className="text-sm text-muted-foreground mt-1">支援 PDF、DOC、DOCX 格式</p>
+          </div>
+        </div>
       )}
 
       {/* Drag handlers */}
@@ -313,6 +333,6 @@ export function FileUploadFeature({ isDragOver, setIsDragOver, objectType = "doc
         onDrop={handleDrop}
         className="absolute inset-0 pointer-events-none"
       />
-    </>
+    </div>
   );
 }
