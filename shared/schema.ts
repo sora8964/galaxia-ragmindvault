@@ -86,7 +86,6 @@ export const relationships = pgTable("relationships", {
   sourceType: text("source_type", { enum: ["person", "document", "letter", "entity", "issue", "log", "meeting"] }).notNull(),
   targetType: text("target_type", { enum: ["person", "document", "letter", "entity", "issue", "log", "meeting"] }).notNull(),
   relationKind: text("relation_kind").notNull().default("related"),
-  relationshipType: text("relationship_type"), // Made nullable for new schema compatibility
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (table) => ({
@@ -201,7 +200,7 @@ export const insertChunkSchema = createInsertSchema(chunks).omit({
 
 export const updateChunkSchema = insertChunkSchema.partial();
 
-// Create base schema without refinement for backward compatibility
+// Simplified relationship schema
 const baseInsertRelationshipSchema = createInsertSchema(relationships)
   .omit({
     id: true,
@@ -209,24 +208,13 @@ const baseInsertRelationshipSchema = createInsertSchema(relationships)
     updatedAt: true,
   })
   .extend({
-    // Make new fields optional with defaults for backward compatibility
+    // Make type fields optional for backward compatibility
     sourceType: DocumentType.optional(),
     targetType: DocumentType.optional(), 
     relationKind: z.string().optional().default("related"),
-    // Make relationshipType optional for new schema
-    relationshipType: z.string().optional(),
   });
 
-export const insertRelationshipSchema = baseInsertRelationshipSchema
-  .refine((data) => {
-    // Either provide the new format (sourceType + targetType) or legacy format (relationshipType)
-    const hasNewFormat = data.sourceType && data.targetType;
-    const hasLegacyFormat = !!data.relationshipType;
-    
-    return hasNewFormat || hasLegacyFormat;
-  }, {
-    message: "Either sourceType+targetType or relationshipType must be provided",
-  });
+export const insertRelationshipSchema = baseInsertRelationshipSchema;
 
 export const updateRelationshipSchema = baseInsertRelationshipSchema.partial();
 

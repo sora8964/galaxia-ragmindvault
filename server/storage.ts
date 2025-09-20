@@ -91,10 +91,7 @@ export interface IStorage {
   findRelationships(filters: RelationshipFilters): Promise<{ relationships: Relationship[]; total: number }>;
   getRelationshipsBySource(sourceId: string): Promise<Relationship[]>;
   getRelationshipsByTarget(targetId: string): Promise<Relationship[]>;
-  getRelationshipsByType(relationshipType: string): Promise<Relationship[]>;
   getRelationshipsByKind(relationKind: string): Promise<Relationship[]>;
-  getRelationshipsBySourceAndType(sourceId: string, relationshipType: string): Promise<Relationship[]>;
-  getRelationshipsByTargetAndType(targetId: string, relationshipType: string): Promise<Relationship[]>;
   getRelationshipsBySourceAndKind(sourceId: string, relationKind: string): Promise<Relationship[]>;
   getRelationshipsByTargetAndKind(targetId: string, relationKind: string): Promise<Relationship[]>;
   getRelationshipBetween(sourceId: string, targetId: string): Promise<Relationship[]>;
@@ -104,7 +101,7 @@ export interface IStorage {
   deleteRelationship(id: string): Promise<boolean>;
   deleteRelationshipsBySource(sourceId: string): Promise<boolean>;
   deleteRelationshipsByTarget(targetId: string): Promise<boolean>;
-  deleteRelationshipsByType(relationshipType: string): Promise<boolean>;
+  deleteRelationshipsByKind(relationKind: string): Promise<boolean>;
   cleanupRelationshipsForDocument(documentId: string): Promise<boolean>;
   
   // Settings operations
@@ -957,7 +954,6 @@ export class MemStorage implements IStorage {
       sourceType: sourceType || "document", // Default fallback
       targetType: targetType || "document", // Default fallback
       relationKind: insertRelationship.relationKind || "related",
-      relationshipType: insertRelationship.relationshipType ?? null,
       createdAt: now,
       updatedAt: now
     };

@@ -1031,29 +1031,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const validatedData = insertRelationshipSchema.parse(req.body);
       
-      // Ensure backward compatibility by setting relationshipType if not provided
-      if (!validatedData.relationshipType && validatedData.sourceType && validatedData.targetType) {
-        validatedData.relationshipType = `${validatedData.sourceType}_to_${validatedData.targetType}`;
-      }
+      // No longer need to set relationshipType - removed for simplification
       
-      // Check for duplicate relationships based on relationKind (modern) or relationshipType (legacy)
+      // Check for duplicate relationships based on relationKind
       const existingRelationships = await storage.getRelationshipBetween(
         validatedData.sourceId, 
         validatedData.targetId
       );
       
-      // Check for duplicates using the modern relationKind approach first
-      const duplicateRelationship = existingRelationships.find(rel => {
-        if (validatedData.relationKind && rel.relationKind) {
-          // Both have relationKind - compare by relationKind
-          return rel.relationKind === validatedData.relationKind;
-        }
-        // Fall back to legacy relationshipType comparison
-        return rel.relationshipType === validatedData.relationshipType;
-      });
+      const duplicateRelationship = existingRelationships.find(rel => 
+        rel.relationKind === (validatedData.relationKind || "related")
+      );
       
       if (duplicateRelationship) {
-        const relationLabel = validatedData.relationKind || validatedData.relationshipType;
+        const relationLabel = validatedData.relationKind || "related";
         return res.status(409).json({ 
           error: "A relationship of this type already exists between these items",
           detail: `關聯類型「${relationLabel}」已存在於這兩個項目之間`,
@@ -1099,7 +1090,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Get relationships where this document is the source and target is an issue
-      const relationships = await storage.getRelationshipsBySourceAndType(id, `${document.type}_to_issue`);
+      const relationships = await storage.getRelationshipsBySourceAndKind(id, "related");
       
       // Get the related issue documents
       const relatedIssues = [];
@@ -1155,8 +1146,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Check if relationship already exists
       const existingRelationships = await storage.getRelationshipBetween(id, issueId);
-      const relationshipType = `${document.type}_to_issue`;
-      const existingRel = existingRelationships.find(rel => rel.relationshipType === relationshipType);
+      const existingRel = existingRelationships.find(rel => rel.relationKind === "related");
       
       if (existingRel) {
         return res.status(409).json({ error: "Relationship already exists", relationship: existingRel });
@@ -1168,8 +1158,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         targetId: issueId,
         sourceType: document.type,
         targetType: issue.type,
-        relationKind: "related",
-        relationshipType
+        relationKind: "related"
       });
       
       res.status(201).json({
@@ -1203,8 +1192,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Find and delete the relationship
       const relationships = await storage.getRelationshipBetween(objectId, issueId);
-      const relationshipType = `${document.type}_to_issue`;
-      const targetRel = relationships.find(rel => rel.relationshipType === relationshipType);
+      const targetRel = relationships.find(rel => rel.relationKind === "related");
       
       if (!targetRel) {
         return res.status(404).json({ error: "Relationship not found" });
