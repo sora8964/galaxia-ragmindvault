@@ -412,26 +412,78 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Enhanced chat with function calling
   app.post("/api/chat/functions", async (req, res) => {
     try {
-      const { messages, contextDocumentIds = [] } = req.body;
+      const { messages, contextDocumentIds = [], conversationId } = req.body;
       
-      // Fetch context documents if provided
-      const contextDocuments = [];
+      // Import retrieval service
+      const { retrievalService } = await import('./retrieval-service');
+      
+      // Parse explicit mentions and get their documents
+      const lastUserMessage = messages[messages.length - 1];
+      const userText = lastUserMessage?.content || '';
+      
+      const mentions = await storage.parseMentions(userText);
+      const mentionDocuments = await storage.resolveMentionDocuments(mentions);
+      const mentionIds = mentionDocuments.map(doc => doc.id);
+      
+      // Fetch explicit context documents
+      const explicitContextDocuments = [];
       for (const docId of contextDocumentIds) {
         const doc = await storage.getDocument(docId);
-        if (doc) contextDocuments.push(doc);
+        if (doc) explicitContextDocuments.push(doc);
+      }
+      
+      // Auto-retrieve relevant context using RAG
+      const autoContext = await retrievalService.buildAutoContext({
+        conversationId,
+        userText,
+        explicitContextIds: contextDocumentIds,
+        mentions: mentionIds
+      });
+      
+      // Combine all context documents  
+      const allContextDocuments = [
+        ...explicitContextDocuments,
+        ...mentionDocuments
+      ];
+      
+      // Add full document objects for auto-retrieved context
+      for (const contextDoc of autoContext.usedDocs) {
+        const fullDoc = await storage.getDocument(contextDoc.id);
+        if (fullDoc && !allContextDocuments.find(d => d.id === fullDoc.id)) {
+          allContextDocuments.push(fullDoc);
+        }
+      }
+      
+      const contextDocuments = allContextDocuments;
+      
+      // Add retrieved context to system instruction (immutable)
+      const enrichedMessages = [...messages];
+      if (autoContext.contextText && enrichedMessages.length > 0) {
+        // Prepend auto-retrieved context to the first message
+        enrichedMessages[0] = {
+          ...enrichedMessages[0],
+          content: `${autoContext.contextText}\n\n---\n\n${enrichedMessages[0].content}`
+        };
       }
       
       console.log('Function calling chat request:', { 
         messageCount: messages?.length, 
-        contextDocumentIds: contextDocumentIds.length 
+        contextDocumentIds: contextDocumentIds.length,
+        autoRetrievedDocs: autoContext.usedDocs.length,
+        retrievalStrategy: autoContext.retrievalMetadata.strategy
       });
       
       const response = await chatWithGeminiFunctions({
-        messages,
+        messages: enrichedMessages,
         contextDocuments
       });
       
-      res.json({ response });
+      res.json({ 
+        response,
+        contextUsed: autoContext.usedDocs,
+        retrievalMetadata: autoContext.retrievalMetadata,
+        citations: autoContext.citations
+      });
     } catch (error) {
       console.error('Function calling chat error:', error);
       res.status(500).json({ error: "Failed to process function calling chat request" });
@@ -443,12 +495,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { messages, contextDocumentIds = [], conversationId } = req.body;
       
-      // Fetch context documents if provided
-      const contextDocuments = [];
+      // Import retrieval service
+      const { retrievalService } = await import('./retrieval-service');
+      
+      // Parse explicit mentions and get their documents
+      const lastUserMessage = messages[messages.length - 1];
+      const userText = lastUserMessage?.content || '';
+      
+      const mentions = await storage.parseMentions(userText);
+      const mentionDocuments = await storage.resolveMentionDocuments(mentions);
+      const mentionIds = mentionDocuments.map(doc => doc.id);
+      
+      // Fetch explicit context documents
+      const explicitContextDocuments = [];
       for (const docId of contextDocumentIds) {
         const doc = await storage.getDocument(docId);
-        if (doc) contextDocuments.push(doc);
+        if (doc) explicitContextDocuments.push(doc);
       }
+      
+      // Auto-retrieve relevant context using RAG
+      const autoContext = await retrievalService.buildAutoContext({
+        conversationId,
+        userText,
+        explicitContextIds: contextDocumentIds,
+        mentions: mentionIds
+      });
+      
+      // Combine all context documents  
+      const allContextDocuments = [
+        ...explicitContextDocuments,
+        ...mentionDocuments
+      ];
+      
+      // Add full document objects for auto-retrieved context
+      for (const contextDoc of autoContext.usedDocs) {
+        const fullDoc = await storage.getDocument(contextDoc.id);
+        if (fullDoc && !allContextDocuments.find(d => d.id === fullDoc.id)) {
+          allContextDocuments.push(fullDoc);
+        }
+      }
+      
+      const contextDocuments = allContextDocuments;
       
       // Set SSE headers
       res.writeHead(200, {
@@ -464,9 +551,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let functionCalls: Array<{name: string; arguments: any; result?: any}> = [];
 
       try {
+        // Add retrieved context to system instruction (immutable)
+        const enrichedMessages = [...messages];
+        if (autoContext.contextText && enrichedMessages.length > 0) {
+          // Prepend auto-retrieved context to the first message
+          enrichedMessages[0] = {
+            ...enrichedMessages[0],
+            content: `${autoContext.contextText}\n\n---\n\n${enrichedMessages[0].content}`
+          };
+        }
+
         // For now, use the regular function calling and simulate streaming
         const response = await chatWithGeminiFunctions({
-          messages,
+          messages: enrichedMessages,
           contextDocuments
         });
 
@@ -485,13 +582,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
           await new Promise(resolve => setTimeout(resolve, 30));
         }
 
+        // Send context metadata for transparency
+        res.write(`data: ${JSON.stringify({ 
+          type: 'context', 
+          contextUsed: autoContext.usedDocs,
+          retrievalMetadata: autoContext.retrievalMetadata,
+          citations: autoContext.citations
+        })}\n\n`);
+
         // Save complete message if conversationId provided
         if (conversationId) {
           await storage.createMessage({
             conversationId,
             role: "assistant",
             content: fullResponse,
-            contextDocuments: contextDocumentIds,
+            contextDocuments: [...contextDocumentIds, ...autoContext.usedDocs.map(d => d.id)],
             thinking: null,
             functionCalls: null,
             status: "completed"

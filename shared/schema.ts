@@ -328,15 +328,30 @@ export const textEmbeddingConfigSchema = z.object({
   batchSize: z.number().int().min(1).max(100).default(10),
 });
 
+export const retrievalConfigSchema = z.object({
+  autoRag: z.boolean().default(true),
+  docTopK: z.number().default(6),
+  chunkTopK: z.number().default(24), 
+  perDocChunkCap: z.number().default(6),
+  contextWindow: z.number().default(1),
+  minDocSim: z.number().default(0.25),
+  minChunkSim: z.number().default(0.30),
+  budgetTokens: z.number().default(6000),
+  strategy: z.enum(['balanced', 'aggressive', 'conservative']).default('balanced'),
+  addCitations: z.boolean().default(true)
+});
+
 export const appConfigSchema = z.object({
   geminiApi: geminiApiConfigSchema.default({}),
   textEmbedding: textEmbeddingConfigSchema.default({}),
+  retrieval: retrievalConfigSchema.default({}),
   updatedAt: z.date().default(() => new Date())
 });
 
 // Types
 export type GeminiApiConfig = z.infer<typeof geminiApiConfigSchema>;
 export type TextEmbeddingConfig = z.infer<typeof textEmbeddingConfigSchema>;
+export type RetrievalConfig = z.infer<typeof retrievalConfigSchema>;
 export type AppConfig = z.infer<typeof appConfigSchema>;
 
 export const insertAppConfigSchema = appConfigSchema.omit({ updatedAt: true });

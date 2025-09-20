@@ -154,6 +154,18 @@ export class MemStorage implements IStorage {
         autoTruncate: true,
         batchSize: 10
       },
+      retrieval: {
+        autoRag: true,
+        docTopK: 6,
+        chunkTopK: 24,
+        perDocChunkCap: 6,
+        contextWindow: 1,
+        minDocSim: 0.25,
+        minChunkSim: 0.30,
+        budgetTokens: 6000,
+        strategy: 'balanced' as const,
+        addCitations: true
+      },
       updatedAt: new Date()
     };
     
