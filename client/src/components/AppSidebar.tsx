@@ -192,25 +192,25 @@ export function AppSidebar() {
               ) : (
                 conversations.map((conversation) => (
                   <SidebarMenuItem key={conversation.id}>
-                    <div className="group relative">
+                    <div className="group flex items-center w-full">
                       <SidebarMenuButton 
                         asChild 
                         data-testid={`link-conversation-${conversation.id}`}
-                        className={currentConversationId === conversation.id ? "bg-sidebar-accent" : ""}
+                        className={`flex-1 ${currentConversationId === conversation.id ? "bg-sidebar-accent" : ""}`}
                       >
-                        <Link href={`/conversations/${conversation.id}`} onClick={handleNavigation}>
+                        <Link href={`/conversations/${conversation.id}`} onClick={handleNavigation} className="flex items-center gap-2 w-full">
                           <MessageSquare className="h-4 w-4" />
                           <span className="truncate flex-1">{conversation.title}</span>
                         </Link>
                       </SidebarMenuButton>
                       
-                      {/* Delete button */}
+                      {/* Menu button */}
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="absolute right-1 top-1 opacity-0 group-hover:opacity-100 h-6 w-6"
+                            className="opacity-0 group-hover:opacity-100 h-6 w-6 ml-1 flex-shrink-0"
                             data-testid={`button-conversation-menu-${conversation.id}`}
                           >
                             <MoreHorizontal className="h-3 w-3" />
