@@ -1390,6 +1390,68 @@ export class DatabaseStorage implements IStorage {
       total: result.length
     };
   }
+
+  // Settings operations
+  async getAppConfig(): Promise<AppConfig> {
+    // Return default app configuration
+    // TODO: Store this in database if persistence is needed
+    return {
+      retrieval: {
+        autoRag: true,
+        embeddingModel: "gemini" as const,
+        maxDocuments: 10,
+        maxChunks: 20,
+        contextWindow: 8000,
+        reranking: true,
+        citationStyle: "markdown" as const,
+        ragStage1Limit: 50,
+        ragStage2Limit: 10,
+        chunkRelevanceThreshold: 0.7,
+        semanticCache: true,
+        cacheExpiry: 3600000
+      },
+      geminiApi: {
+        model: "gemini-1.5-flash",
+        temperature: 0.7,
+        maxTokens: 8192,
+        topP: 0.95,
+        safetySettings: {
+          enableSafetyFilter: true,
+          harassmentThreshold: "BLOCK_MEDIUM_AND_ABOVE",
+          hateSpeechThreshold: "BLOCK_MEDIUM_AND_ABOVE",
+          sexuallyExplicitThreshold: "BLOCK_MEDIUM_AND_ABOVE",
+          dangerousContentThreshold: "BLOCK_MEDIUM_AND_ABOVE"
+        },
+        enableFunctionCalling: true,
+        streamResponse: true
+      }
+    };
+  }
+
+  async updateAppConfig(updates: UpdateAppConfig): Promise<AppConfig> {
+    // For now, return the default config merged with updates
+    // TODO: Implement database persistence for app config
+    const currentConfig = await this.getAppConfig();
+    
+    const updatedConfig = {
+      ...currentConfig,
+      ...updates,
+      retrieval: {
+        ...currentConfig.retrieval,
+        ...(updates.retrieval || {})
+      },
+      geminiApi: {
+        ...currentConfig.geminiApi,
+        ...(updates.geminiApi || {}),
+        safetySettings: {
+          ...currentConfig.geminiApi.safetySettings,
+          ...(updates.geminiApi?.safetySettings || {})
+        }
+      }
+    };
+    
+    return updatedConfig;
+  }
 }
 
 export const storage = new DatabaseStorage();
