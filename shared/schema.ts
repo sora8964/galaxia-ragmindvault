@@ -23,7 +23,7 @@ export const objects = pgTable("objects", {
   fileSize: integer("file_size"), // File size in bytes
   mimeType: text("mime_type"), // MIME type of the uploaded file
   hasFile: boolean("has_file").notNull().default(false), // Whether this object has an associated file
-  embedding: vector("embedding", { dimensions: 2000 }),
+  embedding: vector("embedding", { dimensions: 3072 }),
   hasEmbedding: boolean("has_embedding").notNull().default(false),
   embeddingStatus: text("embedding_status", { enum: ["pending", "completed", "failed"] }).notNull().default("pending"),
   needsEmbedding: boolean("needs_embedding").notNull().default(true),
@@ -72,7 +72,7 @@ export const chunks = pgTable("chunks", {
   chunkIndex: integer("chunk_index").notNull(), // 0, 1, 2... for ordering
   startPosition: integer("start_position").notNull(), // Start character position in original content
   endPosition: integer("end_position").notNull(), // End character position in original content
-  embedding: vector("embedding", { dimensions: 2000 }),
+  embedding: vector("embedding", { dimensions: 3072 }),
   hasEmbedding: boolean("has_embedding").notNull().default(false),
   embeddingStatus: text("embedding_status", { enum: ["pending", "completed", "failed"] }).notNull().default("pending"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
