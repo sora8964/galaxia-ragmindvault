@@ -345,6 +345,61 @@ export function DocumentDetails() {
               </CardHeader>
               
               <CardContent className="space-y-6">
+                {/* Date field */}
+                <div>
+                  <Label className="text-base font-medium">日期</Label>
+                  {isEditing ? (
+                    <Input
+                      type="date"
+                      value={editForm.date || ""}
+                      onChange={(e) => setEditForm(prev => ({ ...prev, date: e.target.value || null }))}
+                      className="mt-2"
+                      data-testid="input-edit-date"
+                    />
+                  ) : (
+                    <div className="mt-2">
+                      {document.date ? (
+                        <div className="flex items-center gap-2">
+                          <Calendar className="w-4 h-4" />
+                          <span>{document.date}</span>
+                        </div>
+                      ) : (
+                        <p className="text-muted-foreground italic">沒有設定日期</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Content */}
+                <div>
+                  <Label className="text-base font-medium">內容</Label>
+                  {isEditing ? (
+                    <div className="relative mt-2">
+                      <Textarea
+                        value={editForm.content}
+                        onChange={(e) => setEditForm(prev => ({ ...prev, content: e.target.value }))}
+                        placeholder="輸入文件內容，可以使用 @ 來引用其他文件或人員"
+                        className="min-h-40"
+                        data-testid="textarea-edit-content"
+                      />
+                      <SimpleMentionSearch
+                        onMentionSelect={handleMentionAdded}
+                        className="absolute top-2 right-2"
+                      />
+                    </div>
+                  ) : (
+                    <div className="mt-2 p-4 bg-muted/50 rounded-lg">
+                      {document.content ? (
+                        <pre className="whitespace-pre-wrap font-sans text-sm">
+                          {document.content}
+                        </pre>
+                      ) : (
+                        <p className="text-muted-foreground italic">沒有內容</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+
                 {/* File information */}
                 {document.hasFile && (
                   <div>
@@ -419,61 +474,6 @@ export function DocumentDetails() {
                     </div>
                   </div>
                 )}
-
-                {/* Date field */}
-                <div>
-                  <Label className="text-base font-medium">日期</Label>
-                  {isEditing ? (
-                    <Input
-                      type="date"
-                      value={editForm.date || ""}
-                      onChange={(e) => setEditForm(prev => ({ ...prev, date: e.target.value || null }))}
-                      className="mt-2"
-                      data-testid="input-edit-date"
-                    />
-                  ) : (
-                    <div className="mt-2">
-                      {document.date ? (
-                        <div className="flex items-center gap-2">
-                          <Calendar className="w-4 h-4" />
-                          <span>{document.date}</span>
-                        </div>
-                      ) : (
-                        <p className="text-muted-foreground italic">沒有設定日期</p>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                {/* Content */}
-                <div>
-                  <Label className="text-base font-medium">內容</Label>
-                  {isEditing ? (
-                    <div className="relative mt-2">
-                      <Textarea
-                        value={editForm.content}
-                        onChange={(e) => setEditForm(prev => ({ ...prev, content: e.target.value }))}
-                        placeholder="輸入文件內容，可以使用 @ 來引用其他文件或人員"
-                        className="min-h-40"
-                        data-testid="textarea-edit-content"
-                      />
-                      <SimpleMentionSearch
-                        onMentionSelect={handleMentionAdded}
-                        className="absolute top-2 right-2"
-                      />
-                    </div>
-                  ) : (
-                    <div className="mt-2 p-4 bg-muted/50 rounded-lg">
-                      {document.content ? (
-                        <pre className="whitespace-pre-wrap font-sans text-sm">
-                          {document.content}
-                        </pre>
-                      ) : (
-                        <p className="text-muted-foreground italic">沒有內容</p>
-                      )}
-                    </div>
-                  )}
-                </div>
 
                 {/* Aliases */}
                 <div>

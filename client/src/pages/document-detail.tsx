@@ -351,6 +351,33 @@ export function DocumentDetail() {
           </CardHeader>
           
           <CardContent className="space-y-6">
+            {/* Date field */}
+            {(document.type === "document" || document.type === "letter" || document.type === "log" || document.type === "meeting") && (
+              <div>
+                <Label className="text-base font-medium">日期</Label>
+                {isEditing ? (
+                  <Input
+                    type="date"
+                    value={editForm.date || ""}
+                    onChange={(e) => setEditForm(prev => ({ ...prev, date: e.target.value || null }))}
+                    className="mt-2"
+                    data-testid="input-edit-date"
+                  />
+                ) : (
+                  <div className="mt-2">
+                    {document.date ? (
+                      <div className="flex items-center gap-2">
+                        <Calendar className="w-4 h-4" />
+                        <span>{document.date}</span>
+                      </div>
+                    ) : (
+                      <p className="text-muted-foreground italic">沒有設定日期</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Content */}
             <div>
               <Label className="text-base font-medium">{getContentFieldLabel(document.type)}</Label>
