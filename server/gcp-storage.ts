@@ -8,19 +8,62 @@ import path from 'path';
  * Example: document/95ace82f-7583-4974-bd03-38821c3ae0c9.docx
  */
 export class GCPStorageService {
-  private storage: Storage;
+  private storage: Storage | null = null;
   private bucketName: string;
+  private isConfigured: boolean = false;
 
   constructor() {
-    // Initialize GCP Storage client
-    // GCP credentials should be provided via GOOGLE_APPLICATION_CREDENTIALS env var
-    // or through service account key
-    this.storage = new Storage({
-      projectId: process.env.GOOGLE_CLOUD_PROJECT_ID,
-      keyFilename: process.env.GOOGLE_APPLICATION_CREDENTIALS, // Optional: path to service account key
-    });
-    
-    this.bucketName = process.env.GOOGLE_CLOUD_STORAGE_BUCKET || 'ai-context-manager-files';
+    // Get required environment variables
+    const projectId = process.env.GCP_PROJECT_ID;
+    const bucketName = process.env.GCP_STORAGE_BUCKET;
+    const serviceAccountKey = process.env.GCP_SERVICE_ACCOUNT_KEY;
+
+    if (!projectId || !bucketName || !serviceAccountKey) {
+      console.warn('Missing GCP environment variables. GCP Storage functionality will be disabled.');
+      this.bucketName = 'disabled';
+      return;
+    }
+
+    // Parse the service account key JSON
+    let credentials;
+    try {
+      // Remove any leading/trailing whitespace and decode if needed
+      const cleanKey = serviceAccountKey.trim();
+      credentials = JSON.parse(cleanKey);
+      
+      // Validate that it's a service account key
+      if (!credentials.type || credentials.type !== 'service_account') {
+        throw new Error('Service account key must have type "service_account"');
+      }
+      
+      if (!credentials.project_id || !credentials.private_key || !credentials.client_email) {
+        throw new Error('Service account key missing required fields');
+      }
+      
+    } catch (error) {
+      console.error('GCP Service Account Key parsing error:', error);
+      console.error('Service account key should be a complete JSON object like:');
+      console.error('{"type": "service_account", "project_id": "...", "private_key": "...", ...}');
+      console.warn('GCP Storage functionality will be disabled due to invalid configuration.');
+      this.bucketName = 'disabled';
+      return;
+    }
+
+    try {
+      // Initialize GCP Storage client with service account credentials
+      this.storage = new Storage({
+        projectId: projectId,
+        credentials: credentials,
+      });
+      
+      this.bucketName = bucketName;
+      this.isConfigured = true;
+      console.log(`GCP Storage initialized for project: ${projectId}, bucket: ${bucketName}`);
+    } catch (error) {
+      console.error('Failed to initialize GCP Storage:', error);
+      console.warn('GCP Storage functionality will be disabled.');
+      this.bucketName = 'disabled';
+    }
   }
 
   /**
@@ -39,6 +82,10 @@ export class GCPStorageService {
     originalFileName: string,
     mimeType: string
   ): Promise<string> {
+    if (!this.isConfigured || !this.storage) {
+      throw new Error('GCP Storage is not properly configured. Please check your environment variables.');
+    }
+
     try {
       // Extract file extension from original filename
       const extension = path.extname(originalFileName);
@@ -77,6 +124,10 @@ export class GCPStorageService {
     buffer: Buffer;
     metadata: any;
   }> {
+    if (!this.isConfigured || !this.storage) {
+      throw new Error('GCP Storage is not properly configured. Please check your environment variables.');
+    }
+
     try {
       const bucket = this.storage.bucket(this.bucketName);
       const file = bucket.file(filePath);
@@ -106,6 +157,11 @@ export class GCPStorageService {
    * @param filePath - The file path in GCP Storage
    */
   async deleteFile(filePath: string): Promise<void> {
+    if (!this.isConfigured || !this.storage) {
+      console.warn('GCP Storage is not configured. Skipping file deletion.');
+      return;
+    }
+
     try {
       const bucket = this.storage.bucket(this.bucketName);
       const file = bucket.file(filePath);
@@ -125,6 +181,10 @@ export class GCPStorageService {
    * @returns Promise with signed URL
    */
   async generateSignedUrl(filePath: string, expiresInMinutes: number = 60): Promise<string> {
+    if (!this.isConfigured || !this.storage) {
+      throw new Error('GCP Storage is not properly configured. Please check your environment variables.');
+    }
+
     try {
       const bucket = this.storage.bucket(this.bucketName);
       const file = bucket.file(filePath);
@@ -147,6 +207,10 @@ export class GCPStorageService {
    * Check if the storage service is properly configured
    */
   async checkConfiguration(): Promise<boolean> {
+    if (!this.isConfigured || !this.storage) {
+      return false;
+    }
+
     try {
       // Try to list buckets to verify credentials
       const [buckets] = await this.storage.getBuckets();
