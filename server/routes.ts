@@ -16,14 +16,11 @@ const relationshipQuerySchema = z.object({
   sourceType: DocumentType.optional(),
   targetType: DocumentType.optional(),
 
-  direction: z.enum(["out", "in", "both"]).optional(),
   limit: z.coerce.number().min(1).max(1000).optional(),
   offset: z.coerce.number().min(0).optional()
 });
 
 const documentRelationshipQuerySchema = z.object({
-  direction: z.enum(["out", "in", "both"]).optional(),
-
   targetType: DocumentType.optional(),
   limit: z.coerce.number().min(1).max(1000).optional(),
   offset: z.coerce.number().min(0).optional()
@@ -945,7 +942,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Enhanced document relationships endpoint with direction and filtering support
+  // Simplified document relationships endpoint - outgoing only
   app.get("/api/objects/:id/relationships", async (req, res) => {
     try {
       const { id } = req.params;

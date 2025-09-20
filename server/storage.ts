@@ -31,7 +31,6 @@ export interface RelationshipFilters {
   targetId?: string;
   sourceType?: DocumentType;
   targetType?: DocumentType;
-  direction?: "out" | "in" | "both"; // out: sourceId matches, in: targetId matches, both: either
   limit?: number;
   offset?: number;
 }
@@ -839,35 +838,18 @@ export class MemStorage implements IStorage {
 
     // Apply filters
     if (filters.sourceId || filters.targetId) {
-      // Handle direction parameter
-      if (filters.direction === "out") {
-        // Only outgoing relationships (where the entity is the source)
-        if (filters.sourceId) {
-          relationships = relationships.filter(rel => rel.sourceId === filters.sourceId);
-        }
-      } else if (filters.direction === "in") {
-        // Only incoming relationships (where the entity is the target)
-        if (filters.targetId) {
-          relationships = relationships.filter(rel => rel.targetId === filters.targetId);
-        }
-      } else if (filters.direction === "both" || !filters.direction) {
-        // Both directions (default behavior)
-        if (filters.sourceId && filters.targetId) {
-          // Both sourceId and targetId specified
-          relationships = relationships.filter(rel => 
-            rel.sourceId === filters.sourceId && rel.targetId === filters.targetId
-          );
-        } else if (filters.sourceId) {
-          // Only sourceId specified, find relationships in both directions
-          relationships = relationships.filter(rel => 
-            rel.sourceId === filters.sourceId || rel.targetId === filters.sourceId
-          );
-        } else if (filters.targetId) {
-          // Only targetId specified, find relationships in both directions
-          relationships = relationships.filter(rel => 
-            rel.sourceId === filters.targetId || rel.targetId === filters.targetId
-          );
-        }
+      // Simplified filtering - direct source/target matching
+      if (filters.sourceId && filters.targetId) {
+        // Both sourceId and targetId specified
+        relationships = relationships.filter(rel => 
+          rel.sourceId === filters.sourceId && rel.targetId === filters.targetId
+        );
+      } else if (filters.sourceId) {
+        // Only sourceId specified
+        relationships = relationships.filter(rel => rel.sourceId === filters.sourceId);
+      } else if (filters.targetId) {
+        // Only targetId specified  
+        relationships = relationships.filter(rel => rel.targetId === filters.targetId);
       }
     }
 
