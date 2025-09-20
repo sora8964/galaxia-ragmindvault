@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { MentionSearch } from "./MentionSearch";
 import { ContextIndicator } from "./ContextIndicator";
+import { MentionParser } from "./MentionParser";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
@@ -1124,7 +1125,7 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
                       // Normal display mode
                       <>
                         <div className="text-sm whitespace-pre-wrap">
-                          {message.content}
+                          <MentionParser text={message.content} />
                           {message.isStreaming && (
                             <>
                               {!message.content && (
