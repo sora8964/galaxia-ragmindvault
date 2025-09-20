@@ -302,28 +302,10 @@ export function DocumentDetail() {
                         data-testid="input-edit-name"
                       />
                     </div>
-                    {(document.type === "document" || document.type === "letter" || document.type === "log") && (
-                      <div>
-                        <Label htmlFor="edit-date">日期</Label>
-                        <Input
-                          id="edit-date"
-                          type="date"
-                          value={editForm.date || ""}
-                          onChange={(e) => setEditForm(prev => ({ ...prev, date: e.target.value || null }))}
-                          data-testid="input-edit-date"
-                        />
-                      </div>
-                    )}
                   </div>
                 ) : (
                   <div>
                     <CardTitle className="text-xl">{document.name}</CardTitle>
-                    {document.date && (document.type === "document" || document.type === "letter" || document.type === "log") && (
-                      <p className="text-sm text-muted-foreground mt-1 flex items-center gap-1">
-                        <Calendar className="w-4 h-4" />
-                        日期：{document.date}
-                      </p>
-                    )}
                   </div>
                 )}
               </div>
