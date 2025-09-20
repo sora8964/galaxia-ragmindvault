@@ -981,21 +981,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const result = await storage.findRelationships(filters);
       
-      // Enrich with document information for easier frontend consumption
-      const enrichedRelationships = await Promise.all(
+      // Transform relationships to match frontend expected structure
+      const transformedRelationships = await Promise.all(
         result.relationships.map(async (rel) => {
           const sourceDoc = await storage.getDocument(rel.sourceId);
           const targetDoc = await storage.getDocument(rel.targetId);
+          
+          // Determine which document is the "related" document and direction
+          let relatedDocument;
+          let direction;
+          
+          if (rel.sourceId === id) {
+            // This document is the source, so target is the related document
+            relatedDocument = targetDoc ? { 
+              id: targetDoc.id, 
+              name: targetDoc.name, 
+              type: targetDoc.type,
+              date: targetDoc.date
+            } : null;
+            direction = "outgoing";
+          } else {
+            // This document is the target, so source is the related document
+            relatedDocument = sourceDoc ? { 
+              id: sourceDoc.id, 
+              name: sourceDoc.name, 
+              type: sourceDoc.type,
+              date: sourceDoc.date
+            } : null;
+            direction = "incoming";
+          }
+          
           return {
-            ...rel,
-            sourceDocument: sourceDoc ? { id: sourceDoc.id, name: sourceDoc.name, type: sourceDoc.type } : null,
-            targetDocument: targetDoc ? { id: targetDoc.id, name: targetDoc.name, type: targetDoc.type } : null
+            relationship: rel,
+            relatedDocument,
+            direction
           };
         })
       );
 
       res.json({
-        relationships: enrichedRelationships,
+        relationships: transformedRelationships,
         total: result.total,
         document: {
           id: document.id,
