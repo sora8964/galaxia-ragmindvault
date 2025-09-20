@@ -20,6 +20,12 @@ import { OrganizationsList } from "./pages/organizations-list";
 import { IssuesList } from "./pages/issues-list";
 import { LogsList } from "./pages/logs-list";
 import { Settings } from "./components/Settings";
+import { OrganizationNew } from "./pages/organization-new";
+import { PersonNew } from "./pages/person-new";
+import { DocumentNew } from "./pages/document-new";
+import { IssueNew } from "./pages/issue-new";
+import { LogNew } from "./pages/log-new";
+import { MeetingNew } from "./pages/meeting-new";
 import NotFound from "@/pages/not-found";
 import { useState } from "react";
 import { useParams } from "wouter";
@@ -77,6 +83,16 @@ function Router() {
       <Route path="/" component={ConversationsPage} />
       <Route path="/conversations" component={ConversationsPage} />
       <Route path="/conversations/:id" component={ConversationDetailPage} />
+      
+      {/* New item creation routes */}
+      <Route path="/organization/new" component={OrganizationNew} />
+      <Route path="/person/new" component={PersonNew} />
+      <Route path="/document/new" component={DocumentNew} />
+      <Route path="/issue/new" component={IssueNew} />
+      <Route path="/log/new" component={LogNew} />
+      <Route path="/meeting/new" component={MeetingNew} />
+      
+      {/* List and detail routes */}
       <Route path="/documents" component={DocumentsPage} />
       <Route path="/documents/:id" component={DocumentDetails} />
       <Route path="/meetings" component={MeetingsPage} />
