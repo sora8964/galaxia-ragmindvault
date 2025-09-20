@@ -11,7 +11,7 @@ const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
 const functions = {
   searchDocuments: {
     name: "searchDocuments",
-    description: "Search for documents, people, entities, issues, logs, and meetings in the knowledge base using keywords",
+    description: "Search for documents, people, letters, entities, issues, logs, and meetings in the knowledge base using keywords",
     parameters: {
       type: "object",
       properties: {
@@ -21,7 +21,7 @@ const functions = {
         },
         type: {
           type: "string",
-          description: "Filter by document type: person, document, entity, issue, log, or meeting (optional)"
+          description: "Filter by document type: person, document, letter, entity, issue, log, or meeting (optional)"
         },
         limit: {
           type: "number",
@@ -34,7 +34,7 @@ const functions = {
 
   getDocumentDetails: {
     name: "getDocumentDetails",
-    description: "Get the full content and details of a specific document, person, entity, issue, log, or meeting. For issues, automatically includes all associated logs.",
+    description: "Get the full content and details of a specific document, person, letter, entity, issue, log, or meeting. For issues, automatically includes all associated logs.",
     parameters: {
       type: "object",
       properties: {
@@ -49,17 +49,17 @@ const functions = {
 
   createDocument: {
     name: "createDocument",
-    description: "Create a new document, person profile, entity, issue, log, or meeting entry in the knowledge base",
+    description: "Create a new document, person profile, letter, entity, issue, log, or meeting entry in the knowledge base",
     parameters: {
       type: "object",
       properties: {
         name: {
           type: "string",
-          description: "The name/title of the document, person, entity, issue, log, or meeting"
+          description: "The name/title of the document, person, letter, entity, issue, log, or meeting"
         },
         type: {
           type: "string",
-          description: "Type of entry: person, document, entity, issue, log, or meeting"
+          description: "Type of entry: person, document, letter, entity, issue, log, or meeting"
         },
         content: {
           type: "string",
@@ -77,7 +77,7 @@ const functions = {
 
   updateDocument: {
     name: "updateDocument",
-    description: "Update an existing document, person profile, entity, issue, log, or meeting entry",
+    description: "Update an existing document, person profile, letter, entity, issue, log, or meeting entry",
     parameters: {
       type: "object",
       properties: {
@@ -157,7 +157,7 @@ const functions = {
         },
         type: {
           type: "string",
-          enum: ["person", "document", "entity", "issue", "log", "meeting"],
+          enum: ["person", "document", "letter", "entity", "issue", "log", "meeting"],
           description: "Optional: Filter by document type"
         },
         maxExcerpts: {
@@ -190,6 +190,7 @@ async function searchDocuments(args: any): Promise<string> {
       switch (type) {
         case 'person': return '👤';
         case 'document': return '📄';
+        case 'letter': return '✉️';
         case 'entity': return '🏢';
         case 'issue': return '📋';
         case 'log': return '📝';
@@ -223,6 +224,7 @@ async function getDocumentDetails(args: any): Promise<string> {
       switch (type) {
         case 'person': return '👤 Person Profile';
         case 'document': return '📄 Document';
+        case 'letter': return '✉️ Letter';
         case 'entity': return '🏢 Entity';
         case 'issue': return '📋 Issue';
         case 'log': return '📝 Log';
@@ -312,6 +314,7 @@ async function createDocument(args: any): Promise<string> {
       switch (type) {
         case 'person': return 'person profile';
         case 'document': return 'document';
+        case 'letter': return 'letter';
         case 'entity': return 'entity';
         case 'issue': return 'issue';
         case 'log': return 'log';
@@ -349,6 +352,7 @@ async function updateDocument(args: any): Promise<string> {
       switch (type) {
         case 'person': return 'person profile';
         case 'document': return 'document';
+        case 'letter': return 'letter';
         case 'entity': return 'entity';
         case 'issue': return 'issue';
         case 'log': return 'log';
@@ -402,6 +406,7 @@ async function findSimilarDocuments(args: any): Promise<string> {
       switch (type) {
         case 'person': return '👤';
         case 'document': return '📄';
+        case 'letter': return '✉️';
         case 'entity': return '🏢';
         case 'issue': return '📋';
         case 'log': return '📝';
@@ -579,6 +584,7 @@ async function findRelevantExcerpts(args: any): Promise<string> {
       switch (type) {
         case 'person': return '👤';
         case 'document': return '📄';
+        case 'letter': return '✉️';
         case 'entity': return '🏢';
         case 'issue': return '📋';
         case 'log': return '📝';
@@ -675,7 +681,7 @@ You have access to the following functions to help users:
 
 **IMPORTANT**: For documents that might be long (meetings, detailed reports, etc.), prefer findRelevantExcerpts over getDocumentDetails to provide focused, relevant information with proper citations. Always call the appropriate function rather than making assumptions about what exists in the knowledge base.
 
-Use @mentions like @[person:習近平], @[document:項目計劃書], @[entity:公司名稱], @[issue:問題標題], @[log:日誌名稱], or @[meeting:會議名稱] when referring to specific entities.`;
+Use @mentions like @[person:習近平], @[document:項目計劃書], @[letter:感謝信], @[entity:公司名稱], @[issue:問題標題], @[log:日誌名稱], or @[meeting:會議名稱] when referring to specific entities.`;
 
     if (contextDocuments.length > 0) {
       systemInstruction += `\n\nContext Documents (Currently available):`;

@@ -23,6 +23,8 @@ import { Settings } from "./components/Settings";
 import { EntityNew } from "./pages/entity-new";
 import { PersonNew } from "./pages/person-new";
 import { DocumentNew } from "./pages/document-new";
+import { LetterNew } from "./pages/letter-new";
+import { LettersList } from "./pages/letters-list";
 import { IssueNew } from "./pages/issue-new";
 import { LogNew } from "./pages/log-new";
 import { MeetingNew } from "./pages/meeting-new";
@@ -73,6 +75,10 @@ function LogsPage() {
   return <LogsList />;
 }
 
+function LettersPage() {
+  return <LettersList />;
+}
+
 function SettingsPage() {
   return <Settings />;
 }
@@ -88,13 +94,16 @@ function Router() {
       <Route path="/entity/new" component={EntityNew} />
       <Route path="/person/new" component={PersonNew} />
       <Route path="/document/new" component={DocumentNew} />
+      <Route path="/letter/new" component={LetterNew} />
       <Route path="/issue/new" component={IssueNew} />
       <Route path="/log/new" component={LogNew} />
       <Route path="/meeting/new" component={MeetingNew} />
       
       {/* List and detail routes */}
       <Route path="/documents" component={DocumentsPage} />
+      <Route path="/letters" component={LettersPage} />
       <Route path="/documents/:id" component={DocumentDetails} />
+      <Route path="/letters/:id" component={DocumentDetail} />
       <Route path="/meetings" component={MeetingsPage} />
       <Route path="/meetings/:id" component={MeetingDetails} />
       <Route path="/people" component={PeoplePage} />
