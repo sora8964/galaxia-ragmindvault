@@ -1430,10 +1430,6 @@ export class DatabaseStorage implements IStorage {
     return (result.rowCount || 0) > 0;
   }
 
-  async deleteRelationshipsByType(relationshipType: string): Promise<boolean> {
-    const result = await db.delete(relationships).where(eq(relationships.relationKind, relationshipType));
-    return (result.rowCount || 0) > 0;
-  }
 
   async cleanupRelationshipsForDocument(documentId: string): Promise<boolean> {
     const result = await db.delete(relationships)
@@ -1476,53 +1472,9 @@ export class DatabaseStorage implements IStorage {
     return result;
   }
 
-  async getRelationshipsByType(relationshipType: string): Promise<Relationship[]> {
-    const result = await db.select().from(relationships)
-      .where(eq(relationships.relationKind, relationshipType));
-    return result;
-  }
 
-  async getRelationshipsByKind(relationKind: string): Promise<Relationship[]> {
-    const result = await db.select().from(relationships)
-      .where(eq(relationships.relationKind, relationKind));
-    return result;
-  }
 
-  async getRelationshipsBySourceAndType(sourceId: string, relationshipType: string): Promise<Relationship[]> {
-    const result = await db.select().from(relationships)
-      .where(and(
-        eq(relationships.sourceId, sourceId),
-        eq(relationships.relationKind, relationshipType)
-      ));
-    return result;
-  }
 
-  async getRelationshipsByTargetAndType(targetId: string, relationshipType: string): Promise<Relationship[]> {
-    const result = await db.select().from(relationships)
-      .where(and(
-        eq(relationships.targetId, targetId),
-        eq(relationships.relationKind, relationshipType)
-      ));
-    return result;
-  }
-
-  async getRelationshipsBySourceAndKind(sourceId: string, relationKind: string): Promise<Relationship[]> {
-    const result = await db.select().from(relationships)
-      .where(and(
-        eq(relationships.sourceId, sourceId),
-        eq(relationships.relationKind, relationKind)
-      ));
-    return result;
-  }
-
-  async getRelationshipsByTargetAndKind(targetId: string, relationKind: string): Promise<Relationship[]> {
-    const result = await db.select().from(relationships)
-      .where(and(
-        eq(relationships.targetId, targetId),
-        eq(relationships.relationKind, relationKind)
-      ));
-    return result;
-  }
 
   async getRelationshipBetween(sourceId: string, targetId: string): Promise<Relationship[]> {
     const result = await db.select().from(relationships)

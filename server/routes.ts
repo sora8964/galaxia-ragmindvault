@@ -15,7 +15,7 @@ const relationshipQuerySchema = z.object({
   targetId: z.string().optional(),
   sourceType: DocumentType.optional(),
   targetType: DocumentType.optional(),
-  relationKind: z.string().optional(),
+
   direction: z.enum(["out", "in", "both"]).optional(),
   limit: z.coerce.number().min(1).max(1000).optional(),
   offset: z.coerce.number().min(0).optional()
@@ -23,7 +23,7 @@ const relationshipQuerySchema = z.object({
 
 const documentRelationshipQuerySchema = z.object({
   direction: z.enum(["out", "in", "both"]).optional(),
-  relationKind: z.string().optional(),
+
   targetType: DocumentType.optional(),
   limit: z.coerce.number().min(1).max(1000).optional(),
   offset: z.coerce.number().min(0).optional()
@@ -975,9 +975,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Add additional filters
-      if (validatedQuery.relationKind) {
-        filters.relationKind = validatedQuery.relationKind;
-      }
       if (validatedQuery.targetType) {
         filters.targetType = validatedQuery.targetType;
       }
@@ -1033,22 +1030,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // No longer need to set relationshipType - removed for simplification
       
-      // Check for duplicate relationships based on relationKind
+      // Check for duplicate relationships 
       const existingRelationships = await storage.getRelationshipBetween(
         validatedData.sourceId, 
         validatedData.targetId
       );
       
-      const duplicateRelationship = existingRelationships.find(rel => 
-        rel.relationKind === (validatedData.relationKind || "related")
-      );
-      
-      if (duplicateRelationship) {
-        const relationLabel = validatedData.relationKind || "related";
+      if (existingRelationships.length > 0) {
         return res.status(409).json({ 
-          error: "A relationship of this type already exists between these items",
-          detail: `關聯類型「${relationLabel}」已存在於這兩個項目之間`,
-          existingRelationship: duplicateRelationship,
+          error: "A relationship already exists between these items",
+          detail: `關聯已存在於這兩個項目之間`,
+          existingRelationship: existingRelationships[0],
           errorCode: "DUPLICATE_RELATIONSHIP"
         });
       }
@@ -1090,7 +1082,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Get relationships where this document is the source and target is an issue
-      const relationships = await storage.getRelationshipsBySourceAndKind(id, "related");
+      const relationships = await storage.getRelationshipsBySource(id);
       
       // Get the related issue documents
       const relatedIssues = [];
@@ -1146,7 +1138,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Check if relationship already exists
       const existingRelationships = await storage.getRelationshipBetween(id, issueId);
-      const existingRel = existingRelationships.find(rel => rel.relationKind === "related");
+      const existingRel = existingRelationships[0]; // Get first existing relationship
       
       if (existingRel) {
         return res.status(409).json({ error: "Relationship already exists", relationship: existingRel });
@@ -1158,7 +1150,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         targetId: issueId,
         sourceType: document.type,
         targetType: issue.type,
-        relationKind: "related"
       });
       
       res.status(201).json({
@@ -1192,7 +1183,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Find and delete the relationship
       const relationships = await storage.getRelationshipBetween(objectId, issueId);
-      const targetRel = relationships.find(rel => rel.relationKind === "related");
+      const targetRel = relationships[0]; // Get first relationship
       
       if (!targetRel) {
         return res.status(404).json({ error: "Relationship not found" });

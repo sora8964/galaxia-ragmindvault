@@ -89,8 +89,6 @@ export function RelationshipManagerGeneric({ sourceId, sourceType, className }: 
           targetId,
           sourceType,
           targetType,
-          relationKind: selectedRelationKind,
-          relationshipType: `${sourceType}_to_${targetType}` // For backward compatibility
         })
       });
       
@@ -151,7 +149,7 @@ export function RelationshipManagerGeneric({ sourceId, sourceType, className }: 
   });
 
   const handleCreateRelation = (targetId: string, targetType: DocumentType) => {
-    // Check if already related with the same relationKind
+    // Check if already related between same nodes
     const isAlreadyRelated = relationshipData?.relationships.some(
       rel => {
         const sameNodes = (rel.relationship.sourceId === sourceId && rel.relationship.targetId === targetId) ||
