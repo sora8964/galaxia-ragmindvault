@@ -205,7 +205,8 @@ async function getDocumentDetails(args: any): Promise<string> {
       (document.date ? `**Date:** ${document.date}\n\n` : '') +
       `**Status:** ${document.hasEmbedding ? '✅ Indexed' : '⏳ Processing'}\n` +
       `**Created:** ${new Date(document.createdAt).toLocaleDateString()}\n` +
-      `**Updated:** ${new Date(document.updatedAt).toLocaleDateString()}`;
+      `**Updated:** ${new Date(document.updatedAt).toLocaleDateString()}\n\n` +
+      `Please analyze the above content to answer the user's question about this ${document.type}.`;
     
     // If this is an issue, find all associated logs
     if (document.type === 'issue') {
