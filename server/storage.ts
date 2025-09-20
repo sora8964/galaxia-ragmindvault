@@ -46,8 +46,8 @@ export interface IStorage {
   // Document operations
   getDocument(id: string): Promise<Document | undefined>;
   getAllDocuments(): Promise<Document[]>;
-  getDocumentsByType(type: "person" | "document" | "organization" | "issue" | "log"): Promise<Document[]>;
-  searchDocuments(query: string, type?: "person" | "document" | "organization" | "issue" | "log"): Promise<SearchResult>;
+  getDocumentsByType(type: "person" | "document" | "entity" | "issue" | "log"): Promise<Document[]>;
+  searchDocuments(query: string, type?: "person" | "document" | "entity" | "issue" | "log"): Promise<SearchResult>;
   createDocument(document: InsertObject): Promise<Document>;
   updateDocument(id: string, updates: UpdateObject): Promise<Document | undefined>;
   deleteDocument(id: string): Promise<boolean>;
@@ -202,13 +202,13 @@ export class MemStorage implements IStorage {
       },
       {
         name: "騰訊控股",
-        type: "organization" as const,
+        type: "entity" as const,
         content: "中國領先的互聯網和科技公司，業務範圍涵蓋社交網絡、遊戲、媒體、電子商務、移動支付等。",
         aliases: ["騰訊", "Tencent", "騰訊公司"]
       },
       {
         name: "阿里巴巴集團",
-        type: "organization" as const,
+        type: "entity" as const,
         content: "中國最大的電子商務公司，旗下擁有淘寶、天貓、支付寶等知名平台，同時涉及雲計算、物流等領域。",
         aliases: ["阿里巴巴", "Alibaba", "阿里集團"]
       },
@@ -297,13 +297,13 @@ export class MemStorage implements IStorage {
     );
   }
 
-  async getDocumentsByType(type: "person" | "document" | "organization" | "issue" | "log" | "meeting"): Promise<Document[]> {
+  async getDocumentsByType(type: "person" | "document" | "entity" | "issue" | "log" | "meeting"): Promise<Document[]> {
     return Array.from(this.documents.values())
       .filter(doc => doc.type === type)
       .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
   }
 
-  async searchDocuments(query: string, type?: "person" | "document" | "organization" | "issue" | "log" | "meeting"): Promise<SearchResult> {
+  async searchDocuments(query: string, type?: "person" | "document" | "entity" | "issue" | "log" | "meeting"): Promise<SearchResult> {
     const allDocs = Array.from(this.documents.values());
     const lowerQuery = query.toLowerCase();
     
@@ -597,7 +597,7 @@ export class MemStorage implements IStorage {
   async parseMentions(text: string): Promise<ParsedMention[]> {
     const mentions: ParsedMention[] = [];
     // Regex to match @[type:name] or @[type:name|alias]
-    const mentionRegex = /@\[(person|document|organization|issue|log):([^|\]]+)(?:\|([^\]]+))?\]/g;
+    const mentionRegex = /@\[(person|document|entity|issue|log):([^|\]]+)(?:\|([^\]]+))?\]/g;
     
     let match;
     while ((match = mentionRegex.exec(text)) !== null) {
@@ -607,7 +607,7 @@ export class MemStorage implements IStorage {
         start: match.index,
         end: match.index + fullMatch.length,
         raw: fullMatch,
-        type: type as "person" | "document" | "organization" | "issue" | "log",
+        type: type as "person" | "document" | "entity" | "issue" | "log",
         name: name.trim(),
         alias: alias?.trim(),
         documentId: undefined // Will be resolved separately
@@ -1128,14 +1128,14 @@ export class DatabaseStorage implements IStorage {
     return result;
   }
 
-  async getDocumentsByType(type: "person" | "document" | "organization" | "issue" | "log" | "meeting"): Promise<Document[]> {
+  async getDocumentsByType(type: "person" | "document" | "entity" | "issue" | "log" | "meeting"): Promise<Document[]> {
     const result = await db.select().from(objects)
       .where(eq(objects.type, type))
       .orderBy(desc(objects.updatedAt));
     return result;
   }
 
-  async searchDocuments(query: string, type?: "person" | "document" | "organization" | "issue" | "log" | "meeting"): Promise<SearchResult> {
+  async searchDocuments(query: string, type?: "person" | "document" | "entity" | "issue" | "log" | "meeting"): Promise<SearchResult> {
     const lowerQuery = `%${query.toLowerCase()}%`;
     
     let whereCondition = or(

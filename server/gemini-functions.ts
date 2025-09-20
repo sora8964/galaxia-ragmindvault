@@ -11,7 +11,7 @@ const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
 const functions = {
   searchDocuments: {
     name: "searchDocuments",
-    description: "Search for documents, people, organizations, issues, logs, and meetings in the knowledge base using keywords",
+    description: "Search for documents, people, entities, issues, logs, and meetings in the knowledge base using keywords",
     parameters: {
       type: "object",
       properties: {
@@ -21,7 +21,7 @@ const functions = {
         },
         type: {
           type: "string",
-          description: "Filter by document type: person, document, organization, issue, log, or meeting (optional)"
+          description: "Filter by document type: person, document, entity, issue, log, or meeting (optional)"
         },
         limit: {
           type: "number",
@@ -34,7 +34,7 @@ const functions = {
 
   getDocumentDetails: {
     name: "getDocumentDetails",
-    description: "Get the full content and details of a specific document, person, organization, issue, log, or meeting. For issues, automatically includes all associated logs.",
+    description: "Get the full content and details of a specific document, person, entity, issue, log, or meeting. For issues, automatically includes all associated logs.",
     parameters: {
       type: "object",
       properties: {
@@ -49,17 +49,17 @@ const functions = {
 
   createDocument: {
     name: "createDocument",
-    description: "Create a new document, person profile, organization, issue, log, or meeting entry in the knowledge base",
+    description: "Create a new document, person profile, entity, issue, log, or meeting entry in the knowledge base",
     parameters: {
       type: "object",
       properties: {
         name: {
           type: "string",
-          description: "The name/title of the document, person, organization, issue, log, or meeting"
+          description: "The name/title of the document, person, entity, issue, log, or meeting"
         },
         type: {
           type: "string",
-          description: "Type of entry: person, document, organization, issue, log, or meeting"
+          description: "Type of entry: person, document, entity, issue, log, or meeting"
         },
         content: {
           type: "string",
@@ -77,7 +77,7 @@ const functions = {
 
   updateDocument: {
     name: "updateDocument",
-    description: "Update an existing document, person profile, organization, issue, log, or meeting entry",
+    description: "Update an existing document, person profile, entity, issue, log, or meeting entry",
     parameters: {
       type: "object",
       properties: {
@@ -157,7 +157,7 @@ const functions = {
         },
         type: {
           type: "string",
-          enum: ["person", "document", "organization", "issue", "log", "meeting"],
+          enum: ["person", "document", "entity", "issue", "log", "meeting"],
           description: "Optional: Filter by document type"
         },
         maxExcerpts: {
@@ -190,7 +190,7 @@ async function searchDocuments(args: any): Promise<string> {
       switch (type) {
         case 'person': return '👤';
         case 'document': return '📄';
-        case 'organization': return '🏢';
+        case 'entity': return '🏢';
         case 'issue': return '📋';
         case 'log': return '📝';
         case 'meeting': return '👥';
@@ -223,7 +223,7 @@ async function getDocumentDetails(args: any): Promise<string> {
       switch (type) {
         case 'person': return '👤 Person Profile';
         case 'document': return '📄 Document';
-        case 'organization': return '🏢 Organization';
+        case 'entity': return '🏢 Entity';
         case 'issue': return '📋 Issue';
         case 'log': return '📝 Log';
         case 'meeting': return '👥 Meeting';
@@ -312,7 +312,7 @@ async function createDocument(args: any): Promise<string> {
       switch (type) {
         case 'person': return 'person profile';
         case 'document': return 'document';
-        case 'organization': return 'organization';
+        case 'entity': return 'entity';
         case 'issue': return 'issue';
         case 'log': return 'log';
         case 'meeting': return 'meeting';
@@ -349,7 +349,7 @@ async function updateDocument(args: any): Promise<string> {
       switch (type) {
         case 'person': return 'person profile';
         case 'document': return 'document';
-        case 'organization': return 'organization';
+        case 'entity': return 'entity';
         case 'issue': return 'issue';
         case 'log': return 'log';
         case 'meeting': return 'meeting';
@@ -402,7 +402,7 @@ async function findSimilarDocuments(args: any): Promise<string> {
       switch (type) {
         case 'person': return '👤';
         case 'document': return '📄';
-        case 'organization': return '🏢';
+        case 'entity': return '🏢';
         case 'issue': return '📋';
         case 'log': return '📝';
         case 'meeting': return '👥';
@@ -426,7 +426,7 @@ async function parseMentions(args: any): Promise<string> {
     const { text } = args;
     
     // Simple regex to find @mentions in format @[type:name] or @[type:name|alias]
-    const mentionRegex = /@\[(person|document|organization|issue|log|meeting):([^|\]]+)(?:\|([^]]+))?\]/g;
+    const mentionRegex = /@\[(person|document|entity|issue|log|meeting):([^|\]]+)(?:\|([^]]+))?\]/g;
     const mentions = [];
     let match;
     
@@ -434,7 +434,7 @@ async function parseMentions(args: any): Promise<string> {
       const [fullMatch, type, name, alias] = match;
       
       // Try to find the document
-      const searchResult = await storage.searchDocuments(name, type as "person" | "document" | "organization" | "issue" | "log");
+      const searchResult = await storage.searchDocuments(name, type as "person" | "document" | "entity" | "issue" | "log");
       const foundDoc = searchResult.objects.find(doc => 
         doc.name.toLowerCase() === name.toLowerCase() ||
         doc.aliases.some(a => a.toLowerCase() === name.toLowerCase())
@@ -579,7 +579,7 @@ async function findRelevantExcerpts(args: any): Promise<string> {
       switch (type) {
         case 'person': return '👤';
         case 'document': return '📄';
-        case 'organization': return '🏢';
+        case 'entity': return '🏢';
         case 'issue': return '📋';
         case 'log': return '📝';
         case 'meeting': return '👥';
@@ -662,20 +662,20 @@ export async function chatWithGeminiFunctions(options: GeminiFunctionChatOptions
     const { messages, contextDocuments = [] } = options;
     
     // Build system instruction
-    let systemInstruction = `You are an AI assistant for an advanced document and knowledge management system. You help users organize, search, and understand their documents, people, organizations, issues, logs, and meetings.
+    let systemInstruction = `You are an AI assistant for an advanced document and knowledge management system. You help users organize, search, and understand their documents, people, entities, issues, logs, and meetings.
 
 You have access to the following functions to help users:
-- searchDocuments: Find documents, people, organizations, issues, logs, and meetings by keywords
+- searchDocuments: Find documents, people, entities, issues, logs, and meetings by keywords
 - getDocumentDetails: Get full content of specific documents (issues automatically include associated logs)
 - findRelevantExcerpts: **PREFERRED for long documents** - Find relevant excerpts using intelligent dual-stage retrieval. Returns contextualized snippets with citations instead of overwhelming full content
-- createDocument: Create new documents, person profiles, organizations, issues, logs, or meetings
+- createDocument: Create new documents, person profiles, entities, issues, logs, or meetings
 - updateDocument: Modify existing documents
 - findSimilarDocuments: Find semantically similar content
 - parseMentions: Analyze @mentions in text
 
 **IMPORTANT**: For documents that might be long (meetings, detailed reports, etc.), prefer findRelevantExcerpts over getDocumentDetails to provide focused, relevant information with proper citations. Always call the appropriate function rather than making assumptions about what exists in the knowledge base.
 
-Use @mentions like @[person:習近平], @[document:項目計劃書], @[organization:公司名稱], @[issue:問題標題], @[log:日誌名稱], or @[meeting:會議名稱] when referring to specific entities.`;
+Use @mentions like @[person:習近平], @[document:項目計劃書], @[entity:公司名稱], @[issue:問題標題], @[log:日誌名稱], or @[meeting:會議名稱] when referring to specific entities.`;
 
     if (contextDocuments.length > 0) {
       systemInstruction += `\n\nContext Documents (Currently available):`;
@@ -683,7 +683,7 @@ Use @mentions like @[person:習近平], @[document:項目計劃書], @[organizat
         switch (type) {
           case 'person': return '👤';
           case 'document': return '📄';
-          case 'organization': return '🏢';
+          case 'entity': return '🏢';
           case 'issue': return '📋';
           case 'log': return '📝';
           default: return '📄';

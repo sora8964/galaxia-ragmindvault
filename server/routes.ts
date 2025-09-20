@@ -46,11 +46,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (search) {
         const result = await storage.searchDocuments(
           search as string, 
-          type as "person" | "document" | "organization" | "issue" | "log" | undefined
+          type as "person" | "document" | "entity" | "issue" | "log" | undefined
         );
         res.json(result);
       } else if (type) {
-        const documents = await storage.getDocumentsByType(type as "person" | "document" | "organization" | "issue" | "log");
+        const documents = await storage.getDocumentsByType(type as "person" | "document" | "entity" | "issue" | "log");
         res.json({ objects: documents, total: documents.length });
       } else {
         const documents = await storage.getAllDocuments();
