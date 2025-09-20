@@ -285,13 +285,13 @@ export class MemStorage implements IStorage {
     );
   }
 
-  async getDocumentsByType(type: "person" | "document" | "organization" | "issue" | "log"): Promise<Document[]> {
+  async getDocumentsByType(type: "person" | "document" | "organization" | "issue" | "log" | "meeting"): Promise<Document[]> {
     return Array.from(this.documents.values())
       .filter(doc => doc.type === type)
       .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
   }
 
-  async searchDocuments(query: string, type?: "person" | "document" | "organization" | "issue" | "log"): Promise<SearchResult> {
+  async searchDocuments(query: string, type?: "person" | "document" | "organization" | "issue" | "log" | "meeting"): Promise<SearchResult> {
     const allDocs = Array.from(this.documents.values());
     const lowerQuery = query.toLowerCase();
     
@@ -1116,14 +1116,14 @@ export class DatabaseStorage implements IStorage {
     return result;
   }
 
-  async getDocumentsByType(type: "person" | "document" | "organization" | "issue" | "log"): Promise<Document[]> {
+  async getDocumentsByType(type: "person" | "document" | "organization" | "issue" | "log" | "meeting"): Promise<Document[]> {
     const result = await db.select().from(objects)
       .where(eq(objects.type, type))
       .orderBy(desc(objects.updatedAt));
     return result;
   }
 
-  async searchDocuments(query: string, type?: "person" | "document" | "organization" | "issue" | "log"): Promise<SearchResult> {
+  async searchDocuments(query: string, type?: "person" | "document" | "organization" | "issue" | "log" | "meeting"): Promise<SearchResult> {
     const lowerQuery = `%${query.toLowerCase()}%`;
     
     let whereCondition = or(
