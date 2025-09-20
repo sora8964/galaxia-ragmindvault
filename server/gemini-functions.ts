@@ -139,6 +139,38 @@ const functions = {
       },
       required: ["text"]
     }
+  },
+
+  findRelevantExcerpts: {
+    name: "findRelevantExcerpts",
+    description: "Find relevant excerpts from documents using intelligent dual-stage retrieval. Use this for long documents instead of getting full content. Returns contextualized snippets with citations.",
+    parameters: {
+      type: "object",
+      properties: {
+        query: {
+          type: "string",
+          description: "User's question or search query to find relevant content"
+        },
+        documentId: {
+          type: "string",
+          description: "Optional: Specific document ID to search within. If not provided, searches across all documents"
+        },
+        type: {
+          type: "string",
+          enum: ["person", "document", "organization", "issue", "log", "meeting"],
+          description: "Optional: Filter by document type"
+        },
+        maxExcerpts: {
+          type: "number",
+          description: "Maximum number of excerpts to return (default: 5)"
+        },
+        contextWindow: {
+          type: "number", 
+          description: "Context window size around matching chunks in characters (default: 400)"
+        }
+      },
+      required: ["query"]
+    }
   }
 };
 
@@ -434,6 +466,145 @@ async function parseMentions(args: any): Promise<string> {
   }
 }
 
+async function findRelevantExcerpts(args: any): Promise<string> {
+  try {
+    const { 
+      query, 
+      documentId, 
+      type, 
+      maxExcerpts = 5, 
+      contextWindow = 400 
+    } = args;
+
+    // Stage 1: Document-level search if no specific document provided
+    let targetDocuments = [];
+    
+    if (documentId) {
+      const doc = await storage.getDocument(documentId);
+      if (doc) targetDocuments.push(doc);
+    } else {
+      // Use existing searchDocuments for document-level filtering
+      const searchResult = await storage.searchDocuments(query, type);
+      targetDocuments = searchResult.objects.slice(0, 10); // Top 10 documents
+    }
+
+    if (targetDocuments.length === 0) {
+      return `No relevant documents found for query: "${query}"`;
+    }
+
+    // Stage 2: Chunk-level search within target documents
+    let allExcerpts = [];
+    
+    for (const doc of targetDocuments) {
+      try {
+        // Get chunks for this document  
+        const chunks = await storage.getChunksByDocument(doc.id);
+        
+        if (chunks.length === 0) {
+          // Fallback: use document content directly for shorter docs
+          if (doc.content.length <= 2000) {
+            allExcerpts.push({
+              documentId: doc.id,
+              documentName: doc.name,
+              documentType: doc.type,
+              content: doc.content,
+              relevanceScore: 1.0,
+              chunkIndex: 0,
+              isFullDocument: true
+            });
+          }
+          continue;
+        }
+
+        // Simple relevance scoring based on query matching
+        for (const chunk of chunks) {
+          const lowerQuery = query.toLowerCase();
+          const lowerContent = chunk.content.toLowerCase();
+          
+          let score = 0;
+          const queryWords = lowerQuery.split(/\s+/);
+          
+          for (const word of queryWords) {
+            if (word.length > 2) { // Skip very short words
+              const occurrences = (lowerContent.match(new RegExp(word, 'g')) || []).length;
+              score += occurrences * word.length; // Weight by word length
+            }
+          }
+          
+          if (score > 0) {
+            // Calculate context window
+            const startPos = Math.max(0, chunk.startPosition - contextWindow/2);
+            const endPos = Math.min(doc.content.length, chunk.endPosition + contextWindow/2);
+            const contextContent = doc.content.substring(startPos, endPos);
+            
+            allExcerpts.push({
+              documentId: doc.id,
+              documentName: doc.name,
+              documentType: doc.type,
+              content: contextContent,
+              relevanceScore: score,
+              chunkIndex: chunk.chunkIndex,
+              startPosition: startPos,
+              endPosition: endPos,
+              isFullDocument: false
+            });
+          }
+        }
+      } catch (chunkError) {
+        console.error(`Error processing chunks for document ${doc.id}:`, chunkError);
+        // Fallback to document search
+        if (doc.content.toLowerCase().includes(query.toLowerCase())) {
+          allExcerpts.push({
+            documentId: doc.id,
+            documentName: doc.name,
+            documentType: doc.type,
+            content: doc.content.substring(0, 1000) + (doc.content.length > 1000 ? '...' : ''),
+            relevanceScore: 0.5,
+            chunkIndex: 0,
+            isFullDocument: false
+          });
+        }
+      }
+    }
+
+    // Stage 3: Rank and return top excerpts
+    allExcerpts.sort((a, b) => b.relevanceScore - a.relevanceScore);
+    const topExcerpts = allExcerpts.slice(0, maxExcerpts);
+
+    if (topExcerpts.length === 0) {
+      return `No relevant excerpts found for query: "${query}"`;
+    }
+
+    const getIcon = (type: string) => {
+      switch (type) {
+        case 'person': return '👤';
+        case 'document': return '📄';
+        case 'organization': return '🏢';
+        case 'issue': return '📋';
+        case 'log': return '📝';
+        case 'meeting': return '👥';
+        default: return '📄';
+      }
+    };
+
+    const excerptsSummary = topExcerpts.map((excerpt, index) => {
+      const citation = excerpt.isFullDocument 
+        ? `[${excerpt.documentName}]`
+        : `[${excerpt.documentName}, chunk ${excerpt.chunkIndex + 1}]`;
+      
+      return `**Excerpt ${index + 1}** ${getIcon(excerpt.documentType)} ${citation}\n` +
+        `${excerpt.content}\n` +
+        `*Relevance Score: ${excerpt.relevanceScore.toFixed(2)}*\n`;
+    }).join('\n---\n');
+
+    return `Found ${topExcerpts.length} relevant excerpt(s) for: "${query}"\n\n${excerptsSummary}\n\n` +
+      `Based on these excerpts, please provide a comprehensive answer to the user's question.`;
+
+  } catch (error) {
+    return `Error finding relevant excerpts: ${error}`;
+  }
+}
+
 // Helper function to calculate cosine similarity
 function cosineSimilarity(a: number[], b: number[]): number {
   if (a.length !== b.length) return 0;
@@ -467,6 +638,8 @@ export async function callFunction(functionName: string, args: any): Promise<str
       return await findSimilarDocuments(args);
     case "parseMentions":
       return await parseMentions(args);
+    case "findRelevantExcerpts":
+      return await findRelevantExcerpts(args);
     default:
       return `Unknown function: ${functionName}`;
   }
@@ -494,12 +667,13 @@ export async function chatWithGeminiFunctions(options: GeminiFunctionChatOptions
 You have access to the following functions to help users:
 - searchDocuments: Find documents, people, organizations, issues, logs, and meetings by keywords
 - getDocumentDetails: Get full content of specific documents (issues automatically include associated logs)
+- findRelevantExcerpts: **PREFERRED for long documents** - Find relevant excerpts using intelligent dual-stage retrieval. Returns contextualized snippets with citations instead of overwhelming full content
 - createDocument: Create new documents, person profiles, organizations, issues, logs, or meetings
 - updateDocument: Modify existing documents
 - findSimilarDocuments: Find semantically similar content
 - parseMentions: Analyze @mentions in text
 
-When users ask about finding, creating, or managing documents, proactively use these functions to help them. Always call the appropriate function rather than making assumptions about what exists in the knowledge base.
+**IMPORTANT**: For documents that might be long (meetings, detailed reports, etc.), prefer findRelevantExcerpts over getDocumentDetails to provide focused, relevant information with proper citations. Always call the appropriate function rather than making assumptions about what exists in the knowledge base.
 
 Use @mentions like @[person:習近平], @[document:項目計劃書], @[organization:公司名稱], @[issue:問題標題], @[log:日誌名稱], or @[meeting:會議名稱] when referring to specific entities.`;
 

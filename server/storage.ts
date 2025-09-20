@@ -149,7 +149,7 @@ export class MemStorage implements IStorage {
       textEmbedding: {
         model: "gemini-embedding-001",
         taskType: "RETRIEVAL_DOCUMENT",
-        outputDimensionality: 3072,
+        outputDimensionality: 2000,
         autoEmbedding: true,
         autoTruncate: true,
         batchSize: 10
