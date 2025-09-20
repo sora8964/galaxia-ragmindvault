@@ -716,23 +716,57 @@ Use @mentions like @[person:習近平], @[document:項目計劃書], @[organizat
       contents: geminiMessages
     });
 
-    // Handle function calls
+    // Handle function calls with proper follow-up analysis
     if (response.candidates?.[0]?.content?.parts) {
-      let finalResponse = "";
+      const parts = response.candidates[0].content.parts;
+      let hasTextResponse = false;
       
-      for (const part of response.candidates[0].content.parts) {
+      // Check if there's both function calls and text response
+      for (const part of parts) {
+        if (part.text) {
+          hasTextResponse = true;
+          break;
+        }
+      }
+      
+      // If there are function calls but no text response, we need follow-up analysis
+      for (const part of parts) {
         if (part.functionCall) {
           const { name: functionName, args } = part.functionCall;
           console.log(`Calling function: ${functionName}`, args);
           
           const functionResult = await callFunction(functionName || "", args);
-          finalResponse += functionResult + "\n\n";
-        } else if (part.text) {
-          finalResponse += part.text;
+          
+          // Make follow-up call with function result for analysis
+          const followUpResponse = await ai.models.generateContent({
+            model: "gemini-2.5-pro",
+            config: { systemInstruction },
+            contents: [
+              ...geminiMessages,
+              {
+                role: "model",
+                parts: [{ functionCall: part.functionCall }]
+              },
+              {
+                role: "user",
+                parts: [{
+                  functionResponse: {
+                    name: functionName,
+                    response: { result: functionResult }
+                  }
+                }]
+              }
+            ]
+          });
+          
+          return followUpResponse.text || "I apologize, but I couldn't analyze the search results. Please try again.";
         }
       }
       
-      return finalResponse.trim() || "I apologize, but I couldn't generate a response. Please try again.";
+      // If there's text response, return it
+      if (hasTextResponse) {
+        return response.text || "I apologize, but I couldn't generate a response. Please try again.";
+      }
     }
 
     return response.text || "I apologize, but I couldn't generate a response. Please try again.";
