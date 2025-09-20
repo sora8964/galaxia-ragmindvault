@@ -86,7 +86,7 @@ function getCreatePath(type: DocumentType): string {
   const typeMap: Record<DocumentType, string> = {
     person: '/person/new',
     document: '/document/new', 
-    organization: '/organization/new',
+    entity: '/entity/new',
     issue: '/issue/new',
     log: '/log/new',
     meeting: '/meeting/new'
@@ -96,7 +96,7 @@ function getCreatePath(type: DocumentType): string {
 
 // 驗證文檔類型
 function isValidDocumentType(type: string): type is DocumentType {
-  const validTypes: DocumentType[] = ['person', 'document', 'organization', 'issue', 'log', 'meeting'];
+  const validTypes: DocumentType[] = ['person', 'document', 'entity', 'issue', 'log', 'meeting'];
   return validTypes.includes(type as DocumentType);
 }
 

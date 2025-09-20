@@ -33,7 +33,7 @@ interface RelationshipResponse {
 const DOCUMENT_TYPE_CONFIG = {
   person: { label: "人員", icon: User, color: "bg-blue-500/10 text-blue-700 dark:text-blue-300" },
   document: { label: "文件", icon: FileText, color: "bg-green-500/10 text-green-700 dark:text-green-300" },
-  organization: { label: "組織", icon: Building, color: "bg-purple-500/10 text-purple-700 dark:text-purple-300" },
+  entity: { label: "實體", icon: Building, color: "bg-purple-500/10 text-purple-700 dark:text-purple-300" },
   issue: { label: "議題", icon: AlertTriangle, color: "bg-orange-500/10 text-orange-700 dark:text-orange-300" },
   log: { label: "日誌", icon: BookOpen, color: "bg-indigo-500/10 text-indigo-700 dark:text-indigo-300" },
   meeting: { label: "會議", icon: Users, color: "bg-teal-500/10 text-teal-700 dark:text-teal-300" },

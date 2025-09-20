@@ -272,10 +272,10 @@ export function AppSidebar() {
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
-                <SidebarMenuButton asChild data-testid="link-organizations">
-                  <Link href="/organizations" onClick={handleNavigation}>
+                <SidebarMenuButton asChild data-testid="link-entities">
+                  <Link href="/entities" onClick={handleNavigation}>
                     <Building className="h-4 w-4" />
-                    <span>組織</span>
+                    <span>實體</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>

@@ -16,11 +16,11 @@ import { DocumentDetails } from "./pages/document-details";
 import { MeetingsList } from "./pages/meetings-list";
 import { MeetingDetails } from "./pages/meeting-details";
 import { PeopleList } from "./pages/people-list";
-import { OrganizationsList } from "./pages/organizations-list";
+import { EntitiesList } from "./pages/entities-list";
 import { IssuesList } from "./pages/issues-list";
 import { LogsList } from "./pages/logs-list";
 import { Settings } from "./components/Settings";
-import { OrganizationNew } from "./pages/organization-new";
+import { EntityNew } from "./pages/entity-new";
 import { PersonNew } from "./pages/person-new";
 import { DocumentNew } from "./pages/document-new";
 import { IssueNew } from "./pages/issue-new";
@@ -61,8 +61,8 @@ function PeoplePage() {
   return <PeopleList />;
 }
 
-function OrganizationsPage() {
-  return <OrganizationsList />;
+function EntitiesPage() {
+  return <EntitiesList />;
 }
 
 function IssuesPage() {
@@ -85,7 +85,7 @@ function Router() {
       <Route path="/conversations/:id" component={ConversationDetailPage} />
       
       {/* New item creation routes */}
-      <Route path="/organization/new" component={OrganizationNew} />
+      <Route path="/entity/new" component={EntityNew} />
       <Route path="/person/new" component={PersonNew} />
       <Route path="/document/new" component={DocumentNew} />
       <Route path="/issue/new" component={IssueNew} />
@@ -99,8 +99,8 @@ function Router() {
       <Route path="/meetings/:id" component={MeetingDetails} />
       <Route path="/people" component={PeoplePage} />
       <Route path="/people/:id" component={DocumentDetail} />
-      <Route path="/organizations" component={OrganizationsPage} />
-      <Route path="/organizations/:id" component={DocumentDetail} />
+      <Route path="/entities" component={EntitiesPage} />
+      <Route path="/entities/:id" component={DocumentDetail} />
       <Route path="/issues" component={IssuesPage} />
       <Route path="/issues/:id" component={DocumentDetail} />
       <Route path="/logs" component={LogsPage} />
