@@ -80,7 +80,7 @@ export function MentionSearch({ onMentionSelect, searchQuery, position, onClose 
         return <Users className="h-4 w-4 text-chart-1" />;
       case 'document':
         return <FileText className="h-4 w-4 text-chart-2" />;
-      case 'organization':
+      case 'entity':
         return <Building className="h-4 w-4 text-chart-3" />;
       case 'issue':
         return <ClipboardList className="h-4 w-4 text-chart-4" />;
@@ -99,7 +99,7 @@ export function MentionSearch({ onMentionSelect, searchQuery, position, onClose 
         return '人員';
       case 'document':
         return '文檔';
-      case 'organization':
+      case 'entity':
         return '組織';
       case 'issue':
         return '問題';

@@ -13,7 +13,7 @@ export const users = pgTable("users", {
 export const objects = pgTable("objects", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull(),
-  type: text("type", { enum: ["person", "document", "organization", "issue", "log", "meeting"] }).notNull(),
+  type: text("type", { enum: ["person", "document", "entity", "issue", "log", "meeting"] }).notNull(),
   content: text("content").notNull().default(""),
   aliases: json("aliases").$type<string[]>().notNull().default([]),
   date: char("date", { length: 10 }), // YYYY-MM-DD format, nullable
@@ -83,8 +83,8 @@ export const relationships = pgTable("relationships", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   sourceId: varchar("source_id").notNull(),
   targetId: varchar("target_id").notNull(),
-  sourceType: text("source_type", { enum: ["person", "document", "organization", "issue", "log", "meeting"] }).notNull(),
-  targetType: text("target_type", { enum: ["person", "document", "organization", "issue", "log", "meeting"] }).notNull(),
+  sourceType: text("source_type", { enum: ["person", "document", "entity", "issue", "log", "meeting"] }).notNull(),
+  targetType: text("target_type", { enum: ["person", "document", "entity", "issue", "log", "meeting"] }).notNull(),
   relationKind: text("relation_kind").notNull().default("related"),
   relationshipType: text("relationship_type"), // Made nullable for new schema compatibility
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -101,7 +101,7 @@ export const relationships = pgTable("relationships", {
 // Schema definitions
 
 // Define DocumentType enum for type safety
-export const DocumentType = z.enum(["person", "document", "organization", "issue", "log", "meeting"]);
+export const DocumentType = z.enum(["person", "document", "entity", "issue", "log", "meeting"]);
 export type DocumentType = z.infer<typeof DocumentType>;
 
 export const insertUserSchema = createInsertSchema(users).pick({
@@ -262,7 +262,7 @@ export interface SearchResult {
 export interface MentionItem {
   id: string;
   name: string;
-  type: "person" | "document" | "organization" | "issue" | "log" | "meeting";
+  type: "person" | "document" | "entity" | "issue" | "log" | "meeting";
   aliases: string[];
 }
 
@@ -276,7 +276,7 @@ export interface ParsedMention {
   start: number;
   end: number;
   raw: string;
-  type: "person" | "document" | "organization" | "issue" | "log" | "meeting";
+  type: "person" | "document" | "entity" | "issue" | "log" | "meeting";
   name: string;
   alias?: string;
   documentId?: string;

@@ -383,7 +383,7 @@ function getItemTypeLabel(itemType: DocumentType): string {
   const labels = {
     person: "人員",
     document: "文檔",
-    organization: "組織",
+    entity: "組織",
     issue: "議題",
     log: "日誌",
     meeting: "會議"
@@ -395,7 +395,7 @@ function getNameLabel(itemType: DocumentType): string {
   const labels = {
     person: "人員姓名",
     document: "文檔名稱", 
-    organization: "組織名稱",
+    entity: "組織名稱",
     issue: "議題名稱",
     log: "日誌名稱",
     meeting: "會議名稱"
@@ -407,7 +407,7 @@ function getNamePlaceholder(itemType: DocumentType): string {
   const placeholders = {
     person: "輸入人員姓名",
     document: "輸入文檔名稱",
-    organization: "輸入組織名稱", 
+    entity: "輸入組織名稱", 
     issue: "輸入議題名稱",
     log: "輸入日誌名稱",
     meeting: "輸入會議名稱"
@@ -419,7 +419,7 @@ function getContentLabel(itemType: DocumentType): string {
   const labels = {
     person: "人員描述",
     document: "文檔內容",
-    organization: "組織描述", 
+    entity: "組織描述", 
     issue: "議題內容",
     log: "日誌內容",
     meeting: "會議內容"
@@ -431,7 +431,7 @@ function getContentPlaceholder(itemType: DocumentType): string {
   const placeholders = {
     person: "輸入人員描述，可以使用 @ 來引用其他文檔或人員",
     document: "輸入文檔內容，可以使用 @ 來引用其他文檔或人員",
-    organization: "輸入組織描述，可以使用 @ 來引用其他文檔或人員",
+    entity: "輸入組織描述，可以使用 @ 來引用其他文檔或人員",
     issue: "輸入議題內容，可以使用 @ 來引用其他文檔或人員", 
     log: "輸入日誌內容，可以使用 @ 來引用其他文檔或人員",
     meeting: "輸入會議內容，可以使用 @ 來引用其他文檔或人員"
