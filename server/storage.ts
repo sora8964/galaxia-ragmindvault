@@ -1097,7 +1097,7 @@ export class MemStorage implements IStorage {
 
 import { db } from "./db";
 import { objects, conversations, messages, chunks, relationships, users } from "@shared/schema";
-import { eq, ilike, or, desc, and } from "drizzle-orm";
+import { eq, ilike, or, desc, and, sql } from "drizzle-orm";
 
 // Database storage implementation that writes to PostgreSQL
 export class DatabaseStorage implements IStorage {
