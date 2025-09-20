@@ -322,7 +322,7 @@ export const textEmbeddingConfigSchema = z.object({
     "FACT_VERIFICATION",
     "CODE_RETRIEVAL_QUERY"
   ]).default("RETRIEVAL_DOCUMENT"),
-  outputDimensionality: z.number().int().min(1).max(3072).default(3072),
+  outputDimensionality: z.number().int().min(1).max(3072).default(2000),
   autoEmbedding: z.boolean().default(true),
   autoTruncate: z.boolean().default(true),
   batchSize: z.number().int().min(1).max(100).default(10),
@@ -362,4 +362,3 @@ export type UpdateAppConfig = z.infer<typeof updateAppConfigSchema>;
 
 // Temporary aliases for migration compatibility
 export type Document = AppObject;
-export type DocumentType = ObjectType;
