@@ -807,8 +807,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const fileName = document.originalFileName || `${document.name}.pdf`;
       const mimeType = document.mimeType || "application/octet-stream";
       
+      // Properly encode filename for Content-Disposition header to handle Chinese characters
+      const encodedFileName = encodeURIComponent(fileName);
+      
       res.setHeader('Content-Type', mimeType);
-      res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+      res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodedFileName}`);
       res.setHeader('Content-Length', buffer.length);
       
       // Send file
