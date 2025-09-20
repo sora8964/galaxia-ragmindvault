@@ -12,7 +12,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { useToast } from "@/hooks/use-toast";
 import { SimpleMentionSearch } from "@/components/SimpleMentionSearch";
 import { RelationshipManagerGeneric } from "@/components/RelationshipManagerGeneric";
-import { ArrowLeft, Save, Trash2, Users, Calendar, Tag } from "lucide-react";
+import { ArrowLeft, Save, Trash2, Users, Calendar, Tag, File, Download } from "lucide-react";
 import { queryClient } from "@/lib/queryClient";
 import type { AppObject } from "@shared/schema";
 
@@ -396,6 +396,81 @@ export function MeetingDetails() {
                     </div>
                   )}
                 </div>
+
+                {/* File attachment */}
+                {meeting.hasFile && (
+                  <div>
+                    <Label className="text-base font-medium flex items-center gap-2">
+                      <File className="w-4 h-4" />
+                      附件檔案
+                    </Label>
+                    <div className="mt-2 p-4 bg-muted/50 rounded-lg">
+                      <div className="flex items-center justify-between">
+                        <div className="space-y-1">
+                          <p className="font-medium">
+                            {meeting.originalFileName || '未知檔案'}
+                          </p>
+                          <div className="text-sm text-muted-foreground space-y-1">
+                            {meeting.fileSize && (
+                              <p>檔案大小: {(meeting.fileSize / 1024 / 1024).toFixed(2)} MB</p>
+                            )}
+                            {meeting.mimeType && (
+                              <p>檔案類型: {meeting.mimeType}</p>
+                            )}
+                          </div>
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={async () => {
+                            try {
+                              const response = await fetch(`/api/objects/${meeting.id}/download`);
+                              if (!response.ok) {
+                                throw new Error('下載失敗');
+                              }
+                              
+                              // Get filename from response headers or use original filename
+                              const contentDisposition = response.headers.get('content-disposition');
+                              let filename = meeting.originalFileName || `${meeting.name}.pdf`;
+                              if (contentDisposition) {
+                                const matches = contentDisposition.match(/filename="?([^"]+)"?/);
+                                if (matches) filename = matches[1];
+                              }
+                              
+                              // Create blob and download
+                              const blob = await response.blob();
+                              const url = window.URL.createObjectURL(blob);
+                              const a = window.document.createElement('a');
+                              a.style.display = 'none';
+                              a.href = url;
+                              a.download = filename;
+                              window.document.body.appendChild(a);
+                              a.click();
+                              window.URL.revokeObjectURL(url);
+                              window.document.body.removeChild(a);
+                              
+                              toast({
+                                title: "下載完成",
+                                description: `檔案 ${filename} 已開始下載`
+                              });
+                            } catch (error) {
+                              console.error('Download error:', error);
+                              toast({
+                                title: "下載失敗",
+                                description: "無法下載檔案，請重試",
+                                variant: "destructive"
+                              });
+                            }
+                          }}
+                          data-testid="button-download-file"
+                        >
+                          <Download className="w-4 h-4 mr-2" />
+                          下載
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* Aliases */}
                 <div>

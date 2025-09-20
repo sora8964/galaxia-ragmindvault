@@ -11,6 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { SimpleMentionSearch } from "@/components/SimpleMentionSearch";
+import { RelationshipManagerGeneric } from "@/components/RelationshipManagerGeneric";
 import { ArrowLeft, Save, Trash2, FileText, Calendar, Tag, File, Download } from "lucide-react";
 import { queryClient } from "@/lib/queryClient";
 import { getItemTypeDisplayName, getNameFieldLabel, getContentFieldLabel, getContentFieldPlaceholder } from "@/lib/typeDisplay";
@@ -283,8 +284,10 @@ export function DocumentDetail() {
           </div>
         </div>
 
-        {/* Document card */}
-        <Card>
+        <div className="grid gap-6 lg:grid-cols-2">
+          {/* Document details */}
+          <div className="lg:col-span-1">
+            <Card>
           <CardHeader>
             <div className="flex items-start justify-between">
               <div className="flex-1">
@@ -543,7 +546,17 @@ export function DocumentDetail() {
               )}
             </div>
           </CardContent>
-        </Card>
+            </Card>
+          </div>
+          
+          {/* Relationships */}
+          <div className="lg:col-span-1">
+            <RelationshipManagerGeneric 
+              sourceId={document.id} 
+              sourceType={document.type}
+            />
+          </div>
+        </div>
       </div>
     </div>
   );
