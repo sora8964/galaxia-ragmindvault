@@ -124,10 +124,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete("/api/objects/:id", async (req, res) => {
     try {
-      const success = await storage.deleteDocument(req.params.id);
-      if (!success) {
+      const { id } = req.params;
+      
+      // Get document first to check if it has a file
+      const document = await storage.getDocument(id);
+      if (!document) {
         return res.status(404).json({ error: "Document not found" });
       }
+      
+      // Delete the document from database
+      const success = await storage.deleteDocument(id);
+      if (!success) {
+        return res.status(404).json({ error: "Failed to delete document" });
+      }
+      
+      // If document had a file, delete it from GCP Storage
+      if (document.hasFile && document.filePath) {
+        try {
+          await gcpStorageService.deleteFile(document.filePath);
+          console.log(`Deleted file from GCP Storage: ${document.filePath}`);
+        } catch (storageError) {
+          console.warn(`Failed to delete file from GCP Storage: ${document.filePath}`, storageError);
+          // Don't fail the entire delete operation if file deletion fails
+        }
+      }
+      
       res.status(204).send();
     } catch (error) {
       console.error('Error deleting document:', error);
