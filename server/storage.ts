@@ -1213,9 +1213,44 @@ export class DatabaseStorage implements IStorage {
     return result.rowCount > 0;
   }
 
-  async searchDocumentsByVector(queryVector: number[], limit?: number): Promise<Document[]> {
-    // For now, return empty - vector search would need special SQL
-    return [];
+  async searchDocumentsByVector(queryVector: number[], limit: number = 10): Promise<Document[]> {
+    try {
+      // Use cosine distance for vector similarity search
+      const result = await db.execute(sql`
+        SELECT *,
+        1 - (embedding <=> ${JSON.stringify(queryVector)}::vector) as similarity
+        FROM objects 
+        WHERE embedding IS NOT NULL 
+        AND has_embedding = true
+        ORDER BY embedding <=> ${JSON.stringify(queryVector)}::vector
+        LIMIT ${limit}
+      `);
+      
+      return result.rows.map(row => ({
+        id: row.id as string,
+        name: row.name as string,
+        type: row.type as DocumentType,
+        content: row.content as string,
+        aliases: (row.aliases || []) as string[],
+        date: row.date as string | null,
+        originalFileName: row.original_file_name as string | null,
+        filePath: row.file_path as string | null,
+        fileSize: row.file_size as number | null,
+        mimeType: row.mime_type as string | null,
+        hasFile: row.has_file as boolean,
+        embedding: row.embedding as number[] | null,
+        hasEmbedding: row.has_embedding as boolean,
+        embeddingStatus: row.embedding_status as "pending" | "completed" | "failed",
+        needsEmbedding: row.needs_embedding as boolean,
+        isFromOCR: row.is_from_ocr as boolean,
+        hasBeenEdited: row.has_been_edited as boolean,
+        createdAt: new Date(row.created_at as string),
+        updatedAt: new Date(row.updated_at as string)
+      }));
+    } catch (error) {
+      console.error('Error in searchDocumentsByVector:', error);
+      return [];
+    }
   }
 
   async getDocumentsNeedingEmbedding(): Promise<Document[]> {
@@ -1260,9 +1295,79 @@ export class DatabaseStorage implements IStorage {
     return result.rowCount > 0;
   }
 
-  async searchChunksByVector(queryVector: number[], limit?: number): Promise<Array<Chunk & { document: Document }>> {
-    // For now, return empty - vector search would need special SQL
-    return [];
+  async searchChunksByVector(queryVector: number[], limit: number = 10): Promise<Array<Chunk & { document: Document }>> {
+    try {
+      // Join chunks with their parent documents and search by vector similarity
+      const result = await db.execute(sql`
+        SELECT 
+          c.*,
+          o.name as doc_name,
+          o.type as doc_type,
+          o.content as doc_content,
+          o.aliases as doc_aliases,
+          o.date as doc_date,
+          o.original_file_name as doc_original_file_name,
+          o.file_path as doc_file_path,
+          o.file_size as doc_file_size,
+          o.mime_type as doc_mime_type,
+          o.has_file as doc_has_file,
+          o.embedding as doc_embedding,
+          o.has_embedding as doc_has_embedding,
+          o.embedding_status as doc_embedding_status,
+          o.needs_embedding as doc_needs_embedding,
+          o.is_from_ocr as doc_is_from_ocr,
+          o.has_been_edited as doc_has_been_edited,
+          o.created_at as doc_created_at,
+          o.updated_at as doc_updated_at,
+          1 - (c.embedding <=> ${JSON.stringify(queryVector)}::vector) as similarity
+        FROM chunks c
+        INNER JOIN objects o ON c.object_id = o.id
+        WHERE c.embedding IS NOT NULL 
+        AND c.has_embedding = true
+        ORDER BY c.embedding <=> ${JSON.stringify(queryVector)}::vector
+        LIMIT ${limit}
+      `);
+      
+      return result.rows.map(row => ({
+        // Chunk properties
+        id: row.id as string,
+        objectId: row.object_id as string,
+        content: row.content as string,
+        chunkIndex: row.chunk_index as number,
+        startPosition: row.start_position as number,
+        endPosition: row.end_position as number,
+        embedding: row.embedding as number[] | null,
+        hasEmbedding: row.has_embedding as boolean,
+        embeddingStatus: row.embedding_status as "pending" | "completed" | "failed",
+        createdAt: new Date(row.created_at as string),
+        updatedAt: new Date(row.updated_at as string),
+        // Document properties
+        document: {
+          id: row.object_id as string,
+          name: row.doc_name as string,
+          type: row.doc_type as DocumentType,
+          content: row.doc_content as string,
+          aliases: (row.doc_aliases || []) as string[],
+          date: row.doc_date as string | null,
+          originalFileName: row.doc_original_file_name as string | null,
+          filePath: row.doc_file_path as string | null,
+          fileSize: row.doc_file_size as number | null,
+          mimeType: row.doc_mime_type as string | null,
+          hasFile: row.doc_has_file as boolean,
+          embedding: row.doc_embedding as number[] | null,
+          hasEmbedding: row.doc_has_embedding as boolean,
+          embeddingStatus: row.doc_embedding_status as "pending" | "completed" | "failed",
+          needsEmbedding: row.doc_needs_embedding as boolean,
+          isFromOCR: row.doc_is_from_ocr as boolean,
+          hasBeenEdited: row.doc_has_been_edited as boolean,
+          createdAt: new Date(row.doc_created_at as string),
+          updatedAt: new Date(row.doc_updated_at as string)
+        }
+      }));
+    } catch (error) {
+      console.error('Error in searchChunksByVector:', error);
+      return [];
+    }
   }
 
   // Mention parsing operations (keep as stubs)

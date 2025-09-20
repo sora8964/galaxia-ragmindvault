@@ -128,11 +128,11 @@ export class ChunkingService {
       // Step 6: Save chunks and generate embeddings
       for (const chunkData of chunks) {
         const chunk = await storage.createChunk({
-          documentId: document.id,
+          objectId: document.id,
           content: chunkData.content,
-          chunkIndex: chunkData.chunkIndex.toString(),
-          startPosition: chunkData.startPosition.toString(),
-          endPosition: chunkData.endPosition.toString(),
+          chunkIndex: chunkData.chunkIndex,
+          startPosition: chunkData.startPosition,
+          endPosition: chunkData.endPosition,
           embedding: null,
           hasEmbedding: false,
           embeddingStatus: "pending" as const
