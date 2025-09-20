@@ -8,7 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Search, Plus, Trash2, Link, FileText, Calendar, User, Users, Building, AlertTriangle, BookOpen, ArrowRight, ArrowLeft } from "lucide-react";
+import { Search, Plus, Trash2, Link, FileText, Calendar, User, Users, Building, AlertTriangle, BookOpen } from "lucide-react";
 import { queryClient } from "@/lib/queryClient";
 import type { AppObject, Relationship, DocumentType } from "@shared/schema";
 
@@ -21,7 +21,6 @@ interface RelationshipManagerGenericProps {
 interface RelationshipWithDocument {
   relationship: Relationship;
   relatedDocument: AppObject;
-  direction: "outgoing" | "incoming";
 }
 
 interface RelationshipResponse {
@@ -54,7 +53,7 @@ export function RelationshipManagerGeneric({ sourceId, sourceType, className }: 
   const { data: relationshipData, isLoading: isLoadingRelationships } = useQuery({
     queryKey: ["/api/objects", sourceId, "relationships"],
     queryFn: async (): Promise<RelationshipResponse> => {
-      const response = await fetch(`/api/objects/${sourceId}/relationships?direction=both`);
+      const response = await fetch(`/api/objects/${sourceId}/relationships`);
       if (!response.ok) throw new Error("Failed to fetch relationships");
       return response.json();
     }
@@ -180,11 +179,6 @@ export function RelationshipManagerGeneric({ sourceId, sourceType, className }: 
     return DOCUMENT_TYPE_CONFIG[type].color;
   };
 
-  const getDirectionIcon = (direction: "outgoing" | "incoming") => {
-    return direction === "outgoing" ? 
-      <ArrowRight className="w-3 h-3 text-muted-foreground" /> : 
-      <ArrowLeft className="w-3 h-3 text-muted-foreground" />;
-  };
 
   const availableDocuments = searchData?.objects?.filter((doc: AppObject) => 
     doc.id !== sourceId && !relationshipData?.relationships.some(rel => 
@@ -219,7 +213,7 @@ export function RelationshipManagerGeneric({ sourceId, sourceType, className }: 
               </div>
             ) : relationshipData?.relationships && relationshipData.relationships.length > 0 ? (
               <div className="space-y-2">
-                {relationshipData.relationships.map(({ relationship, relatedDocument, direction }) => (
+                {relationshipData.relationships.map(({ relationship, relatedDocument }) => (
                   <div 
                     key={relationship.id} 
                     className="flex items-center justify-between p-3 border rounded-lg hover-elevate"
@@ -229,7 +223,6 @@ export function RelationshipManagerGeneric({ sourceId, sourceType, className }: 
                       <div className="flex items-center gap-2 mb-1">
                         {getTypeIcon(relatedDocument.type)}
                         <span className="font-medium">{relatedDocument.name}</span>
-                        {getDirectionIcon(direction)}
                       </div>
                       <div className="flex items-center gap-2 text-sm text-muted-foreground">
                         {relatedDocument.date && (
@@ -240,9 +233,6 @@ export function RelationshipManagerGeneric({ sourceId, sourceType, className }: 
                         )}
                         <Badge variant="outline" className={`text-xs ${getTypeColor(relatedDocument.type)}`}>
                           {DOCUMENT_TYPE_CONFIG[relatedDocument.type].label}
-                        </Badge>
-                        <Badge variant="secondary" className="text-xs">
-                          {direction === "outgoing" ? "出站" : "入站"}
                         </Badge>
                       </div>
                     </div>
