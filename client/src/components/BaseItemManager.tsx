@@ -101,14 +101,14 @@ export function BaseItemManager({
       setIsCreating(false);
       setNewItemForm({ name: "", content: "", aliases: [], date: null });
       toast({
-        title: `${itemType === "document" ? "文件" : itemType === "person" ? "人員" : itemType === "organization" ? "組織" : itemType === "issue" ? "議題" : "日誌"}已創建`,
-        description: `新${itemType === "document" ? "文件" : itemType === "person" ? "人員" : itemType === "organization" ? "組織" : itemType === "issue" ? "議題" : "日誌"}已成功創建並正在生成 embedding`
+        title: `${itemType === "document" ? "文件" : itemType === "person" ? "人員" : itemType === "organization" ? "組織" : itemType === "issue" ? "議題" : itemType === "meeting" ? "會議記錄" : "日誌"}已創建`,
+        description: `新${itemType === "document" ? "文件" : itemType === "person" ? "人員" : itemType === "organization" ? "組織" : itemType === "issue" ? "議題" : itemType === "meeting" ? "會議記錄" : "日誌"}已成功創建並正在生成 embedding`
       });
     },
     onError: () => {
       toast({
         title: "創建失敗",
-        description: `無法創建${itemType === "document" ? "文件" : itemType === "person" ? "人員" : itemType === "organization" ? "組織" : itemType === "issue" ? "議題" : "日誌"}，請重試`,
+        description: `無法創建${itemType === "document" ? "文件" : itemType === "person" ? "人員" : itemType === "organization" ? "組織" : itemType === "issue" ? "議題" : itemType === "meeting" ? "會議記錄" : "日誌"}，請重試`,
         variant: "destructive"
       });
     }
@@ -126,7 +126,7 @@ export function BaseItemManager({
     if (onItemClick) {
       onItemClick(item);
     } else {
-      const routePath = itemType === "document" ? "/documents" : itemType === "person" ? "/people" : itemType === "organization" ? "/organizations" : itemType === "issue" ? "/issues" : "/logs";
+      const routePath = itemType === "document" ? "/documents" : itemType === "person" ? "/people" : itemType === "organization" ? "/organizations" : itemType === "issue" ? "/issues" : itemType === "meeting" ? "/meetings" : "/logs";
       setLocation(`${routePath}/${item.id}`);
     }
   };
