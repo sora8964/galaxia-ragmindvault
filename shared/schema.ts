@@ -262,7 +262,7 @@ export interface SearchResult {
 export interface MentionItem {
   id: string;
   name: string;
-  type: "person" | "document" | "organization" | "issue" | "log";
+  type: "person" | "document" | "organization" | "issue" | "log" | "meeting";
   aliases: string[];
 }
 
@@ -276,7 +276,7 @@ export interface ParsedMention {
   start: number;
   end: number;
   raw: string;
-  type: "person" | "document" | "organization" | "issue" | "log";
+  type: "person" | "document" | "organization" | "issue" | "log" | "meeting";
   name: string;
   alias?: string;
   documentId?: string;

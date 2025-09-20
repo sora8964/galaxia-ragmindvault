@@ -86,6 +86,8 @@ export function MentionSearch({ onMentionSelect, searchQuery, position, onClose 
         return <ClipboardList className="h-4 w-4 text-chart-4" />;
       case 'log':
         return <NotebookPen className="h-4 w-4 text-chart-5" />;
+      case 'meeting':
+        return <Users className="h-4 w-4 text-purple-500" />;
       default:
         return <FileText className="h-4 w-4 text-muted-foreground" />;
     }
@@ -103,6 +105,8 @@ export function MentionSearch({ onMentionSelect, searchQuery, position, onClose 
         return '問題';
       case 'log':
         return '日誌';
+      case 'meeting':
+        return '會議';
       default:
         return type;
     }
@@ -117,6 +121,7 @@ export function MentionSearch({ onMentionSelect, searchQuery, position, onClose 
         top: position.y + 20,
       }}
       data-testid="mention-search-dropdown"
+      data-mention-dropdown
     >
       <div className="p-2">
         <div className="flex items-center gap-2 px-2 py-1 text-xs text-muted-foreground">

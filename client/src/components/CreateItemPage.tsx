@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useLocation } from "wouter";
 import { useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,10 +8,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { SimpleMentionSearch } from "@/components/SimpleMentionSearch";
+import { MentionSearch } from "@/components/MentionSearch";
 import { X, Plus, ArrowLeft } from "lucide-react";
 import { queryClient } from "@/lib/queryClient";
-import type { DocumentType } from "@shared/schema";
+import type { DocumentType, MentionItem } from "@shared/schema";
 
 interface CreateItemForm {
   name: string;
@@ -37,6 +37,9 @@ export function CreateItemPage({ itemType, title, description }: CreateItemPageP
     aliases: [],
     date: null
   });
+  const [mentionPosition, setMentionPosition] = useState<{ x: number; y: number } | null>(null);
+  const [mentionQuery, setMentionQuery] = useState('');
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // 從 URL 參數中獲取預填充的名稱
   useEffect(() => {
@@ -49,6 +52,24 @@ export function CreateItemPage({ itemType, title, description }: CreateItemPageP
       }));
     }
   }, []);
+
+  // 處理點擊外部關閉 mention 下拉選單
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Element;
+      // Don't close if clicking inside the mention dropdown or textarea
+      if (!target.closest('[data-mention-dropdown]') && !target.closest('textarea')) {
+        setMentionPosition(null);
+      }
+    };
+
+    if (mentionPosition) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }
+  }, [mentionPosition]);
 
   // 創建項目的 mutation
   const createItemMutation = useMutation({
@@ -129,6 +150,83 @@ export function CreateItemPage({ itemType, title, description }: CreateItemPageP
     }));
   };
 
+  const handleContentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const value = e.target.value;
+    setForm(prev => ({ ...prev, content: value }));
+
+    // Check for @ mention trigger with more flexible conditions
+    const cursorPosition = e.target.selectionStart;
+    const textBeforeCursor = value.slice(0, cursorPosition);
+    const atIndex = textBeforeCursor.lastIndexOf('@');
+    
+    if (atIndex !== -1) {
+      // Check if @ is at start or preceded by whitespace/punctuation (not word characters)
+      const charBeforeAt = atIndex === 0 ? '' : textBeforeCursor[atIndex - 1];
+      const isValidTrigger = atIndex === 0 || /\s|[^\w]/.test(charBeforeAt);
+      
+      if (isValidTrigger) {
+        const mentionText = textBeforeCursor.slice(atIndex + 1);
+        // Allow mention if no space in the token and cursor is right after the potential mention
+        if (!mentionText.includes(' ') && cursorPosition === textBeforeCursor.length) {
+          setMentionQuery(mentionText);
+          
+          // Calculate position for mention dropdown (improved positioning)
+          if (textareaRef.current) {
+            const rect = textareaRef.current.getBoundingClientRect();
+            const scrollTop = textareaRef.current.scrollTop;
+            // Position dropdown near the textarea, accounting for scroll
+            setMentionPosition({
+              x: rect.left + 10,
+              y: rect.top + 40 - scrollTop
+            });
+          }
+        } else {
+          setMentionPosition(null);
+        }
+      } else {
+        setMentionPosition(null);
+      }
+    } else {
+      setMentionPosition(null);
+    }
+  };
+
+  const handleMentionSelect = (mention: MentionItem, alias?: string) => {
+    const cursorPosition = textareaRef.current?.selectionStart || 0;
+    const textBeforeCursor = form.content.slice(0, cursorPosition);
+    const atIndex = textBeforeCursor.lastIndexOf('@');
+    
+    const mentionSyntax = `@[${mention.type}:${mention.name}${alias ? `|${alias}` : ''}]`;
+    
+    const newContent = 
+      form.content.slice(0, atIndex) + 
+      mentionSyntax + 
+      form.content.slice(cursorPosition);
+    
+    setForm(prev => ({ ...prev, content: newContent }));
+    setMentionPosition(null);
+    
+    // Focus back to textarea
+    setTimeout(() => {
+      textareaRef.current?.focus();
+      const newCursorPos = atIndex + mentionSyntax.length;
+      textareaRef.current?.setSelectionRange(newCursorPos, newCursorPos);
+    }, 0);
+  };
+
+  // Handle textarea blur to close mention dropdown
+  const handleTextareaBlur = (e: React.FocusEvent) => {
+    // Small delay to allow clicking on mention dropdown
+    setTimeout(() => {
+      setMentionPosition(null);
+    }, 150);
+  };
+
+  // Handle clicking outside to close mention dropdown
+  const handleDocumentClick = () => {
+    setMentionPosition(null);
+  };
+
   const handleBack = () => {
     setLocation(`/${itemType}s`);
   };
@@ -196,21 +294,15 @@ export function CreateItemPage({ itemType, title, description }: CreateItemPageP
                 </Label>
                 <div className="relative">
                   <Textarea
+                    ref={textareaRef}
                     id="item-content"
                     value={form.content}
-                    onChange={(e) => setForm(prev => ({ ...prev, content: e.target.value }))}
+                    onChange={handleContentChange}
+                    onBlur={handleTextareaBlur}
                     placeholder={getContentPlaceholder(itemType)}
                     className="min-h-32"
                     data-testid={`textarea-${itemType}-content`}
                     required
-                  />
-                  <SimpleMentionSearch
-                    onMentionSelect={(mention, alias) => {
-                      const displayName = alias || mention.name;
-                      const mentionText = `@[${mention.type}:${mention.name}${alias ? '|' + alias : ''}]`;
-                      setForm(prev => ({ ...prev, content: prev.content + mentionText }));
-                    }}
-                    className="absolute bottom-2 right-2"
                   />
                 </div>
               </div>
@@ -275,6 +367,13 @@ export function CreateItemPage({ itemType, title, description }: CreateItemPageP
           </CardContent>
         </Card>
       </div>
+      
+      <MentionSearch
+        searchQuery={mentionQuery}
+        position={mentionPosition}
+        onMentionSelect={handleMentionSelect}
+        onClose={() => setMentionPosition(null)}
+      />
     </div>
   );
 }
