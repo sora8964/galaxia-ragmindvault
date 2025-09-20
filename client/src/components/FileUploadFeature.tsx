@@ -118,12 +118,26 @@ export function FileUploadFeature({ isDragOver, setIsDragOver, objectType = "doc
       return allowedTypes.includes(fileExtension);
     });
 
-    if (validFiles.length === 0) {
-      toast({
-        title: "不支援的文件格式",
-        description: "請上傳 PDF、DOC 或 DOCX 文件",
-        variant: "destructive"
-      });
+    const invalidFiles = files.filter(file => {
+      const fileExtension = '.' + file.name.split('.').pop()?.toLowerCase();
+      return !allowedTypes.includes(fileExtension);
+    });
+
+    // Add invalid files as error entries for inline feedback
+    if (invalidFiles.length > 0) {
+      const errorFiles: UploadingFile[] = invalidFiles.map(file => ({
+        id: Date.now().toString() + Math.random(),
+        name: file.name,
+        size: file.size,
+        status: 'error',
+        progress: 0,
+        error: '不支援的文件格式。請上傳 PDF、DOC 或 DOCX 文件。'
+      }));
+      
+      setUploadingFiles(prev => [...prev, ...errorFiles]);
+    }
+
+    if (validFiles.length === 0 && invalidFiles.length > 0) {
       return;
     }
 
@@ -145,7 +159,7 @@ export function FileUploadFeature({ isDragOver, setIsDragOver, objectType = "doc
         uploadSingleFile(originalFile, uploadFile.id);
       }
     });
-  }, [uploadSingleFile, toast]);
+  }, [uploadSingleFile]);
 
   // Drag and drop handlers
   const handleDragOver = useCallback((e: React.DragEvent) => {
