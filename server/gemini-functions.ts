@@ -148,7 +148,7 @@ async function searchDocuments(args: any): Promise<string> {
     const { query, type, limit = 10 } = args;
     
     const result = await storage.searchDocuments(query, type);
-    const documents = result.documents.slice(0, limit);
+    const documents = result.objects.slice(0, limit);
     
     if (documents.length === 0) {
       return `No documents found for query: "${query}"`;
@@ -402,7 +402,7 @@ async function parseMentions(args: any): Promise<string> {
       
       // Try to find the document
       const searchResult = await storage.searchDocuments(name, type as "person" | "document" | "organization" | "issue" | "log");
-      const foundDoc = searchResult.documents.find(doc => 
+      const foundDoc = searchResult.objects.find(doc => 
         doc.name.toLowerCase() === name.toLowerCase() ||
         doc.aliases.some(a => a.toLowerCase() === name.toLowerCase())
       );
