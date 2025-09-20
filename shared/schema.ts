@@ -85,16 +85,15 @@ export const relationships = pgTable("relationships", {
   targetId: varchar("target_id").notNull(),
   sourceType: text("source_type", { enum: ["person", "document", "letter", "entity", "issue", "log", "meeting"] }).notNull(),
   targetType: text("target_type", { enum: ["person", "document", "letter", "entity", "issue", "log", "meeting"] }).notNull(),
-  relationKind: text("relation_kind").notNull().default("related"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (table) => ({
   // Unique index to prevent duplicate relationships
-  uniqueRelation: unique().on(table.sourceId, table.targetId, table.relationKind),
+  uniqueRelation: unique().on(table.sourceId, table.targetId),
   // Performance indexes
   sourceIdIdx: index().on(table.sourceId),
   targetIdIdx: index().on(table.targetId),
-  typeRelationIdx: index().on(table.sourceType, table.targetType, table.relationKind),
+  typeRelationIdx: index().on(table.sourceType, table.targetType),
 }));
 
 // Schema definitions
@@ -211,7 +210,6 @@ const baseInsertRelationshipSchema = createInsertSchema(relationships)
     // Make type fields optional for backward compatibility
     sourceType: DocumentType.optional(),
     targetType: DocumentType.optional(), 
-    relationKind: z.string().optional().default("related"),
   });
 
 export const insertRelationshipSchema = baseInsertRelationshipSchema;
