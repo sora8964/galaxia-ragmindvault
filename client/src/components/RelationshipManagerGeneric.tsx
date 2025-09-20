@@ -8,7 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Search, Plus, Trash2, Link, FileText, Calendar, User, Building, AlertTriangle, BookOpen, ArrowRight, ArrowLeft } from "lucide-react";
+import { Search, Plus, Trash2, Link, FileText, Calendar, User, Users, Building, AlertTriangle, BookOpen, ArrowRight, ArrowLeft } from "lucide-react";
 import { queryClient } from "@/lib/queryClient";
 import type { AppObject, Relationship, DocumentType } from "@shared/schema";
 
@@ -36,25 +36,19 @@ const DOCUMENT_TYPE_CONFIG = {
   organization: { label: "組織", icon: Building, color: "bg-purple-500/10 text-purple-700 dark:text-purple-300" },
   issue: { label: "議題", icon: AlertTriangle, color: "bg-orange-500/10 text-orange-700 dark:text-orange-300" },
   log: { label: "日誌", icon: BookOpen, color: "bg-indigo-500/10 text-indigo-700 dark:text-indigo-300" },
+  meeting: { label: "會議", icon: Users, color: "bg-teal-500/10 text-teal-700 dark:text-teal-300" },
 };
 
-// Common relationship kinds
+// Simplified relationship - only basic "related" type
 const RELATION_KINDS = [
-  { value: "related", label: "相關" },
-  { value: "mentions", label: "提及" },
-  { value: "depends_on", label: "依賴於" },
-  { value: "contains", label: "包含" },
-  { value: "member_of", label: "成員" },
-  { value: "assigned_to", label: "指派給" },
-  { value: "created_by", label: "創建者" },
-  { value: "owned_by", label: "擁有者" },
+  { value: "related", label: "關聯" },
 ];
 
 export function RelationshipManagerGeneric({ sourceId, sourceType, className }: RelationshipManagerGenericProps) {
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedTargetType, setSelectedTargetType] = useState<DocumentType | "">("");
-  const [selectedRelationKind, setSelectedRelationKind] = useState("related");
+  const [selectedRelationKind] = useState("related"); // Fixed to "related" only
 
   // Fetch existing relationships
   const { data: relationshipData, isLoading: isLoadingRelationships } = useQuery({
@@ -117,7 +111,7 @@ export function RelationshipManagerGeneric({ sourceId, sourceType, className }: 
       setSearchQuery("");
       toast({
         title: "關聯已創建",
-        description: `成功創建${RELATION_KINDS.find(k => k.value === selectedRelationKind)?.label}關聯`
+        description: "成功創建關聯"
       });
     },
     onError: (error: Error) => {
@@ -162,16 +156,15 @@ export function RelationshipManagerGeneric({ sourceId, sourceType, className }: 
       rel => {
         const sameNodes = (rel.relationship.sourceId === sourceId && rel.relationship.targetId === targetId) ||
                          (rel.relationship.targetId === sourceId && rel.relationship.sourceId === targetId);
-        const sameKind = rel.relationship.relationKind === selectedRelationKind;
-        return sameNodes && sameKind;
+        // Simplified: only check if nodes are the same (no kind checking)
+        return sameNodes;
       }
     );
     
     if (isAlreadyRelated) {
-      const relationLabel = RELATION_KINDS.find(k => k.value === selectedRelationKind)?.label || selectedRelationKind;
       toast({
         title: "已存在關聯",
-        description: `「${relationLabel}」關聯已存在於這兩個項目之間`,
+        description: "關聯已存在於這兩個項目之間",
         variant: "destructive"
       });
       return;
@@ -195,7 +188,7 @@ export function RelationshipManagerGeneric({ sourceId, sourceType, className }: 
       <ArrowLeft className="w-3 h-3 text-muted-foreground" />;
   };
 
-  const availableDocuments = searchData?.documents?.filter((doc: Document) => 
+  const availableDocuments = searchData?.objects?.filter((doc: AppObject) => 
     doc.id !== sourceId && !relationshipData?.relationships.some(rel => 
       rel.relatedDocument.id === doc.id
     )
@@ -249,9 +242,6 @@ export function RelationshipManagerGeneric({ sourceId, sourceType, className }: 
                         )}
                         <Badge variant="outline" className={`text-xs ${getTypeColor(relatedDocument.type)}`}>
                           {DOCUMENT_TYPE_CONFIG[relatedDocument.type].label}
-                        </Badge>
-                        <Badge variant="outline" className="text-xs">
-                          {RELATION_KINDS.find(k => k.value === relationship.relationKind)?.label || relationship.relationKind}
                         </Badge>
                         <Badge variant="secondary" className="text-xs">
                           {direction === "outgoing" ? "出站" : "入站"}
@@ -322,22 +312,6 @@ export function RelationshipManagerGeneric({ sourceId, sourceType, className }: 
               </Select>
             </div>
 
-            {/* Relation kind selector */}
-            <div className="mb-4">
-              <label className="block text-sm font-medium mb-2">關聯類型</label>
-              <Select value={selectedRelationKind} onValueChange={setSelectedRelationKind}>
-                <SelectTrigger data-testid="select-relation-kind">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {RELATION_KINDS.map(kind => (
-                    <SelectItem key={kind.value} value={kind.value}>
-                      {kind.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
 
             {/* Search input */}
             {selectedTargetType && (
@@ -369,7 +343,7 @@ export function RelationshipManagerGeneric({ sourceId, sourceType, className }: 
                         ))}
                       </div>
                     ) : availableDocuments.length > 0 ? (
-                      availableDocuments.map((doc: Document) => (
+                      availableDocuments.map((doc: AppObject) => (
                         <div 
                           key={doc.id} 
                           className="flex items-center justify-between p-3 border rounded-lg hover-elevate"
