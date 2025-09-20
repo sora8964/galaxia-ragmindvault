@@ -168,11 +168,11 @@ async function searchDocuments(args: any): Promise<string> {
     
     const summary = documents.map(doc => 
       `- ${getIcon(doc.type)} **${doc.name}** (ID: ${doc.id})\n` +
-      `  ${doc.content.substring(0, 150)}${doc.content.length > 150 ? '...' : ''}\n` +
+      `  ${doc.content.substring(0, 800)}${doc.content.length > 800 ? '...' : ''}\n` +
       (doc.aliases.length > 0 ? `  Also known as: ${doc.aliases.join(', ')}\n` : '')
     ).join('\n');
     
-    return `Found ${documents.length} document(s):\n\n${summary}`;
+    return `Found ${documents.length} document(s). Please analyze the content below to answer the user's question:\n\n${summary}`;
   } catch (error) {
     return `Error searching documents: ${error}`;
   }
