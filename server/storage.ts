@@ -1304,6 +1304,10 @@ export class DatabaseStorage implements IStorage {
     return result;
   }
 
+  async getMessagesByConversation(conversationId: string): Promise<Message[]> {
+    return this.getMessagesByConversationId(conversationId);
+  }
+
   async createMessage(message: InsertMessage): Promise<Message> {
     const result = await db.insert(messages).values(message).returning();
     return result[0];
@@ -1359,6 +1363,20 @@ export class DatabaseStorage implements IStorage {
         eq(relationships.targetId, documentId)
       ));
     return result.rowCount > 0;
+  }
+
+  async findRelationships(filters: RelationshipFilters): Promise<{ relationships: Relationship[]; total: number }> {
+    let query = db.select().from(relationships);
+    
+    if (filters.sourceId) {
+      query = query.where(eq(relationships.sourceId, filters.sourceId));
+    }
+    
+    const result = await query.limit(filters.limit || 50);
+    return {
+      relationships: result,
+      total: result.length
+    };
   }
 }
 
