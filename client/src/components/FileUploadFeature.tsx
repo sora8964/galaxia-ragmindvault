@@ -6,6 +6,7 @@ import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
 import { Upload, FileText, CheckCircle, AlertCircle, Loader2, X } from "lucide-react";
 import { queryClient } from "@/lib/queryClient";
+import { getUploadTypeDisplayName } from "@/lib/typeDisplay";
 
 interface UploadingFile {
   id: string;
@@ -20,8 +21,9 @@ interface UploadingFile {
 interface FileUploadFeatureProps {
   isDragOver: boolean;
   setIsDragOver: (isDragOver: boolean) => void;
-  objectType?: "document" | "meeting";
+  objectType?: "document" | "letter" | "meeting";
 }
+
 
 export function FileUploadFeature({ isDragOver, setIsDragOver, objectType = "document" }: FileUploadFeatureProps) {
   const { toast } = useToast();
@@ -237,7 +239,7 @@ export function FileUploadFeature({ isDragOver, setIsDragOver, objectType = "doc
           data-testid="button-upload-file"
         >
           <Upload className="w-4 h-4 mr-2" />
-          上傳文件
+          {`上傳${getUploadTypeDisplayName(objectType)}`}
         </Button>
         <input
           id="file-upload"

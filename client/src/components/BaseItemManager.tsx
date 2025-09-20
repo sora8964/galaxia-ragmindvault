@@ -14,6 +14,7 @@ import { SimpleMentionSearch } from "@/components/SimpleMentionSearch";
 import { Plus, Calendar, Search, FileText, User, Eye } from "lucide-react";
 import { queryClient } from "@/lib/queryClient";
 import type { AppObject } from "@shared/schema";
+import { getItemTypeDisplayName, getNameFieldLabel, getNameFieldPlaceholder, getContentFieldLabel, getContentFieldPlaceholder } from "@/lib/typeDisplay";
 
 interface BaseItemForm {
   name: string;
@@ -23,7 +24,7 @@ interface BaseItemForm {
 }
 
 interface BaseItemManagerProps {
-  itemType: "document" | "person" | "entity" | "issue" | "log";
+  itemType: "document" | "letter" | "person" | "entity" | "issue" | "log" | "meeting";
   title: string;
   description: string;
   apiEndpoint: string;
@@ -36,6 +37,7 @@ interface BaseItemManagerProps {
   onItemClick?: (item: AppObject) => void;
   getIcon?: () => ReactNode;
 }
+
 
 export function BaseItemManager({
   itemType,
@@ -101,14 +103,14 @@ export function BaseItemManager({
       setIsCreating(false);
       setNewItemForm({ name: "", content: "", aliases: [], date: null });
       toast({
-        title: `${itemType === "document" ? "文件" : itemType === "person" ? "人員" : itemType === "entity" ? "實體" : itemType === "issue" ? "議題" : itemType === "meeting" ? "會議記錄" : "日誌"}已創建`,
-        description: `新${itemType === "document" ? "文件" : itemType === "person" ? "人員" : itemType === "entity" ? "實體" : itemType === "issue" ? "議題" : itemType === "meeting" ? "會議記錄" : "日誌"}已成功創建並正在生成 embedding`
+        title: `${getItemTypeDisplayName(itemType)}已創建`,
+        description: `新${getItemTypeDisplayName(itemType)}已成功創建並正在生成 embedding`
       });
     },
     onError: () => {
       toast({
         title: "創建失敗",
-        description: `無法創建${itemType === "document" ? "文件" : itemType === "person" ? "人員" : itemType === "entity" ? "實體" : itemType === "issue" ? "議題" : itemType === "meeting" ? "會議記錄" : "日誌"}，請重試`,
+        description: `無法創建${getItemTypeDisplayName(itemType)}，請重試`,
         variant: "destructive"
       });
     }
@@ -126,7 +128,12 @@ export function BaseItemManager({
     if (onItemClick) {
       onItemClick(item);
     } else {
-      const routePath = itemType === "document" ? "/documents" : itemType === "person" ? "/people" : itemType === "entity" ? "/entities" : itemType === "issue" ? "/issues" : itemType === "meeting" ? "/meetings" : "/logs";
+      const routePath = itemType === "document" ? "/documents" : 
+                        itemType === "letter" ? "/letters" :
+                        itemType === "person" ? "/people" : 
+                        itemType === "entity" ? "/entities" : 
+                        itemType === "issue" ? "/issues" : 
+                        itemType === "meeting" ? "/meetings" : "/logs";
       setLocation(`${routePath}/${item.id}`);
     }
   };
@@ -165,39 +172,26 @@ export function BaseItemManager({
                 <div className="space-y-4">
                   <div>
                     <Label htmlFor="item-name">
-                      {itemType === "document" ? "文件名稱" : 
-                       itemType === "person" ? "人員姓名" : 
-                       itemType === "entity" ? "實體名稱" : 
-                       itemType === "issue" ? "議題名稱" : "日誌名稱"}
+                      {getNameFieldLabel(itemType)}
                     </Label>
                     <Input
                       id="item-name"
                       value={newItemForm.name}
                       onChange={(e) => setNewItemForm(prev => ({ ...prev, name: e.target.value }))}
-                      placeholder={itemType === "document" ? "輸入文件名稱" : 
-                                  itemType === "person" ? "輸入人員姓名" : 
-                                  itemType === "entity" ? "輸入實體名稱" : 
-                                  itemType === "issue" ? "輸入議題名稱" : "輸入日誌名稱"}
+                      placeholder={getNameFieldPlaceholder(itemType)}
                       data-testid={`input-${itemType}-name`}
                     />
                   </div>
                   <div>
                     <Label htmlFor="item-content">
-                      {itemType === "document" ? "文件內容" : 
-                       itemType === "person" ? "人員描述" : 
-                       itemType === "entity" ? "實體描述" : 
-                       itemType === "issue" ? "議題內容" : "日誌內容"}
+                      {getContentFieldLabel(itemType)}
                     </Label>
                     <div className="relative">
                       <Textarea
                         id="item-content"
                         value={newItemForm.content}
                         onChange={(e) => setNewItemForm(prev => ({ ...prev, content: e.target.value }))}
-                        placeholder={itemType === "document" ? "輸入文件內容，可以使用 @ 來引用其他文件或人員" : 
-                                    itemType === "person" ? "輸入人員描述，可以使用 @ 來引用其他文件或人員" : 
-                                    itemType === "entity" ? "輸入實體描述，可以使用 @ 來引用其他文件或人員" : 
-                                    itemType === "issue" ? "輸入議題內容，可以使用 @ 來引用其他文件或人員" : 
-                                    "輸入日誌內容，可以使用 @ 來引用其他文件或人員"}
+                        placeholder={getContentFieldPlaceholder(itemType)}
                         className="min-h-32"
                         data-testid={`textarea-${itemType}-content`}
                       />
@@ -207,7 +201,7 @@ export function BaseItemManager({
                       />
                     </div>
                   </div>
-                  {(itemType === "document" || itemType === "log") && (
+                  {(itemType === "document" || itemType === "letter" || itemType === "log") && (
                     <div>
                       <Label htmlFor="item-date">日期</Label>
                       <Input
@@ -233,11 +227,7 @@ export function BaseItemManager({
                       disabled={!newItemForm.name.trim() || createItemMutation.isPending}
                       data-testid={`button-save-create-${itemType}`}
                     >
-                      {createItemMutation.isPending ? "創建中..." : 
-                       `創建${itemType === "document" ? "文件" : 
-                               itemType === "person" ? "人員" : 
-                               itemType === "entity" ? "實體" : 
-                               itemType === "issue" ? "議題" : "日誌"}`}
+                      {createItemMutation.isPending ? "創建中..." : `創建${getItemTypeDisplayName(itemType)}`}
                     </Button>
                   </div>
                 </div>
@@ -251,10 +241,7 @@ export function BaseItemManager({
           <div className="relative max-w-md">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
             <Input
-              placeholder={`搜索${itemType === "document" ? "文件" : 
-                                        itemType === "person" ? "人員" : 
-                                        itemType === "entity" ? "實體" : 
-                                        itemType === "issue" ? "議題" : "日誌"}...`}
+              placeholder={`搜索${getItemTypeDisplayName(itemType)}...`}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-10"
@@ -282,10 +269,7 @@ export function BaseItemManager({
           <div className="text-center py-12">
             {icon}
             <h3 className="text-lg font-medium mb-2">
-              {searchQuery ? `找不到相關${itemType === "document" ? "文件" : 
-                                                      itemType === "person" ? "人員" : 
-                                                      itemType === "entity" ? "實體" : 
-                                                      itemType === "issue" ? "議題" : "日誌"}` : emptyStateTitle}
+              {searchQuery ? `找不到相關${getItemTypeDisplayName(itemType)}` : emptyStateTitle}
             </h3>
             <p className="text-muted-foreground mb-4">
               {searchQuery ? "嘗試調整搜索條件" : emptyStateDescription}
