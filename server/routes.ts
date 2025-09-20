@@ -957,22 +957,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Document not found" });
       }
 
-      // Build filters based on query parameters and direction
+      // Simplified: Only get outgoing relationships (current document as source)
       const filters: RelationshipFilters = {
+        sourceId: id,
         limit: validatedQuery.limit || 50,
         offset: validatedQuery.offset || 0
       };
-
-      // Handle direction parameter
-      if (validatedQuery.direction === "out") {
-        filters.sourceId = id;
-      } else if (validatedQuery.direction === "in") {
-        filters.targetId = id;  
-      } else {
-        // Default to "both" - relationships where document is either source or target
-        filters.sourceId = id; // Will be handled by findRelationships to include both directions
-        filters.direction = "both";
-      }
 
       // Add additional filters
       if (validatedQuery.targetType) {
@@ -981,40 +971,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const result = await storage.findRelationships(filters);
       
-      // Transform relationships to match frontend expected structure
+      // Transform relationships - only outgoing relationships, no direction needed
       const transformedRelationships = await Promise.all(
         result.relationships.map(async (rel) => {
-          const sourceDoc = await storage.getDocument(rel.sourceId);
           const targetDoc = await storage.getDocument(rel.targetId);
           
-          // Determine which document is the "related" document and direction
-          let relatedDocument;
-          let direction;
-          
-          if (rel.sourceId === id) {
-            // This document is the source, so target is the related document
-            relatedDocument = targetDoc ? { 
-              id: targetDoc.id, 
-              name: targetDoc.name, 
-              type: targetDoc.type,
-              date: targetDoc.date
-            } : null;
-            direction = "outgoing";
-          } else {
-            // This document is the target, so source is the related document
-            relatedDocument = sourceDoc ? { 
-              id: sourceDoc.id, 
-              name: sourceDoc.name, 
-              type: sourceDoc.type,
-              date: sourceDoc.date
-            } : null;
-            direction = "incoming";
-          }
+          const relatedDocument = targetDoc ? { 
+            id: targetDoc.id, 
+            name: targetDoc.name, 
+            type: targetDoc.type,
+            date: targetDoc.date
+          } : null;
           
           return {
             relationship: rel,
-            relatedDocument,
-            direction
+            relatedDocument
           };
         })
       );
