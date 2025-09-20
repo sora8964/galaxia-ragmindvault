@@ -320,11 +320,14 @@ export function DocumentDetails() {
                     {document.isFromOCR && (
                       <Badge variant="secondary">OCR</Badge>
                     )}
-                    {document.hasEmbedding && (
+                    {document.embeddingStatus === "completed" && (
                       <Badge variant="default">已嵌入</Badge>
                     )}
-                    {document.needsEmbedding && (
+                    {document.embeddingStatus === "pending" && (
                       <Badge variant="outline">待嵌入</Badge>
+                    )}
+                    {document.embeddingStatus === "failed" && (
+                      <Badge variant="destructive">嵌入失敗</Badge>
                     )}
                   </div>
                 </div>
