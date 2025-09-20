@@ -11,7 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { SimpleMentionSearch } from "@/components/SimpleMentionSearch";
-import { ArrowLeft, Save, Trash2, FileText, Calendar, Tag } from "lucide-react";
+import { ArrowLeft, Save, Trash2, FileText, Calendar, Tag, File, Download } from "lucide-react";
 import { queryClient } from "@/lib/queryClient";
 import { getItemTypeDisplayName, getNameFieldLabel, getContentFieldLabel, getContentFieldPlaceholder } from "@/lib/typeDisplay";
 import type { AppObject } from "@shared/schema";
@@ -380,6 +380,81 @@ export function DocumentDetail() {
                 </div>
               )}
             </div>
+
+            {/* File attachment */}
+            {document.hasFile && (
+              <div>
+                <Label className="text-base font-medium flex items-center gap-2">
+                  <File className="w-4 h-4" />
+                  附件檔案
+                </Label>
+                <div className="mt-2 p-4 bg-muted/50 rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-1">
+                      <p className="font-medium">
+                        {document.originalFileName || '未知檔案'}
+                      </p>
+                      <div className="text-sm text-muted-foreground space-y-1">
+                        {document.fileSize && (
+                          <p>檔案大小: {(document.fileSize / 1024 / 1024).toFixed(2)} MB</p>
+                        )}
+                        {document.mimeType && (
+                          <p>檔案類型: {document.mimeType}</p>
+                        )}
+                      </div>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={async () => {
+                        try {
+                          const response = await fetch(`/api/objects/${document.id}/download`);
+                          if (!response.ok) {
+                            throw new Error('下載失敗');
+                          }
+                          
+                          // Get filename from response headers or use original filename
+                          const contentDisposition = response.headers.get('content-disposition');
+                          let filename = document.originalFileName || `${document.name}.pdf`;
+                          if (contentDisposition) {
+                            const matches = contentDisposition.match(/filename="?([^"]+)"?/);
+                            if (matches) filename = matches[1];
+                          }
+                          
+                          // Create blob and download
+                          const blob = await response.blob();
+                          const url = window.URL.createObjectURL(blob);
+                          const a = window.document.createElement('a');
+                          a.style.display = 'none';
+                          a.href = url;
+                          a.download = filename;
+                          window.document.body.appendChild(a);
+                          a.click();
+                          window.URL.revokeObjectURL(url);
+                          window.document.body.removeChild(a);
+                          
+                          toast({
+                            title: "下載完成",
+                            description: `檔案 ${filename} 已開始下載`
+                          });
+                        } catch (error) {
+                          console.error('Download error:', error);
+                          toast({
+                            title: "下載失敗",
+                            description: "無法下載檔案，請重試",
+                            variant: "destructive"
+                          });
+                        }
+                      }}
+                      data-testid="button-download-file"
+                    >
+                      <Download className="w-4 h-4 mr-2" />
+                      下載
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Aliases */}
             <div>
