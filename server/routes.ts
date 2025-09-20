@@ -6,6 +6,7 @@ import { chatWithGemini, extractTextFromPDF, extractTextFromWord, generateTextEm
 import { chatWithGeminiFunctions } from "./gemini-functions";
 import { embeddingService } from "./embedding-service";
 import { chunkingService } from "./chunking-service";
+import { gcpStorageService } from "./gcp-storage";
 import { z } from "zod";
 
 // Zod schemas for relationship query validation
@@ -715,7 +716,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Extract text from PDF
       const extractedText = await extractTextFromPDF(pdfBase64);
       
-      // Create document entry
+      // Convert base64 to buffer for file upload
+      const fileBuffer = Buffer.from(pdfBase64, 'base64');
+      const originalFileName = filename || "document.pdf";
+      const fileSize = fileBuffer.length;
+      const mimeType = "application/pdf";
+      
+      // Create document entry with file info
       const documentData = {
         name: name || filename?.replace(/\.[^/.]+$/, "") || "Untitled Document",
         type: objectType as "document" | "meeting",
@@ -723,12 +730,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
         aliases: [],
         isFromOCR: true, // PDF requires OCR, wait for user edit
         hasBeenEdited: false,
-        needsEmbedding: true
+        needsEmbedding: true,
+        originalFileName: originalFileName,
+        fileSize: fileSize,
+        mimeType: mimeType,
+        hasFile: true
       };
       
       const document = await storage.createDocument(documentData);
       
-      res.status(201).json(document);
+      // Upload file to GCP Storage after document creation
+      try {
+        const filePath = await gcpStorageService.uploadFile(
+          document.id,
+          objectType,
+          fileBuffer,
+          originalFileName,
+          mimeType
+        );
+        
+        // Update document with file path
+        await storage.updateDocument(document.id, { filePath });
+        
+        // Return document with updated file info
+        const updatedDocument = await storage.getDocument(document.id);
+        res.status(201).json(updatedDocument);
+      } catch (storageError) {
+        console.warn('File upload to GCP Storage failed, but document was created:', storageError);
+        // Return document even if file upload failed
+        res.status(201).json(document);
+      }
     } catch (error) {
       console.error('PDF upload error:', error);
       res.status(500).json({ error: "Failed to process PDF upload" });
