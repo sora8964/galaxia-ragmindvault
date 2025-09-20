@@ -61,7 +61,8 @@ function MentionLink({ mention, className }: MentionLinkProps) {
     e.preventDefault();
     if (exists && objectId) {
       // 跳轉到物件詳細頁面
-      window.location.href = `/${mention.type}/${objectId}`;
+      const detailPath = getDetailPath(mention.type);
+      window.location.href = `${detailPath}/${objectId}`;
     } else {
       // 跳轉到新增頁面並自動填入名稱
       const createPath = getCreatePath(mention.type);
@@ -90,6 +91,19 @@ function getCreatePath(type: DocumentType): string {
     issue: '/issue/new',
     log: '/log/new',
     meeting: '/meeting/new'
+  };
+  return typeMap[type] || '/';
+}
+
+// 獲取詳細頁面的路徑（複數形式）
+function getDetailPath(type: DocumentType): string {
+  const typeMap: Record<DocumentType, string> = {
+    person: '/people',
+    document: '/documents', 
+    entity: '/entities',
+    issue: '/issues',
+    log: '/logs',
+    meeting: '/meetings'
   };
   return typeMap[type] || '/';
 }

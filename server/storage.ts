@@ -46,8 +46,8 @@ export interface IStorage {
   // Document operations
   getDocument(id: string): Promise<Document | undefined>;
   getAllDocuments(): Promise<Document[]>;
-  getDocumentsByType(type: "person" | "document" | "entity" | "issue" | "log"): Promise<Document[]>;
-  searchDocuments(query: string, type?: "person" | "document" | "entity" | "issue" | "log"): Promise<SearchResult>;
+  getDocumentsByType(type: "person" | "document" | "entity" | "issue" | "log" | "meeting"): Promise<Document[]>;
+  searchDocuments(query: string, type?: "person" | "document" | "entity" | "issue" | "log" | "meeting"): Promise<SearchResult>;
   createDocument(document: InsertObject): Promise<Document>;
   updateDocument(id: string, updates: UpdateObject): Promise<Document | undefined>;
   deleteDocument(id: string): Promise<boolean>;

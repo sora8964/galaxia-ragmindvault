@@ -29,7 +29,7 @@ export function DocumentDetail() {
   // Function to determine the correct list path based on current path
   const getListPath = () => {
     if (location.startsWith('/people/')) return '/people';
-    if (location.startsWith('/organizations/')) return '/organizations';
+    if (location.startsWith('/entities/')) return '/entities';
     if (location.startsWith('/issues/')) return '/issues';
     if (location.startsWith('/documents/')) return '/documents';
     return '/documents'; // fallback
