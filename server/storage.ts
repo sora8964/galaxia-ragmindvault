@@ -31,7 +31,6 @@ export interface RelationshipFilters {
   targetId?: string;
   sourceType?: DocumentType;
   targetType?: DocumentType;
-  relationKind?: string;
   direction?: "out" | "in" | "both"; // out: sourceId matches, in: targetId matches, both: either
   limit?: number;
   offset?: number;
@@ -91,9 +90,6 @@ export interface IStorage {
   findRelationships(filters: RelationshipFilters): Promise<{ relationships: Relationship[]; total: number }>;
   getRelationshipsBySource(sourceId: string): Promise<Relationship[]>;
   getRelationshipsByTarget(targetId: string): Promise<Relationship[]>;
-  getRelationshipsByKind(relationKind: string): Promise<Relationship[]>;
-  getRelationshipsBySourceAndKind(sourceId: string, relationKind: string): Promise<Relationship[]>;
-  getRelationshipsByTargetAndKind(targetId: string, relationKind: string): Promise<Relationship[]>;
   getRelationshipBetween(sourceId: string, targetId: string): Promise<Relationship[]>;
   createRelationship(relationship: InsertRelationship): Promise<Relationship>;
   createBulkRelationships(relationships: InsertRelationship[]): Promise<Relationship[]>;
@@ -101,7 +97,6 @@ export interface IStorage {
   deleteRelationship(id: string): Promise<boolean>;
   deleteRelationshipsBySource(sourceId: string): Promise<boolean>;
   deleteRelationshipsByTarget(targetId: string): Promise<boolean>;
-  deleteRelationshipsByKind(relationKind: string): Promise<boolean>;
   cleanupRelationshipsForDocument(documentId: string): Promise<boolean>;
   
   // Settings operations
@@ -887,9 +882,6 @@ export class MemStorage implements IStorage {
     }
 
     // Filter by relation kind
-    if (filters.relationKind) {
-      relationships = relationships.filter(rel => rel.relationKind === filters.relationKind);
-    }
 
     // Sort by creation date (newest first)
     relationships.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
@@ -918,18 +910,7 @@ export class MemStorage implements IStorage {
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }
 
-  async getRelationshipsByType(relationshipType: string): Promise<Relationship[]> {
-    return Array.from(this.relationships.values())
-      .filter(rel => rel.relationshipType === relationshipType)
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  }
 
-  // New method for filtering by relationKind
-  async getRelationshipsByKind(relationKind: string): Promise<Relationship[]> {
-    return Array.from(this.relationships.values())
-      .filter(rel => rel.relationKind === relationKind)
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  }
 
   async createRelationship(insertRelationship: InsertRelationship): Promise<Relationship> {
     const id = randomUUID();
@@ -953,7 +934,6 @@ export class MemStorage implements IStorage {
       targetId: insertRelationship.targetId,
       sourceType: sourceType || "document", // Default fallback
       targetType: targetType || "document", // Default fallback
-      relationKind: insertRelationship.relationKind || "related",
       createdAt: now,
       updatedAt: now
     };
@@ -1008,30 +988,7 @@ export class MemStorage implements IStorage {
     return deletedCount > 0;
   }
 
-  async getRelationshipsBySourceAndType(sourceId: string, relationshipType: string): Promise<Relationship[]> {
-    return Array.from(this.relationships.values())
-      .filter(rel => rel.sourceId === sourceId && rel.relationshipType === relationshipType)
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  }
 
-  async getRelationshipsByTargetAndType(targetId: string, relationshipType: string): Promise<Relationship[]> {
-    return Array.from(this.relationships.values())
-      .filter(rel => rel.targetId === targetId && rel.relationshipType === relationshipType)
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  }
-
-  // New methods for filtering by relationKind
-  async getRelationshipsBySourceAndKind(sourceId: string, relationKind: string): Promise<Relationship[]> {
-    return Array.from(this.relationships.values())
-      .filter(rel => rel.sourceId === sourceId && rel.relationKind === relationKind)
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  }
-
-  async getRelationshipsByTargetAndKind(targetId: string, relationKind: string): Promise<Relationship[]> {
-    return Array.from(this.relationships.values())
-      .filter(rel => rel.targetId === targetId && rel.relationKind === relationKind)
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  }
 
   async getRelationshipBetween(sourceId: string, targetId: string): Promise<Relationship[]> {
     return Array.from(this.relationships.values())
@@ -1047,7 +1004,7 @@ export class MemStorage implements IStorage {
       const existing = Array.from(this.relationships.values()).find(rel => 
         rel.sourceId === insertRel.sourceId && 
         rel.targetId === insertRel.targetId && 
-        rel.relationshipType === insertRel.relationshipType
+        true // No additional conditions after sourceId and targetId match
       );
       
       if (!existing) {
@@ -1059,20 +1016,6 @@ export class MemStorage implements IStorage {
     return createdRelationships;
   }
 
-  async deleteRelationshipsByType(relationshipType: string): Promise<boolean> {
-    const relationshipsToDelete = Array.from(this.relationships.entries())
-      .filter(([_, rel]) => rel.relationshipType === relationshipType)
-      .map(([relId]) => relId);
-    
-    let deletedCount = 0;
-    for (const relId of relationshipsToDelete) {
-      if (this.relationships.delete(relId)) {
-        deletedCount++;
-      }
-    }
-    
-    return deletedCount > 0;
-  }
 
   async cleanupRelationshipsForDocument(documentId: string): Promise<boolean> {
     // Delete all relationships where this document is either source or target
