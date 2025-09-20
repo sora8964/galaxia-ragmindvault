@@ -690,8 +690,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Validate objectType
-      if (!["document", "meeting"].includes(objectType)) {
-        return res.status(400).json({ error: "Invalid objectType. Must be 'document' or 'meeting'" });
+      if (!["document", "letter", "meeting"].includes(objectType)) {
+        return res.status(400).json({ error: "Invalid objectType. Must be 'document', 'letter', or 'meeting'" });
       }
       
       // Extract text from Word document
@@ -700,7 +700,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Create document entry
       const documentData = {
         name: name || filename?.replace(/\.[^/.]+$/, "") || "Untitled Document",
-        type: objectType as "document" | "meeting",
+        type: objectType as "document" | "letter" | "meeting",
         content: extractedText,
         aliases: [],
         isFromOCR: false, // Word extraction is direct, no OCR needed
@@ -730,8 +730,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Validate objectType
-      if (!["document", "meeting"].includes(objectType)) {
-        return res.status(400).json({ error: "Invalid objectType. Must be 'document' or 'meeting'" });
+      if (!["document", "letter", "meeting"].includes(objectType)) {
+        return res.status(400).json({ error: "Invalid objectType. Must be 'document', 'letter', or 'meeting'" });
       }
       
       // Extract text from PDF
@@ -746,7 +746,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Create document entry with file info
       const documentData = {
         name: name || filename?.replace(/\.[^/.]+$/, "") || "Untitled Document",
-        type: objectType as "document" | "meeting",
+        type: objectType as "document" | "letter" | "meeting",
         content: extractedText,
         aliases: [],
         isFromOCR: true, // PDF requires OCR, wait for user edit
