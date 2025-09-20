@@ -13,6 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { SimpleMentionSearch } from "@/components/SimpleMentionSearch";
 import { ArrowLeft, Save, Trash2, FileText, Calendar, Tag } from "lucide-react";
 import { queryClient } from "@/lib/queryClient";
+import { getItemTypeDisplayName, getNameFieldLabel, getContentFieldLabel, getContentFieldPlaceholder } from "@/lib/typeDisplay";
 import type { AppObject } from "@shared/schema";
 
 export function DocumentDetail() {
@@ -23,7 +24,8 @@ export function DocumentDetail() {
   const [editForm, setEditForm] = useState({
     name: "",
     content: "",
-    aliases: [] as string[]
+    aliases: [] as string[],
+    date: null as string | null
   });
 
   // Function to determine the correct list path based on current path
@@ -31,6 +33,8 @@ export function DocumentDetail() {
     if (location.startsWith('/people/')) return '/people';
     if (location.startsWith('/entities/')) return '/entities';
     if (location.startsWith('/issues/')) return '/issues';
+    if (location.startsWith('/letters/')) return '/letters';
+    if (location.startsWith('/meetings/')) return '/meetings';
     if (location.startsWith('/documents/')) return '/documents';
     return '/documents'; // fallback
   };
@@ -53,7 +57,8 @@ export function DocumentDetail() {
       setEditForm({
         name: document.name,
         content: document.content,
-        aliases: document.aliases
+        aliases: document.aliases,
+        date: document.date || null
       });
     }
   }, [document, isEditing]);
@@ -67,7 +72,8 @@ export function DocumentDetail() {
         body: JSON.stringify({
           name: data.name,
           content: data.content,
-          aliases: data.aliases
+          aliases: data.aliases,
+          date: data.date
         })
       });
       
@@ -79,14 +85,14 @@ export function DocumentDetail() {
       queryClient.invalidateQueries({ queryKey: ["/api/objects"] });
       setIsEditing(false);
       toast({
-        title: "文件已更新",
-        description: "文件已成功更新並觸發重新 embedding"
+        title: `${getItemTypeDisplayName(document?.type || 'document')}已更新`,
+        description: `${getItemTypeDisplayName(document?.type || 'document')}已成功更新並觸發重新 embedding`
       });
     },
     onError: () => {
       toast({
         title: "更新失敗",
-        description: "無法更新文件，請重試",
+        description: `無法更新${getItemTypeDisplayName(document?.type || 'document')}，請重試`,
         variant: "destructive"
       });
     }
@@ -104,15 +110,15 @@ export function DocumentDetail() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/objects"] });
       toast({
-        title: "文件已刪除",
-        description: "文件已成功刪除"
+        title: `${getItemTypeDisplayName(document?.type || 'document')}已刪除`,
+        description: `${getItemTypeDisplayName(document?.type || 'document')}已成功刪除`
       });
       setLocation(getListPath());
     },
     onError: () => {
       toast({
         title: "刪除失敗",
-        description: "無法刪除文件，請重試",
+        description: `無法刪除${getItemTypeDisplayName(document?.type || 'document')}，請重試`,
         variant: "destructive"
       });
     }
@@ -152,11 +158,11 @@ export function DocumentDetail() {
       <div className="p-6 h-full flex items-center justify-center">
         <div className="text-center">
           <FileText className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-          <h3 className="text-lg font-medium mb-2">找不到文件</h3>
-          <p className="text-muted-foreground mb-4">您要查看的文件不存在或已被刪除</p>
+          <h3 className="text-lg font-medium mb-2">找不到項目</h3>
+          <p className="text-muted-foreground mb-4">您要查看的項目不存在或已被刪除</p>
           <Button onClick={() => setLocation(getListPath())}>
             <ArrowLeft className="w-4 h-4 mr-2" />
-            返回文件列表
+返回列表
           </Button>
         </div>
       </div>
@@ -206,7 +212,7 @@ export function DocumentDetail() {
               <ArrowLeft className="w-4 h-4" />
             </Button>
             <h1 className="text-2xl font-bold">
-              {isEditing ? "編輯文件" : document.name}
+              {isEditing ? `編輯${getItemTypeDisplayName(document.type)}` : document.name}
             </h1>
           </div>
           
@@ -229,9 +235,9 @@ export function DocumentDetail() {
                   </AlertDialogTrigger>
                   <AlertDialogContent>
                     <AlertDialogHeader>
-                      <AlertDialogTitle>確定要刪除這個文件嗎？</AlertDialogTitle>
+                      <AlertDialogTitle>確定要刪除這個{getItemTypeDisplayName(document.type)}嗎？</AlertDialogTitle>
                       <AlertDialogDescription>
-                        此操作無法撤銷。文件及其所有相關的 chunks 和 embeddings 都將被永久刪除。
+                        此操作無法撤銷。{getItemTypeDisplayName(document.type)}及其所有相關的 chunks 和 embeddings 都將被永久刪除。
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
@@ -256,7 +262,8 @@ export function DocumentDetail() {
                     setEditForm({
                       name: document.name,
                       content: document.content,
-                      aliases: document.aliases
+                      aliases: document.aliases,
+                      date: document.date || null
                     });
                   }}
                   data-testid="button-cancel-edit"
@@ -282,17 +289,39 @@ export function DocumentDetail() {
             <div className="flex items-start justify-between">
               <div className="flex-1">
                 {isEditing ? (
-                  <div className="space-y-2">
-                    <Label htmlFor="edit-name">文件名稱</Label>
-                    <Input
-                      id="edit-name"
-                      value={editForm.name}
-                      onChange={(e) => setEditForm(prev => ({ ...prev, name: e.target.value }))}
-                      data-testid="input-edit-name"
-                    />
+                  <div className="space-y-4">
+                    <div>
+                      <Label htmlFor="edit-name">{getNameFieldLabel(document.type)}</Label>
+                      <Input
+                        id="edit-name"
+                        value={editForm.name}
+                        onChange={(e) => setEditForm(prev => ({ ...prev, name: e.target.value }))}
+                        data-testid="input-edit-name"
+                      />
+                    </div>
+                    {(document.type === "document" || document.type === "letter" || document.type === "log") && (
+                      <div>
+                        <Label htmlFor="edit-date">日期</Label>
+                        <Input
+                          id="edit-date"
+                          type="date"
+                          value={editForm.date || ""}
+                          onChange={(e) => setEditForm(prev => ({ ...prev, date: e.target.value || null }))}
+                          data-testid="input-edit-date"
+                        />
+                      </div>
+                    )}
                   </div>
                 ) : (
-                  <CardTitle className="text-xl">{document.name}</CardTitle>
+                  <div>
+                    <CardTitle className="text-xl">{document.name}</CardTitle>
+                    {document.date && (document.type === "document" || document.type === "letter" || document.type === "log") && (
+                      <p className="text-sm text-muted-foreground mt-1 flex items-center gap-1">
+                        <Calendar className="w-4 h-4" />
+                        日期：{document.date}
+                      </p>
+                    )}
+                  </div>
                 )}
               </div>
               
@@ -324,13 +353,13 @@ export function DocumentDetail() {
           <CardContent className="space-y-6">
             {/* Content */}
             <div>
-              <Label className="text-base font-medium">內容</Label>
+              <Label className="text-base font-medium">{getContentFieldLabel(document.type)}</Label>
               {isEditing ? (
                 <div className="relative mt-2">
                   <Textarea
                     value={editForm.content}
                     onChange={(e) => setEditForm(prev => ({ ...prev, content: e.target.value }))}
-                    placeholder="輸入文件內容，可以使用 @ 來引用其他文件或人員"
+                    placeholder={getContentFieldPlaceholder(document.type)}
                     className="min-h-40"
                     data-testid="textarea-edit-content"
                   />
