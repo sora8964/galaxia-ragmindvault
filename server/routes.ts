@@ -766,6 +766,76 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // File download endpoint
+  app.get("/api/objects/:id/download", async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      // Get document from database
+      const document = await storage.getDocument(id);
+      if (!document) {
+        return res.status(404).json({ error: "Document not found" });
+      }
+      
+      // Check if document has a file
+      if (!document.hasFile || !document.filePath) {
+        return res.status(404).json({ error: "No file associated with this document" });
+      }
+      
+      // Download file from GCP Storage
+      const { buffer, metadata } = await gcpStorageService.downloadFile(document.filePath);
+      
+      // Set response headers for file download
+      const fileName = document.originalFileName || `${document.name}.pdf`;
+      const mimeType = document.mimeType || "application/octet-stream";
+      
+      res.setHeader('Content-Type', mimeType);
+      res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+      res.setHeader('Content-Length', buffer.length);
+      
+      // Send file
+      res.send(buffer);
+    } catch (error) {
+      console.error('File download error:', error);
+      res.status(500).json({ error: "Failed to download file" });
+    }
+  });
+
+  // Generate signed URL for file download (alternative method)
+  app.get("/api/objects/:id/download-url", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { expires = 60 } = req.query; // Default 60 minutes
+      
+      // Get document from database
+      const document = await storage.getDocument(id);
+      if (!document) {
+        return res.status(404).json({ error: "Document not found" });
+      }
+      
+      // Check if document has a file
+      if (!document.hasFile || !document.filePath) {
+        return res.status(404).json({ error: "No file associated with this document" });
+      }
+      
+      // Generate signed URL
+      const signedUrl = await gcpStorageService.generateSignedUrl(
+        document.filePath, 
+        parseInt(expires as string)
+      );
+      
+      res.json({
+        downloadUrl: signedUrl,
+        fileName: document.originalFileName || `${document.name}.pdf`,
+        mimeType: document.mimeType || "application/pdf",
+        expiresInMinutes: parseInt(expires as string)
+      });
+    } catch (error) {
+      console.error('Signed URL generation error:', error);
+      res.status(500).json({ error: "Failed to generate download URL" });
+    }
+  });
+
   // Embedding endpoints
   app.post("/api/embeddings/generate", async (req, res) => {
     try {
