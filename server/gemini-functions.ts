@@ -180,7 +180,7 @@ async function searchDocuments(args: any): Promise<string> {
     const { query, type, limit = 10 } = args;
     
     const result = await storage.searchDocuments(query, type);
-    const documents = result.documents.slice(0, limit);
+    const documents = result.objects.slice(0, limit);
     
     if (documents.length === 0) {
       return `No documents found for query: "${query}"`;
