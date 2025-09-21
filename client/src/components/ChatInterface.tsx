@@ -307,7 +307,11 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
     });
     
     // Sort by timestamp to maintain correct order
-    return merged.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+    return merged.sort((a, b) => {
+      const aTime = a.timestamp ? a.timestamp.getTime() : 0;
+      const bTime = b.timestamp ? b.timestamp.getTime() : 0;
+      return aTime - bTime;
+    });
   };
 
   // Compute the final messages to display
@@ -1376,7 +1380,7 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
                           )}
                         </div>
                         <div className="text-xs opacity-70 mt-2">
-                          {message.timestamp.toLocaleTimeString()}
+                          {message.timestamp ? message.timestamp.toLocaleTimeString() : '時間未知'}
                         </div>
                       </>
                     )}
