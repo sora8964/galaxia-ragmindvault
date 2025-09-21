@@ -60,6 +60,27 @@ export const messages = pgTable("messages", {
     mentionedPersons?: Array<{ id: string; name: string; alias?: string }>;
     mentionedDocuments?: Array<{ id: string; name: string; alias?: string }>;
     originalPrompt?: string;
+    autoRetrieved?: {
+      usedDocs: Array<{
+        id: string;
+        name: string;
+        type: 'person' | 'document' | 'letter' | 'entity' | 'issue' | 'log' | 'meeting';
+      }>;
+      retrievalMetadata: {
+        totalDocs: number;
+        totalChunks: number;
+        strategy: string;
+        estimatedTokens: number;
+        processingTimeMs?: number;
+      };
+      citations?: Array<{
+        id: number;
+        docId: string;
+        docName: string;
+        docType: string;
+        relevanceScore: number;
+      }>;
+    };
   }>(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),

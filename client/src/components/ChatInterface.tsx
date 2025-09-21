@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { MentionSearch } from "./MentionSearch";
 import { ContextIndicator } from "./ContextIndicator";
+import { AutoRetrievalDisplay } from "./AutoRetrievalDisplay";
 import { MentionParser } from "./MentionParser";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -200,6 +201,32 @@ interface StreamMessage {
   thinking?: string | null;
   functionCalls?: Array<{name: string; arguments: any; result?: any}> | null;
   isStreaming?: boolean;
+  contextMetadata?: {
+    mentionedPersons?: Array<{ id: string; name: string; alias?: string }>;
+    mentionedDocuments?: Array<{ id: string; name: string; alias?: string }>;
+    originalPrompt?: string;
+    autoRetrieved?: {
+      usedDocs: Array<{
+        id: string;
+        name: string;
+        type: 'person' | 'document' | 'letter' | 'entity' | 'issue' | 'log' | 'meeting';
+      }>;
+      retrievalMetadata: {
+        totalDocs: number;
+        totalChunks: number;
+        strategy: string;
+        estimatedTokens: number;
+        processingTimeMs?: number;
+      };
+      citations?: Array<{
+        id: number;
+        docId: string;
+        docName: string;
+        docType: string;
+        relevanceScore: number;
+      }>;
+    };
+  };
 }
 
 interface ChatInterfaceProps {
@@ -1210,6 +1237,14 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
 
               {message.contextUsed && message.contextUsed.length > 0 && (
                 <ContextIndicator contexts={message.contextUsed} className="mb-2" />
+              )}
+
+              {/* Auto-retrieved context for user messages */}
+              {message.role === 'user' && message.contextMetadata?.autoRetrieved && (
+                <AutoRetrievalDisplay 
+                  autoRetrieved={message.contextMetadata.autoRetrieved} 
+                  className="mb-2" 
+                />
               )}
               
               <div 

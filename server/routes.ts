@@ -253,16 +253,61 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const mentions = await storage.parseMentions(content);
       const contextDocuments = await storage.resolveMentionObjects(mentions);
       
+      // Import retrieval service for auto-context on user messages
+      const { retrievalService } = await import('./retrieval-service');
+      
+      // Auto-retrieve relevant context using RAG for user messages
+      const autoContext = await retrievalService.buildAutoContext({
+        conversationId: req.params.id,
+        userText: content,
+        explicitContextIds: req.body.contextDocuments || [],
+        mentions: contextDocuments
+      });
+      
+      // Combine all context documents including auto-retrieved ones (deduplicated)
+      const allContextDocuments = Array.from(new Set([
+        ...(req.body.contextDocuments || []), 
+        ...contextDocuments,
+        ...autoContext.usedDocs.map(d => d.id)
+      ]));
+      
+      // Create context metadata for persistence
+      const contextMetadata = {
+        mentionedPersons: mentions.filter(m => m.type === 'person').map(m => ({ 
+          id: m.id, 
+          name: m.name, 
+          alias: m.alias 
+        })),
+        mentionedDocuments: mentions.filter(m => m.type === 'document').map(m => ({ 
+          id: m.id, 
+          name: m.name, 
+          alias: m.alias 
+        })),
+        originalPrompt: content,
+        // Add auto-retrieved context information for transparency
+        autoRetrieved: autoContext.usedDocs.length > 0 ? {
+          usedDocs: autoContext.usedDocs,
+          retrievalMetadata: autoContext.retrievalMetadata,
+          citations: autoContext.citations
+        } : undefined
+      };
+      
       const validatedData = insertMessageSchema.parse({
         ...req.body,
         conversationId: req.params.id,
-        contextDocuments: [...(req.body.contextDocuments || []), ...contextDocuments]
+        contextDocuments: allContextDocuments,
+        contextMetadata
       });
       
       const message = await storage.createMessage(validatedData);
       res.status(201).json({
         message,
-        parsedMentions: mentions
+        parsedMentions: mentions,
+        autoContext: {
+          usedDocs: autoContext.usedDocs,
+          retrievalMetadata: autoContext.retrievalMetadata,
+          citations: autoContext.citations
+        }
       });
     } catch (error) {
       console.error('Error creating message:', error);
