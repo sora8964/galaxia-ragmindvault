@@ -404,6 +404,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Direct Function Calling endpoint for testing
+  app.post("/api/ai/function-direct/:functionName", async (req, res) => {
+    try {
+      const { functionName } = req.params;
+      const args = req.body;
+
+      // Import callFunction dynamically
+      const { callFunction } = await import('./gemini-functions');
+
+      // Validate function name
+      const validFunctions = [
+        'searchDocuments',
+        'getDocumentDetails', 
+        'createDocument',
+        'updateDocument',
+        'findSimilarDocuments',
+        'parseMentions',
+        'findRelevantExcerpts'
+      ];
+
+      if (!validFunctions.includes(functionName)) {
+        return res.status(400).json({ 
+          error: `Invalid function name. Available functions: ${validFunctions.join(', ')}` 
+        });
+      }
+
+      console.log(`Direct function call: ${functionName}`, args);
+
+      // Call the function directly
+      const result = await callFunction(functionName, args);
+      
+      // Return the result as plain text
+      res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+      res.send(result);
+    } catch (error) {
+      console.error(`Direct function call error (${req.params.functionName}):`, error);
+      res.status(500).json({ 
+        error: `Function call failed: ${error instanceof Error ? error.message : 'Unknown error'}` 
+      });
+    }
+  });
+
   // Chat routes
   app.post("/api/chat", async (req, res) => {
     try {
