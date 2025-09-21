@@ -41,33 +41,33 @@ export interface IStorage {
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
   
-  // Document operations
-  getDocument(id: string): Promise<Document | undefined>;
-  getAllDocuments(): Promise<Document[]>;
-  getDocumentsByType(type: "person" | "document" | "letter" | "entity" | "issue" | "log" | "meeting"): Promise<Document[]>;
-  searchDocuments(query: string, type?: "person" | "document" | "letter" | "entity" | "issue" | "log" | "meeting"): Promise<SearchResult>;
-  createDocument(document: InsertObject): Promise<Document>;
-  updateDocument(id: string, updates: UpdateObject): Promise<Document | undefined>;
-  deleteDocument(id: string): Promise<boolean>;
+  // Object operations
+  getObject(id: string): Promise<Document | undefined>;
+  getAllObjects(): Promise<Document[]>;
+  getObjectsByType(type: "person" | "document" | "letter" | "entity" | "issue" | "log" | "meeting"): Promise<Document[]>;
+  searchObjects(query: string, type?: "person" | "document" | "letter" | "entity" | "issue" | "log" | "meeting"): Promise<SearchResult>;
+  createObject(object: InsertObject): Promise<Document>;
+  updateObject(id: string, updates: UpdateObject): Promise<Document | undefined>;
+  deleteObject(id: string): Promise<boolean>;
   getMentionSuggestions(query: string): Promise<MentionItem[]>;
   
   // Embedding operations
-  updateDocumentEmbedding(id: string, embedding: number[]): Promise<boolean>;
-  searchDocumentsByVector(queryVector: number[], limit?: number): Promise<Document[]>;
-  getDocumentsNeedingEmbedding(): Promise<Document[]>;
+  updateObjectEmbedding(id: string, embedding: number[]): Promise<boolean>;
+  searchObjectsByVector(queryVector: number[], limit?: number): Promise<Document[]>;
+  getObjectsNeedingEmbedding(): Promise<Document[]>;
   
   // Chunk operations
-  getChunksByDocumentId(documentId: string): Promise<Chunk[]>;
+  getChunksByObjectId(objectId: string): Promise<Chunk[]>;
   createChunk(chunk: InsertChunk): Promise<Chunk>;
   updateChunk(id: string, updates: UpdateChunk): Promise<Chunk | undefined>;
   updateChunkEmbedding(id: string, embedding: number[]): Promise<boolean>;
   deleteChunk(id: string): Promise<boolean>;
-  deleteChunksByDocumentId(documentId: string): Promise<boolean>;
+  deleteChunksByObjectId(objectId: string): Promise<boolean>;
   searchChunksByVector(queryVector: number[], limit?: number): Promise<Array<Chunk & { document: Document }>>;
   
   // Mention parsing operations
   parseMentions(text: string): Promise<ParsedMention[]>;
-  resolveMentionDocuments(mentions: ParsedMention[]): Promise<string[]>;
+  resolveMentionObjects(mentions: ParsedMention[]): Promise<string[]>;
   
   // Conversation operations
   getConversation(id: string): Promise<Conversation | undefined>;
