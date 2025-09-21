@@ -25,7 +25,7 @@ const functions = {
         },
         limit: {
           type: "number",
-          description: "Maximum number of results to return (default: 10)"
+          description: "Maximum number of results to return (default: 20)"
         }
       },
       required: ["query"]
@@ -177,7 +177,7 @@ const functions = {
 // Function implementations
 async function searchDocuments(args: any): Promise<string> {
   try {
-    const { query, type, limit = 5 } = args;
+    const { query, type, limit = 20 } = args;
     
     // Check if query is date-specific (skip expensive vector search for date queries)
     const isDateQuery = /\d{4}年\d{1,2}月|\d{4}-\d{1,2}|\d{6,8}/i.test(query);
