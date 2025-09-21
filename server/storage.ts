@@ -96,7 +96,7 @@ export interface IStorage {
   deleteRelationship(id: string): Promise<boolean>;
   deleteRelationshipsBySource(sourceId: string): Promise<boolean>;
   deleteRelationshipsByTarget(targetId: string): Promise<boolean>;
-  cleanupRelationshipsForDocument(documentId: string): Promise<boolean>;
+  cleanupRelationshipsForObject(objectId: string): Promise<boolean>;
   
   // Settings operations
   getAppConfig(): Promise<AppConfig>;
@@ -277,24 +277,24 @@ export class MemStorage implements IStorage {
     return user;
   }
 
-  // Document operations
-  async getDocument(id: string): Promise<Document | undefined> {
+  // Object operations
+  async getObject(id: string): Promise<Document | undefined> {
     return this.documents.get(id);
   }
 
-  async getAllDocuments(): Promise<Document[]> {
+  async getAllObjects(): Promise<Document[]> {
     return Array.from(this.documents.values()).sort((a, b) => 
       new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
     );
   }
 
-  async getDocumentsByType(type: "person" | "document" | "letter" | "entity" | "issue" | "log" | "meeting"): Promise<Document[]> {
+  async getObjectsByType(type: "person" | "document" | "letter" | "entity" | "issue" | "log" | "meeting"): Promise<Document[]> {
     return Array.from(this.documents.values())
       .filter(doc => doc.type === type)
       .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
   }
 
-  async searchDocuments(query: string, type?: "person" | "document" | "letter" | "entity" | "issue" | "log" | "meeting"): Promise<SearchResult> {
+  async searchObjects(query: string, type?: "person" | "document" | "letter" | "entity" | "issue" | "log" | "meeting"): Promise<SearchResult> {
     console.log(`[MemStorage] Search called with query: "${query}", type: ${type}`);
     const allDocs = Array.from(this.documents.values());
     console.log(`[MemStorage] Total documents: ${allDocs.length}`);
@@ -411,15 +411,15 @@ export class MemStorage implements IStorage {
     };
   }
 
-  async createDocument(insertDocument: InsertObject): Promise<Document> {
+  async createObject(insertObject: InsertObject): Promise<Document> {
     const id = randomUUID();
     const now = new Date();
     const document: Document = {
-      name: insertDocument.name,
-      type: insertDocument.type,
-      content: insertDocument.content || '',
-      aliases: (insertDocument.aliases as string[]) || [],
-      date: insertDocument.date || null,
+      name: insertObject.name,
+      type: insertObject.type,
+      content: insertObject.content || '',
+      aliases: (insertObject.aliases as string[]) || [],
+      date: insertObject.date || null,
       embedding: null,
       hasEmbedding: false,
       embeddingStatus: "pending",
@@ -434,7 +434,7 @@ export class MemStorage implements IStorage {
     return document;
   }
 
-  async updateDocument(id: string, updates: UpdateObject): Promise<Document | undefined> {
+  async updateObject(id: string, updates: UpdateObject): Promise<Document | undefined> {
     const existing = this.documents.get(id);
     if (!existing) return undefined;
     
@@ -458,7 +458,7 @@ export class MemStorage implements IStorage {
     return updated;
   }
 
-  async deleteDocument(id: string): Promise<boolean> {
+  async deleteObject(id: string): Promise<boolean> {
     return this.documents.delete(id);
   }
 
@@ -701,7 +701,7 @@ export class MemStorage implements IStorage {
     return mentions;
   }
 
-  async resolveMentionDocuments(mentions: ParsedMention[]): Promise<string[]> {
+  async resolveMentionObjects(mentions: ParsedMention[]): Promise<string[]> {
     const documentIds: string[] = [];
     
     for (const mention of mentions) {
@@ -736,7 +736,7 @@ export class MemStorage implements IStorage {
   }
 
   // Embedding operations
-  async updateDocumentEmbedding(id: string, embedding: number[]): Promise<boolean> {
+  async updateObjectEmbedding(id: string, embedding: number[]): Promise<boolean> {
     const existing = this.documents.get(id);
     if (!existing) return false;
     
@@ -752,7 +752,7 @@ export class MemStorage implements IStorage {
     return true;
   }
 
-  async searchDocumentsByVector(queryVector: number[], limit: number = 10): Promise<Document[]> {
+  async searchObjectsByVector(queryVector: number[], limit: number = 10): Promise<Document[]> {
     // Simple cosine similarity implementation for in-memory storage
     const docsWithEmbeddings = Array.from(this.documents.values())
       .filter(doc => doc.hasEmbedding && doc.embedding);
@@ -768,7 +768,7 @@ export class MemStorage implements IStorage {
       .map(item => item.doc);
   }
 
-  async getDocumentsNeedingEmbedding(): Promise<Document[]> {
+  async getObjectsNeedingEmbedding(): Promise<Document[]> {
     return Array.from(this.documents.values()).filter(doc => {
       if (!doc.needsEmbedding) return false;
       
@@ -798,9 +798,9 @@ export class MemStorage implements IStorage {
   }
 
   // Chunk operations
-  async getChunksByDocumentId(documentId: string): Promise<Chunk[]> {
+  async getChunksByObjectId(objectId: string): Promise<Chunk[]> {
     return Array.from(this.chunks.values())
-      .filter(chunk => chunk.objectId === documentId)
+      .filter(chunk => chunk.objectId === objectId)
       .sort((a, b) => a.chunkIndex - b.chunkIndex);
   }
 
@@ -856,9 +856,9 @@ export class MemStorage implements IStorage {
     return this.chunks.delete(id);
   }
 
-  async deleteChunksByDocumentId(documentId: string): Promise<boolean> {
+  async deleteChunksByObjectId(objectId: string): Promise<boolean> {
     const chunksToDelete = Array.from(this.chunks.entries())
-      .filter(([_, chunk]) => chunk.documentId === documentId)
+      .filter(([_, chunk]) => chunk.objectId === objectId)
       .map(([chunkId]) => chunkId);
     
     let deletedCount = 0;
@@ -1092,10 +1092,10 @@ export class MemStorage implements IStorage {
   }
 
 
-  async cleanupRelationshipsForDocument(documentId: string): Promise<boolean> {
-    // Delete all relationships where this document is either source or target
+  async cleanupRelationshipsForObject(objectId: string): Promise<boolean> {
+    // Delete all relationships where this object is either source or target
     const relationshipsToDelete = Array.from(this.relationships.entries())
-      .filter(([_, rel]) => rel.sourceId === documentId || rel.targetId === documentId)
+      .filter(([_, rel]) => rel.sourceId === objectId || rel.targetId === objectId)
       .map(([relId]) => relId);
     
     let deletedCount = 0;
@@ -1131,25 +1131,25 @@ export class DatabaseStorage implements IStorage {
     return result[0];
   }
 
-  // Document operations  
-  async getDocument(id: string): Promise<Document | undefined> {
+  // Object operations  
+  async getObject(id: string): Promise<Document | undefined> {
     const result = await db.select().from(objects).where(eq(objects.id, id));
     return result[0];
   }
 
-  async getAllDocuments(): Promise<Document[]> {
+  async getAllObjects(): Promise<Document[]> {
     const result = await db.select().from(objects).orderBy(desc(objects.updatedAt));
     return result;
   }
 
-  async getDocumentsByType(type: "person" | "document" | "letter" | "entity" | "issue" | "log" | "meeting"): Promise<Document[]> {
+  async getObjectsByType(type: "person" | "document" | "letter" | "entity" | "issue" | "log" | "meeting"): Promise<Document[]> {
     const result = await db.select().from(objects)
       .where(eq(objects.type, type))
       .orderBy(desc(objects.updatedAt));
     return result;
   }
 
-  async searchDocuments(query: string, type?: "person" | "document" | "letter" | "entity" | "issue" | "log" | "meeting"): Promise<SearchResult> {
+  async searchObjects(query: string, type?: "person" | "document" | "letter" | "entity" | "issue" | "log" | "meeting"): Promise<SearchResult> {
     // Multi-term query support
     const queryTerms = query.trim().split(/\s+/).filter(term => term.length > 1);
     let whereCondition;
@@ -1186,12 +1186,12 @@ export class DatabaseStorage implements IStorage {
     };
   }
 
-  async createDocument(insertDocument: InsertObject): Promise<Document> {
-    const result = await db.insert(objects).values(insertDocument).returning();
+  async createObject(insertObject: InsertObject): Promise<Document> {
+    const result = await db.insert(objects).values(insertObject).returning();
     return result[0];
   }
 
-  async updateDocument(id: string, updates: UpdateObject): Promise<Document | undefined> {
+  async updateObject(id: string, updates: UpdateObject): Promise<Document | undefined> {
     const result = await db.update(objects)
       .set({ ...updates, updatedAt: new Date() })
       .where(eq(objects.id, id))
@@ -1199,9 +1199,9 @@ export class DatabaseStorage implements IStorage {
     return result[0];
   }
 
-  async deleteDocument(id: string): Promise<boolean> {
+  async deleteObject(id: string): Promise<boolean> {
     // Also cleanup related relationships
-    await this.cleanupRelationshipsForDocument(id);
+    await this.cleanupRelationshipsForObject(id);
     
     const result = await db.delete(objects).where(eq(objects.id, id));
     return (result.rowCount || 0) > 0;
@@ -1231,7 +1231,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Embedding operations (keep as stubs for now)
-  async updateDocumentEmbedding(id: string, embedding: number[]): Promise<boolean> {
+  async updateObjectEmbedding(id: string, embedding: number[]): Promise<boolean> {
     const result = await db.update(objects)
       .set({ 
         embedding: embedding as any,
@@ -1242,7 +1242,7 @@ export class DatabaseStorage implements IStorage {
     return (result.rowCount || 0) > 0;
   }
 
-  async searchDocumentsByVector(queryVector: number[], limit: number = 10): Promise<Document[]> {
+  async searchObjectsByVector(queryVector: number[], limit: number = 10): Promise<Document[]> {
     try {
       // Use cosine distance for vector similarity search
       const result = await db.execute(sql`
@@ -1282,15 +1282,15 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  async getDocumentsNeedingEmbedding(): Promise<Document[]> {
+  async getObjectsNeedingEmbedding(): Promise<Document[]> {
     const result = await db.select().from(objects)
       .where(eq(objects.needsEmbedding, true));
     return result;
   }
 
   // Chunk operations (keep as stubs)
-  async getChunksByDocumentId(documentId: string): Promise<Chunk[]> {
-    const result = await db.select().from(chunks).where(eq(chunks.objectId, documentId));
+  async getChunksByObjectId(objectId: string): Promise<Chunk[]> {
+    const result = await db.select().from(chunks).where(eq(chunks.objectId, objectId));
     return result;
   }
 
@@ -1319,8 +1319,8 @@ export class DatabaseStorage implements IStorage {
     return (result.rowCount || 0) > 0;
   }
 
-  async deleteChunksByDocumentId(documentId: string): Promise<boolean> {
-    const result = await db.delete(chunks).where(eq(chunks.objectId, documentId));
+  async deleteChunksByObjectId(objectId: string): Promise<boolean> {
+    const result = await db.delete(chunks).where(eq(chunks.objectId, objectId));
     return (result.rowCount || 0) > 0;
   }
 
@@ -1404,7 +1404,7 @@ export class DatabaseStorage implements IStorage {
     return [];
   }
 
-  async resolveMentionDocuments(mentions: ParsedMention[]): Promise<string[]> {
+  async resolveMentionObjects(mentions: ParsedMention[]): Promise<string[]> {
     return [];
   }
 
@@ -1733,7 +1733,7 @@ export class DatabaseStorage implements IStorage {
     return mentions;
   }
 
-  async resolveMentionDocuments(mentions: ParsedMention[]): Promise<string[]> {
+  async resolveMentionObjects(mentions: ParsedMention[]): Promise<string[]> {
     const documentIds: string[] = [];
     
     for (const mention of mentions) {
