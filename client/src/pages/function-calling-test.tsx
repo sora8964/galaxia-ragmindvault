@@ -19,7 +19,8 @@ export function FunctionCallingTest() {
   const [searchForm, setSearchForm] = useState({
     query: "",
     type: "all",
-    limit: 5
+    page: 1,
+    pageSize: 10
   });
 
   const [detailsForm, setDetailsForm] = useState({
@@ -165,17 +166,17 @@ export function FunctionCallingTest() {
             <TabsContent value="search" className="space-y-4">
               <Card>
                 <CardHeader>
-                  <CardTitle>searchDocuments - 關鍵字搜尋</CardTitle>
-                  <CardDescription>搜尋文件、人員、書信、實體、議題、日誌和會議</CardDescription>
+                  <CardTitle>searchObjectsSemantic - 語意搜尋</CardTitle>
+                  <CardDescription>使用語意向量搜尋文件、人員、書信、實體、議題、日誌和會議，支援分頁功能</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label>搜尋關鍵字 *</Label>
+                      <Label>搜尋查詢 *</Label>
                       <Input
                         value={searchForm.query}
                         onChange={(e) => setSearchForm({...searchForm, query: e.target.value})}
-                        placeholder="例如：星河明居"
+                        placeholder="例如：星河明居 2025年8月"
                       />
                     </div>
                     <div className="space-y-2">
@@ -194,28 +195,40 @@ export function FunctionCallingTest() {
                         </SelectContent>
                       </Select>
                     </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label>結果數量</Label>
+                      <Label>頁碼</Label>
                       <Input
                         type="number"
-                        value={searchForm.limit}
-                        onChange={(e) => setSearchForm({...searchForm, limit: parseInt(e.target.value) || 5})}
+                        value={searchForm.page}
+                        onChange={(e) => setSearchForm({...searchForm, page: parseInt(e.target.value) || 1})}
                         min="1"
-                        max="20"
+                        max="100"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>每頁結果數</Label>
+                      <Input
+                        type="number"
+                        value={searchForm.pageSize}
+                        onChange={(e) => setSearchForm({...searchForm, pageSize: parseInt(e.target.value) || 10})}
+                        min="1"
+                        max="50"
                       />
                     </div>
                   </div>
                   <Button 
-                    onClick={() => testFunction("searchDocuments", {
+                    onClick={() => testFunction("searchObjectsSemantic", {
                       ...searchForm,
-                      type: searchForm.type === "all" ? "" : searchForm.type
+                      type: searchForm.type === "all" ? undefined : searchForm.type
                     })}
                     disabled={loading || !searchForm.query.trim()}
                   >
-                    {loading && activeFunction === "searchDocuments" ? (
-                      <><Loader2 className="mr-2 h-4 w-4 animate-spin" />測試中...</>
+                    {loading && activeFunction === "searchObjectsSemantic" ? (
+                      <><Loader2 className="mr-2 h-4 w-4 animate-spin" />搜尋中...</>
                     ) : (
-                      <>搜尋文件</>
+                      <>語意搜尋</>
                     )}
                   </Button>
                 </CardContent>
@@ -226,7 +239,7 @@ export function FunctionCallingTest() {
             <TabsContent value="details" className="space-y-4">
               <Card>
                 <CardHeader>
-                  <CardTitle>getDocumentDetails - 獲取文件詳情</CardTitle>
+                  <CardTitle>getObjectDetails - 獲取文件詳情</CardTitle>
                   <CardDescription>取得特定文件的完整內容和詳細資訊</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -239,10 +252,10 @@ export function FunctionCallingTest() {
                     />
                   </div>
                   <Button 
-                    onClick={() => testFunction("getDocumentDetails", detailsForm)}
+                    onClick={() => testFunction("getObjectDetails", detailsForm)}
                     disabled={loading || !detailsForm.documentId.trim()}
                   >
-                    {loading && activeFunction === "getDocumentDetails" ? (
+                    {loading && activeFunction === "getObjectDetails" ? (
                       <><Loader2 className="mr-2 h-4 w-4 animate-spin" />測試中...</>
                     ) : (
                       <>獲取詳情</>
@@ -256,7 +269,7 @@ export function FunctionCallingTest() {
             <TabsContent value="create" className="space-y-4">
               <Card>
                 <CardHeader>
-                  <CardTitle>createDocument - 創建文件</CardTitle>
+                  <CardTitle>createObject - 創建文件</CardTitle>
                   <CardDescription>創建新的文件、人員檔案、書信等</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -303,13 +316,13 @@ export function FunctionCallingTest() {
                     />
                   </div>
                   <Button 
-                    onClick={() => testFunction("createDocument", {
+                    onClick={() => testFunction("createObject", {
                       ...createForm,
                       aliases: createForm.aliases ? createForm.aliases.split(',').map(a => a.trim()) : []
                     })}
                     disabled={loading || !createForm.name.trim() || !createForm.content.trim()}
                   >
-                    {loading && activeFunction === "createDocument" ? (
+                    {loading && activeFunction === "createObject" ? (
                       <><Loader2 className="mr-2 h-4 w-4 animate-spin" />創建中...</>
                     ) : (
                       <>創建文件</>
@@ -323,7 +336,7 @@ export function FunctionCallingTest() {
             <TabsContent value="update" className="space-y-4">
               <Card>
                 <CardHeader>
-                  <CardTitle>updateDocument - 更新文件</CardTitle>
+                  <CardTitle>updateObject - 更新文件</CardTitle>
                   <CardDescription>更新現有文件的標題、內容或別名</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -368,11 +381,11 @@ export function FunctionCallingTest() {
                       if (updateForm.name.trim()) updateData.name = updateForm.name;
                       if (updateForm.content.trim()) updateData.content = updateForm.content;
                       if (updateForm.aliases.trim()) updateData.aliases = updateForm.aliases.split(',').map(a => a.trim());
-                      testFunction("updateDocument", updateData);
+                      testFunction("updateObject", updateData);
                     }}
                     disabled={loading || !updateForm.documentId.trim()}
                   >
-                    {loading && activeFunction === "updateDocument" ? (
+                    {loading && activeFunction === "updateObject" ? (
                       <><Loader2 className="mr-2 h-4 w-4 animate-spin" />更新中...</>
                     ) : (
                       <>更新文件</>

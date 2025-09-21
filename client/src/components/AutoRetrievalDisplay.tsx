@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
+import { Link } from "wouter";
 
 export interface AutoRetrievalInfo {
   usedDocs: Array<{
@@ -103,20 +104,21 @@ export function AutoRetrievalDisplay({ autoRetrieved, className }: AutoRetrieval
             const score = citation?.relevanceScore;
             
             return (
-              <Badge 
-                key={doc.id} 
-                variant="secondary" 
-                className="text-xs h-auto py-1 px-2 justify-start bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700 w-full"
-                data-testid={`auto-retrieved-doc-${doc.id}`}
-              >
-                <IconComponent className="w-3 h-3 mr-2 flex-shrink-0" />
-                <span className="truncate flex-1">{doc.name}</span>
-                {score && (
-                  <span className="ml-2 text-blue-500 flex-shrink-0">
-                    {(score * 100).toFixed(0)}%
-                  </span>
-                )}
-              </Badge>
+              <Link key={doc.id} href={`/objects/${doc.id}`}>
+                <Badge 
+                  variant="secondary" 
+                  className="text-xs h-auto py-1 px-2 justify-start bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700 w-full hover-elevate cursor-pointer"
+                  data-testid={`auto-retrieved-doc-${doc.id}`}
+                >
+                  <IconComponent className="w-3 h-3 mr-2 flex-shrink-0" />
+                  <span className="truncate flex-1">{doc.name}</span>
+                  {score && (
+                    <span className="ml-2 text-blue-500 flex-shrink-0">
+                      {(score * 100).toFixed(0)}%
+                    </span>
+                  )}
+                </Badge>
+              </Link>
             );
           })}
         </div>
