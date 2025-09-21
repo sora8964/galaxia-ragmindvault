@@ -1609,7 +1609,18 @@ export class DatabaseStorage implements IStorage {
         .limit(1);
 
       if (result.length > 0) {
-        return result[0].value as AppConfig;
+        const config = result[0].value as AppConfig;
+        // Ensure all required fields are present for backward compatibility
+        if (!config.functionCalling) {
+          config.functionCalling = {
+            enabled: true,
+            maxPageSize: 50,
+            defaultPageSize: 20,
+            maxIterations: 5,
+            enablePagination: true
+          };
+        }
+        return config;
       }
     } catch (error) {
       console.warn('Failed to load settings from database, using defaults:', error);
@@ -1619,15 +1630,22 @@ export class DatabaseStorage implements IStorage {
     const defaultConfig: AppConfig = {
       retrieval: {
         autoRag: true,
-        docTopK: 6,
-        chunkTopK: 24,
+        docTopK: 30, // Updated default from 6 to 30 for better context
+        chunkTopK: 90, // Updated default from 24 to 90
         perDocChunkCap: 6,
         contextWindow: 1,
         minDocSim: 0.25,
         minChunkSim: 0.30,
-        budgetTokens: 6000,
+        budgetTokens: 12000, // Updated default from 6000 to 12000
         strategy: "balanced",
         addCitations: true
+      },
+      functionCalling: {
+        enabled: true,
+        maxPageSize: 50,
+        defaultPageSize: 20,
+        maxIterations: 5,
+        enablePagination: true
       },
       geminiApi: {
         model: "gemini-2.5-flash",
