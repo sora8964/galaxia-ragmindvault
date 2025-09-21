@@ -295,7 +295,9 @@ export class MemStorage implements IStorage {
   }
 
   async searchDocuments(query: string, type?: "person" | "document" | "letter" | "entity" | "issue" | "log" | "meeting"): Promise<SearchResult> {
+    console.log(`[MemStorage] Search called with query: "${query}", type: ${type}`);
     const allDocs = Array.from(this.documents.values());
+    console.log(`[MemStorage] Total documents: ${allDocs.length}`);
     const lowerQuery = query.toLowerCase();
     
     // Enhanced search with date pattern matching and flexible terms
@@ -337,9 +339,9 @@ export class MemStorage implements IStorage {
       let matchesFlexibleTerms = false;
       const queryTerms = query.trim().split(/\s+/).filter(term => term.length > 1);
       
-      // Debug: Log query analysis for combination search
-      if (query.includes('星河明居') && query.includes('2025年8月')) {
-        console.log(`Debug: Analyzing query "${query}"`);
+      // Debug: Log query analysis for all multi-term searches
+      if (queryTerms.length > 1) {
+        console.log(`Debug: Multi-term query "${query}"`);
         console.log(`  queryTerms:`, queryTerms);
       }
       
@@ -348,7 +350,7 @@ export class MemStorage implements IStorage {
         const hasDateTerm = queryTerms.some(term => /\d{4}年\d{1,2}月?/.test(term));
         const contentTerms = queryTerms.filter(term => !/\d{4}年\d{1,2}月?/.test(term));
         
-        if (query.includes('星河明居') && query.includes('2025年8月')) {
+        if (queryTerms.length > 1) {
           console.log(`  hasDateTerm:`, hasDateTerm);
           console.log(`  contentTerms:`, contentTerms);
         }
@@ -372,29 +374,33 @@ export class MemStorage implements IStorage {
           // Smart combination: content terms + date pattern must both match
           matchesFlexibleTerms = matchesAllContentTerms && matchesDatePattern;
         } else {
-          // For non-date multi-term queries, match any term
+          // For non-date multi-term queries, match ANY term (OR logic)
           matchesFlexibleTerms = queryTerms.some(term => {
             const lowerTerm = term.toLowerCase();
-            return doc.name.toLowerCase().includes(lowerTerm) ||
-                   doc.content.toLowerCase().includes(lowerTerm) ||
-                   doc.aliases.some(alias => alias.toLowerCase().includes(lowerTerm));
+            const matches = doc.name.toLowerCase().includes(lowerTerm) ||
+                          doc.content.toLowerCase().includes(lowerTerm) ||
+                          doc.aliases.some(alias => alias.toLowerCase().includes(lowerTerm));
+            
+            // Debug for specific terms
+            if (queryTerms.length > 1 && (term === '星河明居' || term === '譚香文')) {
+              console.log(`  Term "${term}" matches doc "${doc.name}": ${matches}`);
+            }
+            
+            return matches;
           });
         }
       }
       
-      // For multi-term queries, use intelligent matching logic first
+      // Simplified logic: for multi-term queries, use flexible matching
       if (queryTerms.length > 1) {
-        const hasDateTerm = queryTerms.some(term => /\d{4}年\d{1,2}月?/.test(term));
-        const contentTerms = queryTerms.filter(term => !/\d{4}年\d{1,2}月?/.test(term));
-        
-        if (hasDateTerm && contentTerms.length > 0) {
-          // For date + content queries, only use smart combination result
-          return matchesFlexibleTerms;
-        }
+        console.log(`[MemStorage] Multi-term query, returning matchesFlexibleTerms: ${matchesFlexibleTerms}`);
+        return matchesFlexibleTerms;
       }
       
-      // For single-term or non-date queries, use basic matching
-      return matchesName || matchesContent || matchesAliases || matchesDatePattern || matchesFlexibleTerms;
+      // For single-term queries, use basic matching
+      const singleMatch = matchesName || matchesContent || matchesAliases || matchesDatePattern;
+      console.log(`[MemStorage] Single-term query, returning: ${singleMatch}`);
+      return singleMatch;
     });
     
     return {
@@ -1144,12 +1150,27 @@ export class DatabaseStorage implements IStorage {
   }
 
   async searchDocuments(query: string, type?: "person" | "document" | "letter" | "entity" | "issue" | "log" | "meeting"): Promise<SearchResult> {
-    const lowerQuery = `%${query.toLowerCase()}%`;
+    // Multi-term query support
+    const queryTerms = query.trim().split(/\s+/).filter(term => term.length > 1);
+    let whereCondition;
     
-    let whereCondition = or(
-      ilike(objects.name, lowerQuery),
-      ilike(objects.content, lowerQuery)
-    );
+    if (queryTerms.length > 1) {
+      // For multi-term search, search for ANY of the terms (OR logic)
+      const termConditions = [];
+      for (const term of queryTerms) {
+        const termQuery = `%${term.toLowerCase()}%`;
+        termConditions.push(ilike(objects.name, termQuery));
+        termConditions.push(ilike(objects.content, termQuery));
+      }
+      whereCondition = or(...termConditions);
+    } else {
+      // Single-term search
+      const lowerQuery = `%${query.toLowerCase()}%`;
+      whereCondition = or(
+        ilike(objects.name, lowerQuery),
+        ilike(objects.content, lowerQuery)
+      );
+    }
     
     if (type) {
       whereCondition = and(eq(objects.type, type), whereCondition);
