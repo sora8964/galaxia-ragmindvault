@@ -34,12 +34,6 @@ function FunctionCallDisplay({ functionCall }: { functionCall: { name: string; a
   const getDisplayInfo = (fc: { name: string; arguments: any; result?: any }) => {
     switch (fc.name) {
       case 'searchObjects':
-        return {
-          icon: Search,
-          text: `搜尋「${fc.arguments?.query || ''}」${fc.arguments?.type ? ` (類型: ${fc.arguments.type})` : ''}`,
-          color: "bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-800"
-        };
-      case 'searchObjectsSemantic':
         const pageInfo = fc.arguments?.page ? ` (第${fc.arguments.page}頁)` : '';
         const pageSizeInfo = fc.arguments?.pageSize ? ` (每頁${fc.arguments.pageSize}項)` : '';
         return {

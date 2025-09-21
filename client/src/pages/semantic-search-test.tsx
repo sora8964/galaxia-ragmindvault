@@ -43,7 +43,7 @@ export function SemanticSearchTest() {
     setSearchStats(null);
     
     try {
-      // 使用與UserPrompt相同的語意搜索邏輯（searchObjectsSemantic函數）
+      // 使用與UserPrompt相同的語意搜索邏輯（searchObjects函數）
       const requestBody = {
         query: query.trim(),
         pageSize: 20,
@@ -65,7 +65,7 @@ export function SemanticSearchTest() {
 
       const data = await response.json();
       
-      // 處理searchObjectsSemantic函數的響應格式
+      // 處理searchObjects函數的響應格式
       const searchResults = data.results || [];
       
       setResults(searchResults);

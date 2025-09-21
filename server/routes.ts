@@ -1023,7 +1023,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Semantic search endpoint using searchObjectsSemantic function
+  // Semantic search endpoint using searchObjects function
   app.post("/api/semantic-search", async (req, res) => {
     try {
       const { query, type, page = 1, pageSize = 20 } = req.body;
@@ -1034,9 +1034,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       console.log(`🔍 [DEBUG] Semantic search (UserPrompt compatible) with query: "${query}", type: ${type}, page: ${page}, pageSize: ${pageSize}`);
       
-      // Import and call searchObjectsSemantic function via callFunction
+      // Import and call searchObjects function via callFunction
       const { callFunction } = await import('./gemini-functions');
-      const result = await callFunction('searchObjectsSemantic', {
+      const result = await callFunction('searchObjects', {
         query,
         type: type === "all" ? undefined : type,
         page,
@@ -1045,7 +1045,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Parse the JSON string result from the function
       const parsedResult = JSON.parse(result);
-      console.log(`🔍 [DEBUG] searchObjectsSemantic returned ${parsedResult.results?.length || 0} results`);
+      console.log(`🔍 [DEBUG] searchObjects returned ${parsedResult.results?.length || 0} results`);
       
       res.json(parsedResult);
     } catch (error) {
