@@ -267,6 +267,30 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
 
 
 
+  // Get conversation data
+  const { data: conversation } = useQuery<Conversation>({
+    queryKey: ['/api/conversations', currentConversationId],
+    enabled: !!currentConversationId,
+  });
+
+  // Load conversation messages
+  const { data: conversationMessages = [] } = useQuery<DbMessage[]>({
+    queryKey: ['/api/conversations', currentConversationId, 'messages'],
+    enabled: !!currentConversationId,
+    staleTime: 0, // Force fresh data
+    cacheTime: 0, // Disable caching
+  });
+
+  // Debug: Log conversation messages
+  console.log('🔍 [DEBUG] ConversationMessages:', conversationMessages.length, conversationMessages.map(m => ({
+    id: m.id,
+    role: m.role,
+    content: m.content.slice(0, 50),
+    hasContextMetadata: !!m.contextMetadata,
+    hasAutoRetrieved: !!(m.contextMetadata?.autoRetrieved),
+    usedDocsCount: m.contextMetadata?.autoRetrieved?.usedDocs?.length || 0
+  })));
+
   // Smart merge function to combine database messages with local messages
   const mergeMessages = (dbMessages: StreamMessage[], localMsgs: StreamMessage[]): StreamMessage[] => {
     // Create a map of database messages by ID for quick lookup
@@ -301,30 +325,6 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
     const lastMessage = messages[messages.length - 1];
     return lastMessage && lastMessage.role === 'user';
   }, [messages, isStreaming]);
-
-  // Get conversation data
-  const { data: conversation } = useQuery<Conversation>({
-    queryKey: ['/api/conversations', currentConversationId],
-    enabled: !!currentConversationId,
-  });
-
-  // Load conversation messages
-  const { data: conversationMessages = [] } = useQuery<DbMessage[]>({
-    queryKey: ['/api/conversations', currentConversationId, 'messages'],
-    enabled: !!currentConversationId,
-    staleTime: 0, // Force fresh data
-    cacheTime: 0, // Disable caching
-  });
-
-  // Debug: Log conversation messages
-  console.log('🔍 [DEBUG] ConversationMessages:', conversationMessages.length, conversationMessages.map(m => ({
-    id: m.id,
-    role: m.role,
-    content: m.content.slice(0, 50),
-    hasContextMetadata: !!m.contextMetadata,
-    hasAutoRetrieved: !!(m.contextMetadata?.autoRetrieved),
-    usedDocsCount: m.contextMetadata?.autoRetrieved?.usedDocs?.length || 0
-  })));
 
   // Create a Set of persistent message IDs for edit permission checking
   const persistedMessageIds = useMemo(() => 
