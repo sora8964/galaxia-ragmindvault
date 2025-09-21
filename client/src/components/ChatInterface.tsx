@@ -39,9 +39,13 @@ function FunctionCallDisplay({ functionCall }: { functionCall: { name: string; a
           color: "bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-800"
         };
       case 'getObjectDetails':
+        const id = String(fc.arguments?.documentId ?? fc.arguments?.id ?? fc.arguments?.objectId ?? '');
+        // Extract readable name from id if it contains a colon (type:name format)
+        const display = id.includes(':') ? id.split(':').slice(1).join(':') : (fc.arguments?.name ?? id);
+        const displayName = display || fc.result?.name || '未知文件';
         return {
           icon: FileText,
-          text: `查看文件詳情`,
+          text: `查看文件詳情：${displayName}`,
           color: "bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800"
         };
       case 'createObject':
