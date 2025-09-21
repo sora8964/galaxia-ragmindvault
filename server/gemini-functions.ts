@@ -238,23 +238,25 @@ async function searchObjects(args: any): Promise<string> {
     }
 
     // Combine and deduplicate results
-    const allDocuments = new Map<string, { doc: any; sources: string[] }>();
+    const allDocuments = new Map<string, { doc: any; sources: string[]; similarity?: number }>();
 
     // Add keyword results with source tracking
     keywordDocs.forEach(doc => {
       if (!allDocuments.has(doc.id)) {
-        allDocuments.set(doc.id, { doc, sources: ['keyword'] });
+        allDocuments.set(doc.id, { doc, sources: ['keyword'], similarity: 0 });
       } else {
         allDocuments.get(doc.id)!.sources.push('keyword');
       }
     });
 
-    // Add vector results with source tracking
+    // Add vector results with source tracking (preserve similarity)
     vectorDocuments.forEach(doc => {
       if (!allDocuments.has(doc.id)) {
-        allDocuments.set(doc.id, { doc, sources: ['semantic'] });
+        allDocuments.set(doc.id, { doc, sources: ['semantic'], similarity: doc.similarity || 0 });
       } else {
-        allDocuments.get(doc.id)!.sources.push('semantic');
+        const existing = allDocuments.get(doc.id)!;
+        existing.sources.push('semantic');
+        existing.similarity = doc.similarity || 0; // Store similarity for later sorting
       }
     });
 
@@ -266,8 +268,8 @@ async function searchObjects(args: any): Promise<string> {
         const bScore = b.sources.length;
         if (aScore !== bScore) return bScore - aScore;
         
-        // Within same priority, maintain original order
-        return 0;
+        // Within same priority, sort by similarity (descending)
+        return (b.similarity || 0) - (a.similarity || 0);
       })
       .map(item => item.doc)
       .slice(0, limit);
