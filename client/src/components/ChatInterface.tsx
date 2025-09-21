@@ -1125,7 +1125,10 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
                       // Normal display mode
                       <>
                         <div className="text-sm whitespace-pre-wrap">
-                          <MentionParser text={message.content} />
+                          <MentionParser 
+                            text={message.content} 
+                            isAIResponse={message.role === 'assistant'} 
+                          />
                           {message.isStreaming && (
                             <>
                               {!message.content && (

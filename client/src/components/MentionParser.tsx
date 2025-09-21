@@ -19,6 +19,7 @@ interface MentionData {
 interface MentionLinkProps {
   mention: MentionData;
   className?: string;
+  isAIResponse?: boolean; // 是否為AI回覆，如果是，則不存在的對象只顯示純文字
 }
 
 // 檢查物件是否存在的 hook
@@ -40,12 +41,24 @@ function useObjectExists(type: DocumentType, name: string) {
 }
 
 // 單個 @mention 超連結組件
-function MentionLink({ mention, className }: MentionLinkProps) {
+function MentionLink({ mention, className, isAIResponse }: MentionLinkProps) {
   const { data: objectData, isLoading } = useObjectExists(mention.type, mention.name);
   const exists = objectData?.exists ?? false;
   const objectId = objectData?.id;
 
   const displayText = mention.displayName || mention.name;
+
+  // 如果是AI回覆且對象不存在，只顯示純文字
+  if (isAIResponse && !exists && !isLoading) {
+    return (
+      <span 
+        className={className}
+        data-testid={`mention-text-${mention.type}-${mention.name}`}
+      >
+        {displayText}
+      </span>
+    );
+  }
 
   // 根據是否存在選擇不同樣式
   const linkClass = cn(
@@ -159,10 +172,11 @@ function parseMentions(text: string): (string | MentionData)[] {
 interface MentionParserProps {
   text: string;
   className?: string;
+  isAIResponse?: boolean; // 是否為AI回覆，如果是，則不存在的對象只顯示純文字
 }
 
 // 主要的 MentionParser 組件
-export function MentionParser({ text, className }: MentionParserProps) {
+export function MentionParser({ text, className, isAIResponse }: MentionParserProps) {
   const parts = parseMentions(text);
   
   return (
@@ -175,6 +189,7 @@ export function MentionParser({ text, className }: MentionParserProps) {
             <MentionLink
               key={`${index}-${part.type}-${part.name}`}
               mention={part}
+              isAIResponse={isAIResponse}
             />
           );
         }
