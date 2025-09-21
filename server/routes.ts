@@ -985,6 +985,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // GET version for direct URL access
+  app.get("/api/embeddings/search", async (req, res) => {
+    try {
+      const { query, limit = 10 } = req.query;
+      
+      if (!query || typeof query !== 'string') {
+        return res.status(400).json({ error: "Query text is required" });
+      }
+      
+      // Generate embedding for the query
+      const queryEmbedding = await generateTextEmbedding(query);
+      
+      // Search for similar documents
+      const similarDocuments = await storage.searchObjectsByVector(queryEmbedding, parseInt(limit as string) || 10);
+      
+      res.json({
+        query,
+        results: similarDocuments,
+        total: similarDocuments.length
+      });
+    } catch (error) {
+      console.error('Vector search error:', error);
+      res.status(500).json({ error: "Failed to search documents by similarity" });
+    }
+  });
+
+  // POST version for programmatic access
   app.post("/api/embeddings/search", async (req, res) => {
     try {
       const { query, limit = 10 } = req.body;
