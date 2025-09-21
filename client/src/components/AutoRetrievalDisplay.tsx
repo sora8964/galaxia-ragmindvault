@@ -1,6 +1,8 @@
-import { SearchIcon, FileText, Users, Building, ClipboardList, AlertCircle, Calendar, Briefcase } from "lucide-react";
+import { SearchIcon, FileText, Users, Building, ClipboardList, AlertCircle, Calendar, Briefcase, ChevronDown, ChevronUp } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useState } from "react";
 
 export interface AutoRetrievalInfo {
   usedDocs: Array<{
@@ -58,23 +60,43 @@ function getTypeName(type: string) {
 export function AutoRetrievalDisplay({ autoRetrieved, className }: AutoRetrievalDisplayProps) {
   const docCount = autoRetrieved?.usedDocs?.length || 0;
   const citations = autoRetrieved?.citations || [];
+  const [isExpanded, setIsExpanded] = useState(false);
 
   return (
     <div 
       className={cn(
-        "inline-flex items-center gap-2 px-3 py-2 rounded-lg border bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800 text-blue-800 dark:text-blue-200",
+        "flex flex-col gap-2 px-3 py-2 rounded-lg border bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800 text-blue-800 dark:text-blue-200",
         className
       )}
       data-testid="auto-retrieval-display"
     >
-      <SearchIcon className="w-4 h-4" />
-      <span className="text-sm font-medium">
-        自動檢索了 {docCount} 個相關文件
-      </span>
+      <div className="flex items-center gap-2">
+        <SearchIcon className="w-4 h-4" />
+        <Button
+          variant="ghost"
+          size="sm"
+          className="p-0 h-auto text-sm font-medium text-blue-800 dark:text-blue-200 hover:bg-transparent"
+          onClick={() => setIsExpanded(!isExpanded)}
+          data-testid="button-toggle-retrieval-details"
+        >
+          自動檢索了 {docCount} 個相關文件
+          {docCount > 0 && (
+            isExpanded ? 
+              <ChevronUp className="w-4 h-4 ml-1" /> : 
+              <ChevronDown className="w-4 h-4 ml-1" />
+          )}
+        </Button>
+        
+        {autoRetrieved?.retrievalMetadata?.processingTimeMs && (
+          <span className="text-xs text-blue-600 dark:text-blue-400">
+            ({autoRetrieved.retrievalMetadata.processingTimeMs}ms)
+          </span>
+        )}
+      </div>
       
-      {docCount > 0 && autoRetrieved && (
-        <div className="flex items-center gap-1">
-          {autoRetrieved.usedDocs.slice(0, 3).map((doc) => {
+      {docCount > 0 && autoRetrieved && isExpanded && (
+        <div className="flex flex-col gap-1">
+          {autoRetrieved.usedDocs.map((doc) => {
             const IconComponent = getTypeIcon(doc.type);
             // Find matching citation for relevance score
             const citation = citations.find(c => c.docId === doc.id);
@@ -84,36 +106,20 @@ export function AutoRetrievalDisplay({ autoRetrieved, className }: AutoRetrieval
               <Badge 
                 key={doc.id} 
                 variant="secondary" 
-                className="text-xs h-6 bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700"
+                className="text-xs h-auto py-1 px-2 justify-start bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700 w-full"
                 data-testid={`auto-retrieved-doc-${doc.id}`}
               >
-                <IconComponent className="w-3 h-3 mr-1" />
-                {doc.name.length > 15 ? `${doc.name.substring(0, 15)}...` : doc.name}
+                <IconComponent className="w-3 h-3 mr-2 flex-shrink-0" />
+                <span className="truncate flex-1">{doc.name}</span>
                 {score && (
-                  <span className="ml-1 text-blue-500">
+                  <span className="ml-2 text-blue-500 flex-shrink-0">
                     {(score * 100).toFixed(0)}%
                   </span>
                 )}
               </Badge>
             );
           })}
-          
-          {autoRetrieved && autoRetrieved.usedDocs.length > 3 && (
-            <Badge 
-              variant="secondary" 
-              className="text-xs h-6 bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700"
-              data-testid="auto-retrieved-more-count"
-            >
-              +{(autoRetrieved?.usedDocs.length || 0) - 3}
-            </Badge>
-          )}
         </div>
-      )}
-      
-      {autoRetrieved?.retrievalMetadata?.processingTimeMs && (
-        <span className="text-xs text-blue-600 dark:text-blue-400 ml-2">
-          ({autoRetrieved.retrievalMetadata.processingTimeMs}ms)
-        </span>
       )}
     </div>
   );

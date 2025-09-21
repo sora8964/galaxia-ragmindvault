@@ -1024,6 +1024,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Semantic search endpoint using searchObjectsSemantic function
+  app.post("/api/semantic-search", async (req, res) => {
+    try {
+      const { query, type, page = 1, pageSize = 20 } = req.body;
+      
+      if (!query || typeof query !== 'string') {
+        return res.status(400).json({ error: "Query text is required" });
+      }
+      
+      console.log(`🔍 [DEBUG] Semantic search (UserPrompt compatible) with query: "${query}", type: ${type}, page: ${page}, pageSize: ${pageSize}`);
+      
+      // Import and call searchObjectsSemantic function via callFunction
+      const { callFunction } = await import('./gemini-functions');
+      const result = await callFunction('searchObjectsSemantic', {
+        query,
+        type: type === "all" ? undefined : type,
+        page,
+        pageSize
+      });
+      
+      // Parse the JSON string result from the function
+      const parsedResult = JSON.parse(result);
+      console.log(`🔍 [DEBUG] searchObjectsSemantic returned ${parsedResult.results?.length || 0} results`);
+      
+      res.json(parsedResult);
+    } catch (error) {
+      console.error('Semantic search error:', error);
+      res.status(500).json({ error: "Failed to perform semantic search" });
+    }
+  });
+
   // POST version for programmatic access
   app.post("/api/embeddings/search", async (req, res) => {
     try {

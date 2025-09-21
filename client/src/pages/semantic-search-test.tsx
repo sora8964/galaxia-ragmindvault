@@ -43,29 +43,44 @@ export function SemanticSearchTest() {
     setSearchStats(null);
     
     try {
-      const params = new URLSearchParams({
+      // 使用與UserPrompt相同的語意搜索邏輯（searchObjectsSemantic函數）
+      const requestBody = {
         query: query.trim(),
-        limit: "20",
-        ...(type !== "all" && { type }),
+        pageSize: 20,
+        page: 1,
+        type: type === "all" ? undefined : type,
+      };
+
+      const response = await fetch('/api/semantic-search', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
       });
 
-      const response = await fetch(`/api/embeddings/search?${params}`);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
       const data = await response.json();
-      setResults(data.results || []);
+      
+      // 處理searchObjectsSemantic函數的響應格式
+      const searchResults = data.results || [];
+      
+      setResults(searchResults);
       setSearchStats({
-        total: data.total || 0,
+        total: searchResults.length,
         query: data.query || query.trim(),
         type: type,
         executionTime: performance.now(), // 簡化的執行時間
+        totalPages: data.pagination?.totalPages || 1,
+        totalResults: data.pagination?.totalResults || searchResults.length,
       });
       
       toast({
         title: "成功",
-        description: `找到 ${data.total || 0} 個結果`,
+        description: `找到 ${searchResults.length} 個結果`,
       });
     } catch (error) {
       console.error('Search failed:', error);
@@ -110,7 +125,7 @@ export function SemanticSearchTest() {
         <CardHeader>
           <CardTitle>測試語意搜尋功能</CardTitle>
           <CardDescription>
-            使用向量語義搜索來尋找意思相近的文檔，即使沒有完全匹配的關鍵字也能找到相關內容
+            使用與AI對話相同的語意搜索邏輯，包含分頁、類型過濾和相關性評分。測試結果100%符合實際AI對話中的搜索行為。
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
