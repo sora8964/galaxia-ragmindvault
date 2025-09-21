@@ -29,10 +29,8 @@ export class EmbeddingService {
         return false;
       }
 
-      if (document.hasEmbedding) {
-        console.log(`Document ${documentId} already has embedding, processing chunks...`);
-        // Process chunking even if document has embedding
-        await chunkingService.processDocumentChunking(document);
+      if (document.hasEmbedding && !document.needsEmbedding) {
+        console.log(`Document ${documentId} already has embedding and doesn't need re-embedding, skipping...`);
         return true;
       }
 

@@ -107,8 +107,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Document not found" });
       }
       
-      // Trigger chunking and embedding after document update
-      await embeddingService.queueDocumentForEmbedding(document.id);
+      // Trigger immediate chunking and embedding after document update if needed
+      if (document.needsEmbedding) {
+        await embeddingService.triggerImmediateEmbedding(document.id);
+      }
       
       res.json(document);
     } catch (error) {

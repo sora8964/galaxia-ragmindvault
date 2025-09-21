@@ -443,6 +443,13 @@ export class MemStorage implements IStorage {
     const existing = this.documents.get(id);
     if (!existing) return undefined;
     
+    // Check if content-related fields have changed
+    const contentChanged = 
+      (updates.content !== undefined && updates.content !== existing.content) ||
+      (updates.name !== undefined && updates.name !== existing.name) ||
+      (updates.aliases !== undefined && JSON.stringify(updates.aliases) !== JSON.stringify(existing.aliases)) ||
+      (updates.date !== undefined && updates.date !== existing.date);
+    
     const updated: Document = {
       id: existing.id,
       name: updates.name ?? existing.name,
@@ -450,16 +457,18 @@ export class MemStorage implements IStorage {
       content: updates.content ?? existing.content,
       aliases: (updates.aliases as string[]) ?? existing.aliases,
       date: updates.date !== undefined ? updates.date : existing.date,
-      embedding: existing.embedding,
-      hasEmbedding: existing.hasEmbedding,
-      embeddingStatus: existing.embeddingStatus,
-      needsEmbedding: existing.needsEmbedding,
+      embedding: contentChanged ? null : existing.embedding, // Clear embedding if content changed
+      hasEmbedding: contentChanged ? false : existing.hasEmbedding, // Mark as needing re-embedding
+      embeddingStatus: contentChanged ? "pending" : existing.embeddingStatus,
+      needsEmbedding: contentChanged ? true : existing.needsEmbedding,
       isFromOCR: existing.isFromOCR,
       hasBeenEdited: true, // Mark as edited when updated
       createdAt: existing.createdAt,
       updatedAt: new Date()
     };
+    
     this.documents.set(id, updated);
+    console.log(`Updated document ${id}${contentChanged ? ' (content changed - will re-embed)' : ' (metadata only)'}`);
     return updated;
   }
 
