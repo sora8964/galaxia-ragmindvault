@@ -278,7 +278,7 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
     queryKey: ['/api/conversations', currentConversationId, 'messages'],
     enabled: !!currentConversationId,
     staleTime: 0, // Force fresh data
-    cacheTime: 0, // Disable caching
+    gcTime: 0, // Disable caching (replaces cacheTime in v5)
   });
 
 

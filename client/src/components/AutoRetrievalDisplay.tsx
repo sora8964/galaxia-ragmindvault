@@ -72,7 +72,7 @@ export function AutoRetrievalDisplay({ autoRetrieved, className }: AutoRetrieval
         自動檢索了 {docCount} 個相關文件
       </span>
       
-      {docCount > 0 && (
+      {docCount > 0 && autoRetrieved && (
         <div className="flex items-center gap-1">
           {autoRetrieved.usedDocs.slice(0, 3).map((doc) => {
             const IconComponent = getTypeIcon(doc.type);
@@ -98,13 +98,13 @@ export function AutoRetrievalDisplay({ autoRetrieved, className }: AutoRetrieval
             );
           })}
           
-          {autoRetrieved.usedDocs.length > 3 && (
+          {autoRetrieved && autoRetrieved.usedDocs.length > 3 && (
             <Badge 
               variant="secondary" 
               className="text-xs h-6 bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700"
               data-testid="auto-retrieved-more-count"
             >
-              +{autoRetrieved.usedDocs.length - 3}
+              +{(autoRetrieved?.usedDocs.length || 0) - 3}
             </Badge>
           )}
         </div>

@@ -244,6 +244,11 @@ export function SemanticSearchTest() {
                           <Badge variant="secondary" data-testid={`result-type-${index}`}>
                             {documentTypes.find(t => t.value === doc.type)?.label || doc.type}
                           </Badge>
+                          {doc.similarity && (
+                            <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200" data-testid={`result-score-${index}`}>
+                              {(doc.similarity * 100).toFixed(1)}%
+                            </Badge>
+                          )}
                         </div>
                         
                         {doc.aliases && doc.aliases.length > 0 && (
