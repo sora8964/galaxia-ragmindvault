@@ -457,7 +457,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Fetch context documents if provided
       const contextDocuments = [];
       for (const docId of contextDocumentIds) {
-        const doc = await storage.getDocument(docId);
+        const doc = await storage.getObject(docId);
         if (doc) contextDocuments.push(doc);
       }
       
@@ -491,14 +491,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Fetch actual mention document objects
       const mentionDocuments = [];
       for (const docId of mentionIds) {
-        const doc = await storage.getDocument(docId);
+        const doc = await storage.getObject(docId);
         if (doc) mentionDocuments.push(doc);
       }
       
       // Fetch explicit context documents
       const explicitContextDocuments = [];
       for (const docId of contextDocumentIds) {
-        const doc = await storage.getDocument(docId);
+        const doc = await storage.getObject(docId);
         if (doc) explicitContextDocuments.push(doc);
       }
       
@@ -518,7 +518,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Add full document objects for auto-retrieved context
       for (const contextDoc of autoContext.usedDocs) {
-        const fullDoc = await storage.getDocument(contextDoc.id);
+        const fullDoc = await storage.getObject(contextDoc.id);
         if (fullDoc && !allContextDocuments.find(d => d.id === fullDoc.id)) {
           allContextDocuments.push(fullDoc);
         }
@@ -578,14 +578,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Fetch actual mention document objects
       const mentionDocuments = [];
       for (const docId of mentionIds) {
-        const doc = await storage.getDocument(docId);
+        const doc = await storage.getObject(docId);
         if (doc) mentionDocuments.push(doc);
       }
       
       // Fetch explicit context documents
       const explicitContextDocuments = [];
       for (const docId of contextDocumentIds) {
-        const doc = await storage.getDocument(docId);
+        const doc = await storage.getObject(docId);
         if (doc) explicitContextDocuments.push(doc);
       }
       
@@ -605,7 +605,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Add full document objects for auto-retrieved context
       for (const contextDoc of autoContext.usedDocs) {
-        const fullDoc = await storage.getDocument(contextDoc.id);
+        const fullDoc = await storage.getObject(contextDoc.id);
         if (fullDoc && !allContextDocuments.find(d => d.id === fullDoc.id)) {
           allContextDocuments.push(fullDoc);
         }
@@ -1031,7 +1031,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Transform relationships - only outgoing relationships, no direction needed
       const transformedRelationships = await Promise.all(
         result.relationships.map(async (rel) => {
-          const targetDoc = await storage.getDocument(rel.targetId);
+          const targetDoc = await storage.getObject(rel.targetId);
           
           const relatedDocument = targetDoc ? { 
             id: targetDoc.id, 
@@ -1140,7 +1140,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get the related issue documents
       const relatedIssues = [];
       for (const rel of relationships) {
-        const issue = await storage.getDocument(rel.targetId);
+        const issue = await storage.getObject(rel.targetId);
         if (issue && issue.type === "issue") {
           relatedIssues.push({
             relationship: rel,
@@ -1175,7 +1175,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Document not found" });
       }
       
-      const issue = await storage.getDocument(issueId);
+      const issue = await storage.getObject(issueId);
       if (!issue) {
         return res.status(404).json({ error: "Issue not found" });
       }
@@ -1224,12 +1224,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { objectId, issueId } = req.params;
       
       // Verify both documents exist
-      const document = await storage.getDocument(objectId);
+      const document = await storage.getObject(objectId);
       if (!document) {
         return res.status(404).json({ error: "Document not found" });
       }
       
-      const issue = await storage.getDocument(issueId);
+      const issue = await storage.getObject(issueId);
       if (!issue) {
         return res.status(404).json({ error: "Issue not found" });
       }

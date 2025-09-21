@@ -9,8 +9,8 @@ const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
 
 // Function definitions for Gemini
 const functions = {
-  searchDocuments: {
-    name: "searchDocuments",
+  searchObjects: {
+    name: "searchObjects",
     description: "Search for documents, people, letters, entities, issues, logs, and meetings in the knowledge base using keywords",
     parameters: {
       type: "object",
@@ -32,8 +32,8 @@ const functions = {
     }
   },
 
-  getDocumentDetails: {
-    name: "getDocumentDetails",
+  getObjectDetails: {
+    name: "getObjectDetails",
     description: "Get the full content and details of a specific document, person, letter, entity, issue, log, or meeting. For issues, automatically includes all associated logs.",
     parameters: {
       type: "object",
@@ -47,8 +47,8 @@ const functions = {
     }
   },
 
-  createDocument: {
-    name: "createDocument",
+  createObject: {
+    name: "createObject",
     description: "Create a new document, person profile, letter, entity, issue, log, or meeting entry in the knowledge base",
     parameters: {
       type: "object",
@@ -75,8 +75,8 @@ const functions = {
     }
   },
 
-  updateDocument: {
-    name: "updateDocument",
+  updateObject: {
+    name: "updateObject",
     description: "Update an existing document, person profile, letter, entity, issue, log, or meeting entry",
     parameters: {
       type: "object",
@@ -175,7 +175,7 @@ const functions = {
 };
 
 // Function implementations
-async function searchDocuments(args: any): Promise<string> {
+async function searchObjects(args: any): Promise<string> {
   try {
     const { query, type, limit = 20 } = args;
     
@@ -183,7 +183,7 @@ async function searchDocuments(args: any): Promise<string> {
     const isDateQuery = /\d{4}年\d{1,2}月|\d{4}-\d{1,2}|\d{6,8}/i.test(query);
     
     // Start with keyword search (fast, handles dates well)
-    const keywordResult = await storage.searchDocuments(query, type);
+    const keywordResult = await storage.searchObjects(query, type);
     const keywordDocs = keywordResult.objects;
     
     let vectorDocuments: any[] = [];
@@ -199,7 +199,7 @@ async function searchDocuments(args: any): Promise<string> {
           new Promise((_, reject) => setTimeout(() => reject(new Error('Embedding timeout')), 1500))
         ]);
         const vectorResults = await Promise.race([
-          storage.searchDocumentsByVector(queryEmbedding as number[], limit),
+          storage.searchObjectsByVector(queryEmbedding as number[], limit),
           new Promise((_, reject) => setTimeout(() => reject(new Error('Vector search timeout')), 1500))
         ]);
         // Filter by type if specified
@@ -262,11 +262,11 @@ async function searchDocuments(args: any): Promise<string> {
   }
 }
 
-async function getDocumentDetails(args: any): Promise<string> {
+async function getObjectDetails(args: any): Promise<string> {
   try {
     const { documentId } = args;
     
-    const document = await storage.getDocument(documentId);
+    const document = await storage.getObject(documentId);
     if (!document) {
       return `Document with ID "${documentId}" not found.`;
     }
@@ -307,7 +307,7 @@ async function getDocumentDetails(args: any): Promise<string> {
           const logs = [];
           
           for (const logId of logIds) {
-            const log = await storage.getDocument(logId);
+            const log = await storage.getObject(logId);
             if (log) logs.push(log);
           }
           
@@ -341,11 +341,11 @@ async function getDocumentDetails(args: any): Promise<string> {
   }
 }
 
-async function createDocument(args: any): Promise<string> {
+async function createObject(args: any): Promise<string> {
   try {
     const { name, type, content, aliases = [] } = args;
     
-    const document = await storage.createDocument({
+    const document = await storage.createObject({
       name,
       type,
       content,
@@ -382,7 +382,7 @@ async function createDocument(args: any): Promise<string> {
   }
 }
 
-async function updateDocument(args: any): Promise<string> {
+async function updateObject(args: any): Promise<string> {
   try {
     const { documentId, name, content, aliases } = args;
     
@@ -391,7 +391,7 @@ async function updateDocument(args: any): Promise<string> {
     if (content) updateData.content = content;
     if (aliases) updateData.aliases = aliases;
     
-    const document = await storage.updateDocument(documentId, updateData);
+    const document = await storage.updateObject(documentId, updateData);
     if (!document) {
       return `Document with ID "${documentId}" not found.`;
     }
@@ -430,7 +430,7 @@ async function findSimilarDocuments(args: any): Promise<string> {
     }
     
     // Get all documents with embeddings
-    const allDocuments = await storage.getAllDocuments();
+    const allDocuments = await storage.getAllObjects();
     const documentsWithEmbeddings = allDocuments.filter(doc => doc.hasEmbedding && doc.embedding);
     
     if (documentsWithEmbeddings.length === 0) {
@@ -490,7 +490,7 @@ async function parseMentions(args: any): Promise<string> {
       const [fullMatch, type, name, alias] = match;
       
       // Try to find the document
-      const searchResult = await storage.searchDocuments(name, type as "person" | "document" | "entity" | "issue" | "log");
+      const searchResult = await storage.searchObjects(name, type as "person" | "document" | "entity" | "issue" | "log");
       const foundDoc = searchResult.objects.find(doc => 
         doc.name.toLowerCase() === name.toLowerCase() ||
         doc.aliases.some(a => a.toLowerCase() === name.toLowerCase())
@@ -536,11 +536,11 @@ async function findRelevantExcerpts(args: any): Promise<string> {
     let targetDocuments = [];
     
     if (documentId) {
-      const doc = await storage.getDocument(documentId);
+      const doc = await storage.getObject(documentId);
       if (doc) targetDocuments.push(doc);
     } else {
       // Use existing searchDocuments for document-level filtering
-      const searchResult = await storage.searchDocuments(query, type);
+      const searchResult = await storage.searchObjects(query, type);
       targetDocuments = searchResult.objects.slice(0, 10); // Top 10 documents
     }
 
@@ -683,14 +683,14 @@ function cosineSimilarity(a: number[], b: number[]): number {
 // Function call dispatcher
 export async function callFunction(functionName: string, args: any): Promise<string> {
   switch (functionName) {
-    case "searchDocuments":
-      return await searchDocuments(args);
-    case "getDocumentDetails":
-      return await getDocumentDetails(args);
-    case "createDocument":
-      return await createDocument(args);
-    case "updateDocument":
-      return await updateDocument(args);
+    case "searchObjects":
+      return await searchObjects(args);
+    case "getObjectDetails":
+      return await getObjectDetails(args);
+    case "createObject":
+      return await createObject(args);
+    case "updateObject":
+      return await updateObject(args);
     case "findSimilarDocuments":
       return await findSimilarDocuments(args);
     case "parseMentions":
@@ -756,15 +756,15 @@ export async function chatWithGeminiFunctions(options: GeminiFunctionChatOptions
     let systemInstruction = `You are an AI assistant for an advanced document and knowledge management system. You help users organize, search, and understand their documents, people, entities, issues, logs, and meetings.
 
 You have access to the following functions to help users:
-- searchDocuments: Find documents, people, entities, issues, logs, and meetings by keywords
-- getDocumentDetails: Get full content of specific documents (issues automatically include associated logs)
+- searchObjects: Find documents, people, entities, issues, logs, and meetings by keywords
+- getObjectDetails: Get full content of specific documents (issues automatically include associated logs)
 - findRelevantExcerpts: **PREFERRED for long documents** - Find relevant excerpts using intelligent dual-stage retrieval. Returns contextualized snippets with citations instead of overwhelming full content
-- createDocument: Create new documents, person profiles, entities, issues, logs, or meetings
-- updateDocument: Modify existing documents
+- createObject: Create new documents, person profiles, entities, issues, logs, or meetings
+- updateObject: Modify existing documents
 - findSimilarDocuments: Find semantically similar content
 - parseMentions: Analyze @mentions in text
 
-**IMPORTANT**: For documents that might be long (meetings, detailed reports, etc.), prefer findRelevantExcerpts over getDocumentDetails to provide focused, relevant information with proper citations. Always call the appropriate function rather than making assumptions about what exists in the knowledge base.
+**IMPORTANT**: For documents that might be long (meetings, detailed reports, etc.), prefer findRelevantExcerpts over getObjectDetails to provide focused, relevant information with proper citations. Always call the appropriate function rather than making assumptions about what exists in the knowledge base.
 
 Use @mentions like @[person:習近平], @[document:項目計劃書], @[letter:感謝信], @[entity:公司名稱], @[issue:問題標題], @[log:日誌名稱], or @[meeting:會議名稱] when referring to specific entities.`;
 

@@ -246,7 +246,7 @@ export class MemStorage implements IStorage {
     ];
     
     for (const doc of sampleDocs) {
-      await this.createDocument(doc);
+      await this.createObject(doc);
     }
 
     // Sample conversation
