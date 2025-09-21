@@ -35,6 +35,7 @@ function preprocessDocumentData(data: any) {
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  
   // Document routes
   app.get("/api/objects", async (req, res) => {
     try {
@@ -410,9 +411,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { functionName } = req.params;
       const args = req.body;
 
-      // Import callFunction dynamically
-      const { callFunction } = await import('./gemini-functions');
-
       // Validate function name
       const validFunctions = [
         'searchDocuments',
@@ -430,7 +428,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      console.log(`Direct function call: ${functionName}`, args);
+      // Import callFunction dynamically
+      const { callFunction } = await import('./gemini-functions');
 
       // Call the function directly
       const result = await callFunction(functionName, args);
@@ -439,10 +438,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.setHeader('Content-Type', 'text/plain; charset=utf-8');
       res.send(result);
     } catch (error) {
-      console.error(`Direct function call error (${req.params.functionName}):`, error);
-      res.status(500).json({ 
-        error: `Function call failed: ${error instanceof Error ? error.message : 'Unknown error'}` 
-      });
+      console.error(`Function call error (${req.params.functionName}):`, error);
+      
+      // Make sure we send a proper error response
+      if (!res.headersSent) {
+        res.status(500).json({ 
+          error: `Function call failed: ${error instanceof Error ? error.message : 'Unknown error'}` 
+        });
+      }
     }
   });
 
