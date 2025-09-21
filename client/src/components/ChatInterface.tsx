@@ -112,9 +112,24 @@ function FunctionCallDisplay({ functionCall }: { functionCall: { name: string; a
             </Badge>
           )}
         </div>
-        {functionCall.arguments?.query && functionCall.name === 'searchObjects' && functionCall.result && (
+        {functionCall.name === 'searchObjects' && functionCall.result && (
           <div className="mt-1 text-xs text-muted-foreground">
-            找到 {JSON.parse(functionCall.result || '{}').total || 0} 個結果
+            {(() => {
+              try {
+                // Extract count from result string using regex
+                const countMatch = functionCall.result.match(/Found (\d+) documents?/);
+                if (countMatch) {
+                  return `找到 ${countMatch[1]} 個結果`;
+                }
+                // Fallback: check if result contains "No documents found"
+                if (functionCall.result.includes('No documents found')) {
+                  return '找到 0 個結果';
+                }
+                return '搜索完成';
+              } catch (error) {
+                return '搜索完成';
+              }
+            })()}
           </div>
         )}
       </CardContent>
