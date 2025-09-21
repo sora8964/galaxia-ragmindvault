@@ -1310,7 +1310,12 @@ export class DatabaseStorage implements IStorage {
 
   async updateChunkEmbedding(id: string, embedding: number[]): Promise<boolean> {
     const result = await db.update(chunks)
-      .set({ embedding: embedding as any })
+      .set({ 
+        embedding: embedding as any,
+        hasEmbedding: true,
+        embeddingStatus: "completed",
+        updatedAt: new Date()
+      })
       .where(eq(chunks.id, id));
     return (result.rowCount || 0) > 0;
   }
