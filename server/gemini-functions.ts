@@ -554,7 +554,7 @@ async function findRelevantExcerpts(args: any): Promise<string> {
     for (const doc of targetDocuments) {
       try {
         // Get chunks for this document  
-        const chunks = await storage.getChunksByDocumentId(doc.id);
+        const chunks = await storage.getChunksByObjectId(doc.id);
         
         if (chunks.length === 0) {
           // Fallback: use document content directly for shorter docs
