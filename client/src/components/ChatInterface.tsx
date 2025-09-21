@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from "react";
-import { Send, Bot, User, Sparkles, Brain, Settings, MoreVertical, Edit, Trash2, Check, X, Loader2, RefreshCw, Square } from "lucide-react";
+import { Send, Bot, User, Sparkles, Brain, Settings, MoreVertical, Edit, Trash2, Check, X, Loader2, RefreshCw, Square, Search, FileText, User as UserIcon, Building, AlertTriangle, BookOpen, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -27,6 +27,100 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import type { MentionItem, Message as DbMessage, Conversation } from "@shared/schema";
+
+// Function Call Display Component
+function FunctionCallDisplay({ functionCall }: { functionCall: { name: string; arguments: any; result?: any } }) {
+  const getDisplayInfo = (fc: { name: string; arguments: any; result?: any }) => {
+    switch (fc.name) {
+      case 'searchObjects':
+        return {
+          icon: Search,
+          text: `搜尋「${fc.arguments?.query || ''}」${fc.arguments?.type ? ` (類型: ${fc.arguments.type})` : ''}`,
+          color: "bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-800"
+        };
+      case 'getObjectDetails':
+        return {
+          icon: FileText,
+          text: `查看文件詳情`,
+          color: "bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800"
+        };
+      case 'createObject':
+        return {
+          icon: getTypeIcon(fc.arguments?.type),
+          text: `建立新${getTypeName(fc.arguments?.type)}「${fc.arguments?.name || ''}」`,
+          color: "bg-purple-50 dark:bg-purple-950/30 border-purple-200 dark:border-purple-800"
+        };
+      case 'findRelevantExcerpts':
+        return {
+          icon: Search,
+          text: `智能檢索「${fc.arguments?.query || ''}」的相關片段`,
+          color: "bg-orange-50 dark:bg-orange-950/30 border-orange-200 dark:border-orange-800"
+        };
+      case 'updateObject':
+        return {
+          icon: Edit,
+          text: `更新${getTypeName(fc.arguments?.type)}內容`,
+          color: "bg-yellow-50 dark:bg-yellow-950/30 border-yellow-200 dark:border-yellow-800"
+        };
+      default:
+        return {
+          icon: Settings,
+          text: fc.name,
+          color: "bg-gray-50 dark:bg-gray-950/30 border-gray-200 dark:border-gray-800"
+        };
+    }
+  };
+
+  const getTypeIcon = (type: string) => {
+    switch (type) {
+      case 'person': return UserIcon;
+      case 'document': return FileText;
+      case 'letter': return FileText;
+      case 'entity': return Building;
+      case 'issue': return AlertTriangle;
+      case 'log': return BookOpen;
+      case 'meeting': return Users;
+      default: return FileText;
+    }
+  };
+
+  const getTypeName = (type: string) => {
+    switch (type) {
+      case 'person': return '人員';
+      case 'document': return '文件';
+      case 'letter': return '信件';
+      case 'entity': return '實體';
+      case 'issue': return '議題';
+      case 'log': return '日誌';
+      case 'meeting': return '會議';
+      default: return '項目';
+    }
+  };
+
+  const displayInfo = getDisplayInfo(functionCall);
+  const IconComponent = displayInfo.icon;
+
+  return (
+    <Card className={`${displayInfo.color} transition-all duration-200`}>
+      <CardContent className="p-2">
+        <div className="flex items-center gap-2 text-xs">
+          <IconComponent className="h-3 w-3 flex-shrink-0" />
+          <span className="font-medium flex-1">{displayInfo.text}</span>
+          {functionCall.result && (
+            <Badge variant="secondary" className="text-xs bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300">
+              完成
+            </Badge>
+          )}
+        </div>
+        {functionCall.arguments?.query && functionCall.name === 'searchObjects' && functionCall.result && (
+          <div className="mt-1 text-xs text-muted-foreground">
+            找到 {JSON.parse(functionCall.result || '{}').total || 0} 個結果
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
 interface StreamMessage {
   id: string;
@@ -1049,19 +1143,7 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
               {message.functionCalls && message.functionCalls.length > 0 && (
                 <div className="mb-2 space-y-1">
                   {message.functionCalls.map((fc, index) => (
-                    <Card key={index} className="bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800">
-                      <CardContent className="p-2">
-                        <div className="flex items-center gap-2 text-xs">
-                          <Settings className="h-3 w-3" />
-                          <span className="font-medium">{fc.name}</span>
-                          {fc.result && (
-                            <Badge variant="secondary" className="text-xs">
-                              完成
-                            </Badge>
-                          )}
-                        </div>
-                      </CardContent>
-                    </Card>
+                    <FunctionCallDisplay key={index} functionCall={fc} />
                   ))}
                 </div>
               )}
