@@ -277,7 +277,6 @@ export function LettersGroupedList() {
           <div className="flex gap-2">
             {/* Upload button */}
             <Button
-              variant="outline"
               onClick={() => document.getElementById('letter-file-upload')?.click()}
               data-testid="button-upload-letter"
             >
