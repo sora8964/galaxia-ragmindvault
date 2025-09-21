@@ -311,6 +311,8 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
   const { data: conversationMessages = [] } = useQuery<DbMessage[]>({
     queryKey: ['/api/conversations', currentConversationId, 'messages'],
     enabled: !!currentConversationId,
+    staleTime: 0, // Force fresh data
+    cacheTime: 0, // Disable caching
   });
 
   // Create a Set of persistent message IDs for edit permission checking
