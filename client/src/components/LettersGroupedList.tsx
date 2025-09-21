@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { SimpleMentionSearch } from "@/components/SimpleMentionSearch";
-import { Plus, Calendar, Search, Mail, Eye } from "lucide-react";
+import { Plus, Calendar, Search, Mail, Eye, Upload } from "lucide-react";
 import { queryClient } from "@/lib/queryClient";
 import type { AppObject } from "@shared/schema";
 
@@ -36,6 +36,99 @@ export function LettersGroupedList() {
     aliases: [],
     date: null
   });
+
+  // Handle file upload
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files || []);
+    if (files.length === 0) return;
+
+    // Validate file types
+    const allowedTypes = ['.pdf', '.doc', '.docx'];
+    const validFiles = files.filter(file => {
+      const fileExtension = '.' + file.name.split('.').pop()?.toLowerCase();
+      return allowedTypes.includes(fileExtension);
+    });
+
+    const invalidFiles = files.filter(file => {
+      const fileExtension = '.' + file.name.split('.').pop()?.toLowerCase();
+      return !allowedTypes.includes(fileExtension);
+    });
+
+    if (invalidFiles.length > 0) {
+      toast({
+        title: "文件類型不支援",
+        description: `不支援的文件: ${invalidFiles.map(f => f.name).join(', ')}。僅支援 PDF、DOC、DOCX 格式。`,
+        variant: "destructive",
+      });
+    }
+
+    if (validFiles.length === 0) {
+      event.target.value = '';
+      return;
+    }
+
+    // Upload each valid file
+    for (const file of validFiles) {
+      try {
+        const reader = new FileReader();
+        reader.onload = async () => {
+          try {
+            const base64 = reader.result as string;
+            const base64Data = base64.split(',')[1];
+            
+            const endpoint = file.name.toLowerCase().endsWith('.pdf') 
+              ? "/api/objects/pdf-upload"
+              : "/api/objects/word-upload";
+            
+            const response = await fetch(endpoint, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                [file.name.toLowerCase().endsWith('.pdf') ? 'pdfBase64' : 'wordBase64']: base64Data,
+                filename: file.name,
+                name: file.name.replace(/\.[^/.]+$/, ""),
+                objectType: "letter"
+              })
+            });
+            
+            if (!response.ok) throw new Error("Upload failed");
+            
+            const data = await response.json();
+            toast({
+              title: "上傳成功",
+              description: `${file.name} 已成功上傳`,
+            });
+            
+            // Refresh the letters list
+            queryClient.invalidateQueries({ queryKey: ["/api/objects"] });
+          } catch (error) {
+            toast({
+              title: "上傳失敗",
+              description: `${file.name} 上傳失敗: ${error instanceof Error ? error.message : '未知錯誤'}`,
+              variant: "destructive",
+            });
+          }
+        };
+        reader.onerror = () => {
+          toast({
+            title: "文件讀取失敗",
+            description: `無法讀取文件 ${file.name}`,
+            variant: "destructive",
+          });
+        };
+        reader.readAsDataURL(file);
+      } catch (error) {
+        toast({
+          title: "文件處理失敗",
+          description: `處理文件 ${file.name} 時發生錯誤`,
+          variant: "destructive",
+        });
+      }
+    }
+
+    // Reset input
+    event.target.value = '';
+  };
 
   // Fetch letters
   const { data: lettersData, isLoading } = useQuery({
@@ -182,6 +275,24 @@ export function LettersGroupedList() {
             <p className="text-muted-foreground">管理和搜索您的書信</p>
           </div>
           <div className="flex gap-2">
+            {/* Upload button */}
+            <Button
+              variant="outline"
+              onClick={() => document.getElementById('letter-file-upload')?.click()}
+              data-testid="button-upload-letter"
+            >
+              <Upload className="w-4 h-4 mr-2" />
+              上傳書信
+            </Button>
+            <input
+              id="letter-file-upload"
+              type="file"
+              accept=".pdf,.doc,.docx"
+              multiple
+              onChange={handleFileUpload}
+              className="hidden"
+            />
+
             {/* Create new letter dialog */}
             <Dialog open={isCreating} onOpenChange={setIsCreating}>
               <DialogTrigger asChild>
