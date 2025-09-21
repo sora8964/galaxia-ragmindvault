@@ -244,6 +244,8 @@ export class RetrievalService {
       const doc = docs.find(d => d.id === chunk.objectId);
       if (!doc) continue;
 
+      console.log(`🔍 [DEBUG] Processing chunk from ${doc.name}: similarity=${chunk.similarity}, minChunkSim=${config.minChunkSim}`);
+
       // Apply minimum similarity threshold
       if (chunk.similarity && chunk.similarity >= config.minChunkSim) {
         // Apply context windowing
@@ -263,6 +265,9 @@ export class RetrievalService {
           chunkIndex: chunk.chunkIndex,
           isFullDocument: false
         });
+        console.log(`🔍 [DEBUG] Added excerpt from ${doc.name}, relevance: ${chunk.similarity}`);
+      } else {
+        console.log(`🔍 [DEBUG] Chunk from ${doc.name} below threshold: ${chunk.similarity} < ${config.minChunkSim}`);
       }
     }
 
