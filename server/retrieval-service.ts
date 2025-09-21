@@ -49,12 +49,17 @@ export class RetrievalService {
     const startTime = Date.now();
     const { userText, explicitContextIds = [], mentions = [], config } = options;
     
+    console.log(`[AutoRAG] Starting buildAutoContext for: "${userText}"`);
+    
     // Get current app config
     const appConfig = await storage.getAppConfig();
     const retrievalConfig = { ...appConfig.retrieval, ...config };
     
+    console.log(`[AutoRAG] Config - autoRag: ${retrievalConfig.autoRag}, docTopK: ${retrievalConfig.docTopK}`);
+    
     // Skip if autoRag is disabled
     if (!retrievalConfig.autoRag) {
+      console.log(`[AutoRAG] Skipping - autoRag is disabled`);
       return {
         contextText: "",
         citations: [],
@@ -71,6 +76,7 @@ export class RetrievalService {
 
     // Skip for very short queries
     if (userText.trim().length < 10) {
+      console.log(`[AutoRAG] Skipping - query too short (${userText.trim().length} chars): "${userText}"`);
       return {
         contextText: "",
         citations: [],
@@ -86,8 +92,11 @@ export class RetrievalService {
     }
 
     try {
+      console.log(`[AutoRAG] Proceeding with retrieval for query length: ${userText.trim().length}`);
+      
       // Stage 1: Generate query embedding
       const queryEmbedding = await generateTextEmbedding(userText);
+      console.log(`[AutoRAG] Generated embedding with ${queryEmbedding.length} dimensions`);
       
       // Stage 2: Document-level retrieval
       const candidateDocs = await this.performDocumentRetrieval(
@@ -95,6 +104,7 @@ export class RetrievalService {
         retrievalConfig, 
         explicitContextIds.concat(mentions)
       );
+      console.log(`[AutoRAG] Found ${candidateDocs.length} candidate documents`);
 
       if (candidateDocs.length === 0) {
         return {
