@@ -232,10 +232,12 @@ export class RetrievalService {
     
     // Use vector-based chunk search - this is the key fix!
     const vectorChunks = await storage.searchChunksByVector(queryEmbedding, config.chunkTopK || 20);
+    console.log(`🔍 [DEBUG] Chunk search returned ${vectorChunks.length} chunks total`);
     
     // Filter chunks to only include those from our candidate documents
     const candidateDocIds = new Set(docs.map(doc => doc.id));
     const filteredChunks = vectorChunks.filter(chunk => candidateDocIds.has(chunk.objectId));
+    console.log(`🔍 [DEBUG] After filtering to candidate docs: ${filteredChunks.length} chunks remain`);
 
     // Process each vector-matched chunk
     for (const chunk of filteredChunks) {
@@ -326,6 +328,9 @@ export class RetrievalService {
     });
 
     const contextText = contextParts.join('\n\n');
+
+    console.log(`🔍 [DEBUG] Final result: ${finalExcerpts.length} excerpts, ${usedDocs.length} unique docs used`);
+    console.log(`🔍 [DEBUG] Used docs:`, usedDocs.map(d => ({ id: d.id.substring(0, 8), name: d.name })));
 
     return {
       contextText,
