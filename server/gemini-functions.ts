@@ -179,11 +179,62 @@ async function searchDocuments(args: any): Promise<string> {
   try {
     const { query, type, limit = 10 } = args;
     
-    const result = await storage.searchDocuments(query, type);
-    const documents = result.objects.slice(0, limit);
-    
-    if (documents.length === 0) {
-      return `No documents found for query: "${query}"`;
+    // Hybrid search: Combine semantic (vector) search with keyword search
+    const [keywordResult, vectorDocuments] = await Promise.all([
+      // Traditional keyword search (enhanced with date pattern matching)
+      storage.searchDocuments(query, type),
+      // Semantic vector search
+      (async () => {
+        try {
+          const queryEmbedding = await generateTextEmbedding(query);
+          const vectorResults = await storage.searchDocumentsByVector(queryEmbedding, limit * 2);
+          // Filter by type if specified
+          return type ? vectorResults.filter(doc => doc.type === type) : vectorResults;
+        } catch (error) {
+          console.warn('Vector search failed, falling back to keyword search only:', error);
+          return [];
+        }
+      })()
+    ]);
+
+    // Combine and deduplicate results
+    const keywordDocs = keywordResult.objects;
+    const allDocuments = new Map<string, { doc: any; sources: string[] }>();
+
+    // Add keyword results with source tracking
+    keywordDocs.forEach(doc => {
+      if (!allDocuments.has(doc.id)) {
+        allDocuments.set(doc.id, { doc, sources: ['keyword'] });
+      } else {
+        allDocuments.get(doc.id)!.sources.push('keyword');
+      }
+    });
+
+    // Add vector results with source tracking
+    vectorDocuments.forEach(doc => {
+      if (!allDocuments.has(doc.id)) {
+        allDocuments.set(doc.id, { doc, sources: ['semantic'] });
+      } else {
+        allDocuments.get(doc.id)!.sources.push('semantic');
+      }
+    });
+
+    // Convert to array and prioritize documents found by both methods
+    const combinedResults = Array.from(allDocuments.values())
+      .sort((a, b) => {
+        // Documents found by both methods get highest priority
+        const aScore = a.sources.length;
+        const bScore = b.sources.length;
+        if (aScore !== bScore) return bScore - aScore;
+        
+        // Within same priority, maintain original order
+        return 0;
+      })
+      .map(item => item.doc)
+      .slice(0, limit);
+
+    if (combinedResults.length === 0) {
+      return `No documents found for query: "${query}"${type ? ` (type: ${type})` : ''}`;
     }
     
     const getIcon = (type: string) => {
@@ -199,13 +250,13 @@ async function searchDocuments(args: any): Promise<string> {
       }
     };
     
-    const summary = documents.map(doc => 
+    const summary = combinedResults.map((doc: Document) => 
       `- ${getIcon(doc.type)} **${doc.name}** (ID: ${doc.id})\n` +
       `  ${doc.content.substring(0, 800)}${doc.content.length > 800 ? '...' : ''}\n` +
       (doc.aliases.length > 0 ? `  Also known as: ${doc.aliases.join(', ')}\n` : '')
     ).join('\n');
     
-    return `Found ${documents.length} document(s). Please analyze the content below to answer the user's question:\n\n${summary}`;
+    return `Found ${combinedResults.length} document(s) using hybrid semantic + keyword search. Please analyze the content below to answer the user's question:\n\n${summary}`;
   } catch (error) {
     return `Error searching documents: ${error}`;
   }
@@ -503,7 +554,7 @@ async function findRelevantExcerpts(args: any): Promise<string> {
     for (const doc of targetDocuments) {
       try {
         // Get chunks for this document  
-        const chunks = await storage.getChunksByDocument(doc.id);
+        const chunks = await storage.getChunksByDocumentId(doc.id);
         
         if (chunks.length === 0) {
           // Fallback: use document content directly for shorter docs
