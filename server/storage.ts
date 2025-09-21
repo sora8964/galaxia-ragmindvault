@@ -298,20 +298,59 @@ export class MemStorage implements IStorage {
     const allDocs = Array.from(this.documents.values());
     const lowerQuery = query.toLowerCase();
     
+    // Enhanced search with date pattern matching and flexible terms
     const filtered = allDocs.filter(doc => {
       if (type && doc.type !== type) return false;
       
+      // Basic text matching
       const matchesName = doc.name.toLowerCase().includes(lowerQuery);
       const matchesContent = doc.content.toLowerCase().includes(lowerQuery);
       const matchesAliases = doc.aliases.some(alias => 
         alias.toLowerCase().includes(lowerQuery)
       );
       
-      return matchesName || matchesContent || matchesAliases;
+      // Enhanced date pattern matching for Chinese dates
+      let matchesDatePattern = false;
+      
+      // Match patterns like "2025年8月" to "20250801", "2025-08", "202508" etc.
+      const chineseDateMatch = query.match(/(\d{4})年(\d{1,2})月?/);
+      if (chineseDateMatch) {
+        const year = chineseDateMatch[1];
+        const month = chineseDateMatch[2].padStart(2, '0');
+        
+        const datePatterns = [
+          `${year}${month}`,      // 202508
+          `${year}-${month}`,     // 2025-08
+          `${year}/${month}`,     // 2025/08
+          `${year}年${parseInt(month)}月`, // 2025年8月
+          `${year}年${month}月`,   // 2025年08月
+        ];
+        
+        matchesDatePattern = datePatterns.some(pattern => 
+          doc.name.includes(pattern) || 
+          doc.content.includes(pattern) ||
+          (doc.date && doc.date.includes(pattern))
+        );
+      }
+      
+      // Split query into terms and match any of them
+      let matchesFlexibleTerms = false;
+      const queryTerms = query.trim().split(/\s+/).filter(term => term.length > 1);
+      
+      if (queryTerms.length > 1) {
+        matchesFlexibleTerms = queryTerms.some(term => {
+          const lowerTerm = term.toLowerCase();
+          return doc.name.toLowerCase().includes(lowerTerm) ||
+                 doc.content.toLowerCase().includes(lowerTerm) ||
+                 doc.aliases.some(alias => alias.toLowerCase().includes(lowerTerm));
+        });
+      }
+      
+      return matchesName || matchesContent || matchesAliases || matchesDatePattern || matchesFlexibleTerms;
     });
     
     return {
-      documents: filtered.sort((a, b) => 
+      objects: filtered.sort((a, b) => 
         new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
       ),
       total: filtered.length
