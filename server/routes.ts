@@ -342,7 +342,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Delete with cascading logic (always true to ensure subsequent messages are deleted)
-      const success = await storage.deleteMessage(req.params.messageId, true);
+      const success = await storage.deleteMessage(req.params.messageId);
       if (!success) {
         return res.status(404).json({ error: "Message not found" });
       }
@@ -405,7 +405,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Direct Function Calling endpoint for testing
-  app.post("/api/ai/function-direct/:functionName", async (req, res) => {
+  app.post("/api/ai/function-call/:functionName", async (req, res) => {
     try {
       const { functionName } = req.params;
       const args = req.body;
@@ -483,8 +483,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userText = lastUserMessage?.content || '';
       
       const mentions = await storage.parseMentions(userText);
-      const mentionDocuments = await storage.resolveMentionDocuments(mentions);
-      const mentionIds = mentionDocuments.map(doc => doc.id);
+      const mentionIds = await storage.resolveMentionDocuments(mentions);
+      
+      // Fetch actual mention document objects
+      const mentionDocuments = [];
+      for (const docId of mentionIds) {
+        const doc = await storage.getDocument(docId);
+        if (doc) mentionDocuments.push(doc);
+      }
       
       // Fetch explicit context documents
       const explicitContextDocuments = [];
@@ -564,8 +570,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userText = lastUserMessage?.content || '';
       
       const mentions = await storage.parseMentions(userText);
-      const mentionDocuments = await storage.resolveMentionDocuments(mentions);
-      const mentionIds = mentionDocuments.map(doc => doc.id);
+      const mentionIds = await storage.resolveMentionDocuments(mentions);
+      
+      // Fetch actual mention document objects
+      const mentionDocuments = [];
+      for (const docId of mentionIds) {
+        const doc = await storage.getDocument(docId);
+        if (doc) mentionDocuments.push(doc);
+      }
       
       // Fetch explicit context documents
       const explicitContextDocuments = [];
@@ -1268,13 +1280,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Temporary aliases for migration compatibility (remove after frontend migration)
-  app.get("/api/documents", (req, res, next) => req.url = "/api/objects" && next());
-  app.get("/api/documents/:id", (req, res, next) => req.url = `/api/objects/${req.params.id}` && next());
-  app.put("/api/documents/:id", (req, res, next) => req.url = `/api/objects/${req.params.id}` && next());
-  app.delete("/api/documents/:id", (req, res, next) => req.url = `/api/objects/${req.params.id}` && next());
-  app.get("/api/documents/:id/relationships", (req, res, next) => req.url = `/api/objects/${req.params.id}/relationships` && next());
-  app.post("/api/documents/:objectId/relationships/:issueId", (req, res, next) => req.url = `/api/objects/${req.params.objectId}/relationships/${req.params.issueId}` && next());
-  app.delete("/api/documents/:objectId/relationships/:issueId", (req, res, next) => req.url = `/api/objects/${req.params.objectId}/relationships/${req.params.issueId}` && next());
+  app.get("/api/documents", (req, res, next) => { req.url = "/api/objects"; next(); });
+  app.get("/api/documents/:id", (req, res, next) => { req.url = `/api/objects/${req.params.id}`; next(); });
+  app.put("/api/documents/:id", (req, res, next) => { req.url = `/api/objects/${req.params.id}`; next(); });
+  app.delete("/api/documents/:id", (req, res, next) => { req.url = `/api/objects/${req.params.id}`; next(); });
+  app.get("/api/documents/:id/relationships", (req, res, next) => { req.url = `/api/objects/${req.params.id}/relationships`; next(); });
+  app.post("/api/documents/:objectId/relationships/:issueId", (req, res, next) => { req.url = `/api/objects/${req.params.objectId}/relationships/${req.params.issueId}`; next(); });
+  app.delete("/api/documents/:objectId/relationships/:issueId", (req, res, next) => { req.url = `/api/objects/${req.params.objectId}/relationships/${req.params.issueId}`; next(); });
 
   // Health check
   app.get("/api/health", (req, res) => {
