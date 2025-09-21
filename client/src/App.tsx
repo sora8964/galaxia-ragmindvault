@@ -28,6 +28,8 @@ import { LettersList } from "./pages/letters-list";
 import { IssueNew } from "./pages/issue-new";
 import { LogNew } from "./pages/log-new";
 import { MeetingNew } from "./pages/meeting-new";
+import { FunctionCallingTest } from "./pages/function-calling-test";
+import { SemanticSearchTest } from "./pages/semantic-search-test";
 import NotFound from "@/pages/not-found";
 import { useState } from "react";
 import { useParams } from "wouter";
@@ -83,6 +85,14 @@ function SettingsPage() {
   return <Settings />;
 }
 
+function FunctionCallingTestPage() {
+  return <FunctionCallingTest />;
+}
+
+function SemanticSearchTestPage() {
+  return <SemanticSearchTest />;
+}
+
 function Router() {
   return (
     <Switch>
@@ -115,6 +125,8 @@ function Router() {
       <Route path="/logs" component={LogsPage} />
       <Route path="/logs/:id" component={LogDetails} />
       <Route path="/settings" component={SettingsPage} />
+      <Route path="/function-calling-test" component={FunctionCallingTestPage} />
+      <Route path="/semantic-search-test" component={SemanticSearchTestPage} />
       <Route component={NotFound} />
     </Switch>
   );

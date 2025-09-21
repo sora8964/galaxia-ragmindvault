@@ -1,4 +1,4 @@
-import { FileText, Mail, MessageSquare, Settings, Plus, Trash2, MoreHorizontal, User, Building, AlertTriangle, Clock, Edit2, Users } from "lucide-react";
+import { FileText, Mail, MessageSquare, Settings, Plus, Trash2, MoreHorizontal, User, Building, AlertTriangle, Clock, Edit2, Users, TestTube, Search } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -308,6 +308,22 @@ export function AppSidebar() {
                   <Link href="/settings" onClick={handleNavigation}>
                     <Settings className="h-4 w-4" />
                     <span>設定</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild data-testid="link-function-calling-test">
+                  <Link href="/function-calling-test" onClick={handleNavigation}>
+                    <TestTube className="h-4 w-4" />
+                    <span>Function Calling 測試</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild data-testid="link-semantic-search-test">
+                  <Link href="/semantic-search-test" onClick={handleNavigation}>
+                    <Search className="h-4 w-4" />
+                    <span>語意搜尋測試</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
