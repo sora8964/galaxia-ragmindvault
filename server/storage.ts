@@ -1111,7 +1111,7 @@ export class MemStorage implements IStorage {
 
 import { db } from "./db";
 import { objects, conversations, messages, chunks, relationships, users, settings } from "@shared/schema";
-import { eq, ilike, or, desc, and, sql } from "drizzle-orm";
+import { eq, ilike, or, desc, and, sql, isNotNull } from "drizzle-orm";
 
 // Database storage implementation that writes to PostgreSQL
 export class DatabaseStorage implements IStorage {
@@ -1743,7 +1743,11 @@ export class DatabaseStorage implements IStorage {
         .from(objects)
         .where(or(
           eq(objects.name, mention.name),
-          sql`${mention.name} = ANY(${objects.aliases})`
+          and(
+            isNotNull(objects.aliases),
+            sql`array_length(${objects.aliases}, 1) > 0`,
+            sql`${mention.name} = ANY(${objects.aliases})`
+          )
         ))
         .limit(1);
       
