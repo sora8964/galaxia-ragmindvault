@@ -91,6 +91,11 @@ const settingsFormSchema = z.object({
     maxIterations: z.number().int().min(1).max(10),
     enablePagination: z.boolean(),
   }),
+  chunking: z.object({
+    chunkSize: z.number().int().min(256).max(8000),
+    overlap: z.number().int().min(0).max(2000),
+    enabled: z.boolean(),
+  }),
 });
 
 type SettingsFormData = z.infer<typeof settingsFormSchema>;
@@ -183,6 +188,11 @@ export function Settings() {
         defaultPageSize: 20,
         maxIterations: 5,
         enablePagination: true,
+      },
+      chunking: {
+        chunkSize: 2000,
+        overlap: 200,
+        enabled: true,
       },
     },
   });

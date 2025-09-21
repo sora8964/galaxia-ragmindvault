@@ -157,6 +157,11 @@ export class MemStorage implements IStorage {
         strategy: 'balanced' as const,
         addCitations: true
       },
+      chunking: {
+        chunkSize: 2000,
+        overlap: 200,
+        enabled: true
+      },
       updatedAt: new Date()
     };
     
@@ -1625,6 +1630,13 @@ export class DatabaseStorage implements IStorage {
             enablePagination: true
           };
         }
+        if (!config.chunking) {
+          config.chunking = {
+            chunkSize: 2000,
+            overlap: 200,
+            enabled: true
+          };
+        }
         return config;
       }
     } catch (error) {
@@ -1675,6 +1687,11 @@ export class DatabaseStorage implements IStorage {
         autoTruncate: true,
         batchSize: 10
       },
+      chunking: {
+        chunkSize: 2000,
+        overlap: 200,
+        enabled: true
+      },
       updatedAt: new Date()
     };
 
@@ -1712,6 +1729,10 @@ export class DatabaseStorage implements IStorage {
       textEmbedding: {
         ...currentConfig.textEmbedding,
         ...(updates.textEmbedding || {})
+      },
+      chunking: {
+        ...currentConfig.chunking,
+        ...(updates.chunking || {})
       },
       updatedAt: new Date()
     };

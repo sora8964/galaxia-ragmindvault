@@ -1372,6 +1372,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Rechunk API endpoint
+  app.post("/api/rechunk", async (req, res) => {
+    try {
+      const { type } = req.body;
+      
+      // Get all documents or filter by type
+      let documents;
+      if (type && DocumentType.safeParse(type).success) {
+        documents = await storage.getObjectsByType(type);
+      } else {
+        documents = await storage.getAllObjects();
+      }
+      
+      console.log(`Starting rechunk process for ${documents.length} documents`);
+      
+      let processed = 0;
+      let errors = 0;
+      
+      // Process documents one by one to avoid overwhelming the system
+      for (const document of documents) {
+        try {
+          await chunkingService.processDocumentChunking(document);
+          processed++;
+          console.log(`Rechunked document ${document.name} (${processed}/${documents.length})`);
+        } catch (error) {
+          errors++;
+          console.error(`Failed to rechunk document ${document.name}:`, error);
+        }
+      }
+      
+      res.json({
+        message: "Rechunk process completed",
+        processed,
+        errors,
+        total: documents.length
+      });
+      
+    } catch (error) {
+      console.error('Error in rechunk process:', error);
+      res.status(500).json({ error: "Failed to execute rechunk process" });
+    }
+  });
+
   // Temporary aliases for migration compatibility (remove after frontend migration)
   app.get("/api/documents", (req, res, next) => { req.url = "/api/objects"; next(); });
   app.get("/api/documents/:id", (req, res, next) => { req.url = `/api/objects/${req.params.id}`; next(); });

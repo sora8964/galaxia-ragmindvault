@@ -4,10 +4,7 @@ import { generateTextEmbedding } from "./gemini-simple";
 import type { Document, Chunk, InsertChunk } from "@shared/schema";
 
 export class ChunkingService {
-  // Optimized chunk size for Chinese text with reduced chunking overhead
-  private readonly CHUNK_SIZE = 1300; // 1300 characters per chunk (increased from 800)
-  private readonly OVERLAP_SIZE = 100; // 100 characters overlap (reduced from 150 but maintained for context)
-  private readonly MIN_CHUNK_SIZE = 400; // Don't chunk if smaller than this (increased from 200)
+  // Configuration will be loaded from app settings at runtime
 
   // Convert @mentions to embedding format
   private convertMentionsToEmbeddingFormat(text: string): string {
@@ -21,22 +18,47 @@ export class ChunkingService {
     });
   }
 
-  // Create chunks from document content
-  private createChunks(content: string): Array<{
+  // Create chunks from document content using pure character count (no boundary detection)
+  private async createChunks(originalContent: string): Promise<Array<{
     content: string;
     chunkIndex: number;
     startPosition: number;
     endPosition: number;
-  }> {
-    const embeddingContent = this.convertMentionsToEmbeddingFormat(content);
+  }>> {
+    // Handle empty content
+    if (!originalContent || originalContent.length === 0) {
+      return [];
+    }
+
+    // Get chunking configuration from app settings with fallback defaults
+    let appConfig;
+    try {
+      appConfig = await storage.getAppConfig();
+    } catch (error) {
+      console.warn('Failed to get app config, using defaults:', error);
+      appConfig = {
+        chunking: {
+          chunkSize: 2000,
+          overlap: 200,
+          enabled: true
+        }
+      };
+    }
     
-    // If content is smaller than minimum chunk size, don't chunk
-    if (embeddingContent.length <= this.MIN_CHUNK_SIZE) {
+    // Extract chunking config with safe defaults
+    const chunkSize = appConfig.chunking?.chunkSize || 2000;
+    const overlap = Math.min(appConfig.chunking?.overlap || 200, chunkSize - 1); // Prevent infinite loops
+    
+    // Convert mentions for embedding purposes only (don't use for position tracking)
+    const embeddingContent = this.convertMentionsToEmbeddingFormat(originalContent);
+    
+    // If content is smaller than chunk size, return single chunk
+    if (originalContent.length <= chunkSize) {
       return [{
         content: embeddingContent,
         chunkIndex: 0,
         startPosition: 0,
-        endPosition: embeddingContent.length
+        endPosition: originalContent.length
       }];
     }
 
@@ -44,50 +66,32 @@ export class ChunkingService {
     let chunkIndex = 0;
     let startPos = 0;
 
-    while (startPos < embeddingContent.length) {
-      let endPos = Math.min(startPos + this.CHUNK_SIZE, embeddingContent.length);
+    while (startPos < originalContent.length) {
+      // Calculate end position using pure character count
+      const endPos = Math.min(startPos + chunkSize, originalContent.length);
       
-      // Try to break at word boundary if not at the end
-      if (endPos < embeddingContent.length) {
-        // Look for sentence ending within last 100 characters
-        const lastSentenceEnd = embeddingContent.lastIndexOf('。', endPos);
-        const lastQuestionEnd = embeddingContent.lastIndexOf('？', endPos);
-        const lastExclamationEnd = embeddingContent.lastIndexOf('！', endPos);
-        
-        const sentenceEnd = Math.max(lastSentenceEnd, lastQuestionEnd, lastExclamationEnd);
-        
-        if (sentenceEnd > startPos + (this.CHUNK_SIZE * 0.7)) {
-          endPos = sentenceEnd + 1;
-        } else {
-          // Look for whitespace or punctuation
-          const breakChars = [' ', '\n', '\t', '，', '、', '；', '：'];
-          for (let i = endPos - 1; i > startPos + (this.CHUNK_SIZE * 0.8); i--) {
-            if (breakChars.includes(embeddingContent[i])) {
-              endPos = i + 1;
-              break;
-            }
-          }
-        }
-      }
+      // Extract chunk from original content for position tracking
+      const originalChunk = originalContent.slice(startPos, endPos);
+      
+      // Convert to embedding format for storage
+      const embeddingChunk = this.convertMentionsToEmbeddingFormat(originalChunk);
+      
+      // Always add chunk (no trimming, no empty checking)
+      chunks.push({
+        content: embeddingChunk,
+        chunkIndex,
+        startPosition: startPos,
+        endPosition: endPos
+      });
+      chunkIndex++;
 
-      const chunkContent = embeddingContent.slice(startPos, endPos).trim();
+      // Move start position with overlap (fixed window advancement)
+      const step = chunkSize - overlap;
+      startPos += step;
       
-      if (chunkContent.length > 0) {
-        chunks.push({
-          content: chunkContent,
-          chunkIndex,
-          startPosition: startPos,
-          endPosition: endPos
-        });
-        chunkIndex++;
-      }
-
-      // Move start position with overlap
-      startPos = Math.max(startPos + 1, endPos - this.OVERLAP_SIZE);
-      
-      // Prevent infinite loop
-      if (startPos >= embeddingContent.length - 10) {
-        break;
+      // Prevent infinite loop if step is too small
+      if (step <= 0) {
+        startPos = endPos;
       }
     }
 
@@ -99,10 +103,19 @@ export class ChunkingService {
     try {
       console.log(`Processing chunks for document: ${document.name}`);
       
-      // Step 1: Delete all existing chunks for this document
+      // Step 1: Check if chunking is enabled
+      let appConfig;
+      try {
+        appConfig = await storage.getAppConfig();
+      } catch (error) {
+        console.warn('Failed to get app config for chunking check, proceeding with defaults');
+        appConfig = { chunking: { enabled: true } };
+      }
+      
+      // Step 2: Delete all existing chunks for this document
       await storage.deleteChunksByObjectId(document.id);
       
-      // Step 2: Create embedding content (name + aliases + date + content)
+      // Step 3: Create embedding content (name + aliases + date + content)
       const embeddingText = [
         document.name,
         ...document.aliases,
@@ -114,16 +127,14 @@ export class ChunkingService {
       const documentEmbedding = await generateTextEmbedding(embeddingText);
       await storage.updateObjectEmbedding(document.id, documentEmbedding);
       
-      // Step 4: Check if chunking is needed
-      const processedContent = this.convertMentionsToEmbeddingFormat(document.content);
-      
-      if (processedContent.length <= this.MIN_CHUNK_SIZE) {
-        console.log(`Document ${document.name} is small (${processedContent.length} chars), no chunking needed`);
-        return;
+      // Step 4: Check if chunking is enabled for chunk creation
+      if (appConfig.chunking?.enabled === false) {
+        console.log(`Chunking disabled for document: ${document.name}, skipping chunk creation`);
+        return; // Skip chunk creation but document embedding is already done
       }
 
-      // Step 5: Create chunks
-      const chunks = this.createChunks(document.content);
+      // Step 5: Create chunks (pure character-based chunking)
+      const chunks = await this.createChunks(document.content);
       console.log(`Created ${chunks.length} chunks for document: ${document.name}`);
 
       // Step 6: Save chunks and generate embeddings
