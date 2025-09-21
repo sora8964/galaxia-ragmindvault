@@ -96,6 +96,14 @@ export const relationships = pgTable("relationships", {
   typeRelationIdx: index().on(table.sourceType, table.targetType),
 }));
 
+export const settings = pgTable("settings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  key: text("key").notNull().unique(),
+  value: json("value").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 // Schema definitions
 
 // Define DocumentType enum for type safety
@@ -238,6 +246,19 @@ export type Chunk = typeof chunks.$inferSelect;
 export type InsertRelationship = z.infer<typeof insertRelationshipSchema>;
 export type UpdateRelationship = z.infer<typeof updateRelationshipSchema>;
 export type Relationship = typeof relationships.$inferSelect;
+
+// Settings schema
+export const insertSettingSchema = createInsertSchema(settings).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const updateSettingSchema = insertSettingSchema.partial();
+
+export type InsertSetting = z.infer<typeof insertSettingSchema>;
+export type UpdateSetting = z.infer<typeof updateSettingSchema>;
+export type Setting = typeof settings.$inferSelect;
 
 // API Response types
 export interface SearchResult {

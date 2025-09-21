@@ -1017,7 +1017,7 @@ export class MemStorage implements IStorage {
 }
 
 import { db } from "./db";
-import { objects, conversations, messages, chunks, relationships, users } from "@shared/schema";
+import { objects, conversations, messages, chunks, relationships, users, settings } from "@shared/schema";
 import { eq, ilike, or, desc, and, sql } from "drizzle-orm";
 
 // Database storage implementation that writes to PostgreSQL
@@ -1492,44 +1492,74 @@ export class DatabaseStorage implements IStorage {
 
   // Settings operations
   async getAppConfig(): Promise<AppConfig> {
-    // Return default app configuration
-    // TODO: Store this in database if persistence is needed
-    return {
+    try {
+      // Try to get config from database
+      const result = await db.select()
+        .from(settings)
+        .where(eq(settings.key, "app_config"))
+        .limit(1);
+
+      if (result.length > 0) {
+        return result[0].value as AppConfig;
+      }
+    } catch (error) {
+      console.warn('Failed to load settings from database, using defaults:', error);
+    }
+
+    // Return default app configuration if no database config exists
+    const defaultConfig: AppConfig = {
       retrieval: {
         autoRag: true,
-        embeddingModel: "gemini" as const,
-        maxDocuments: 10,
-        maxChunks: 20,
-        contextWindow: 8000,
-        reranking: true,
-        citationStyle: "markdown" as const,
-        ragStage1Limit: 50,
-        ragStage2Limit: 10,
-        chunkRelevanceThreshold: 0.7,
-        semanticCache: true,
-        cacheExpiry: 3600000
+        docTopK: 6,
+        chunkTopK: 24,
+        perDocChunkCap: 6,
+        contextWindow: 1,
+        minDocSim: 0.25,
+        minChunkSim: 0.30,
+        budgetTokens: 6000,
+        strategy: "balanced",
+        addCitations: true
       },
       geminiApi: {
-        model: "gemini-1.5-flash",
+        model: "gemini-2.5-flash",
         temperature: 0.7,
-        maxTokens: 8192,
-        topP: 0.95,
+        topP: 0.94,
+        topK: 32,
+        maxOutputTokens: 1000,
+        systemInstructions: "You are a helpful AI assistant for document and context management.",
         safetySettings: {
-          enableSafetyFilter: true,
-          harassmentThreshold: "BLOCK_MEDIUM_AND_ABOVE",
-          hateSpeechThreshold: "BLOCK_MEDIUM_AND_ABOVE",
-          sexuallyExplicitThreshold: "BLOCK_MEDIUM_AND_ABOVE",
-          dangerousContentThreshold: "BLOCK_MEDIUM_AND_ABOVE"
-        },
-        enableFunctionCalling: true,
-        streamResponse: true
-      }
+          harassment: "BLOCK_MEDIUM_AND_ABOVE",
+          hateSpeech: "BLOCK_MEDIUM_AND_ABOVE",
+          sexuallyExplicit: "BLOCK_MEDIUM_AND_ABOVE",
+          dangerousContent: "BLOCK_MEDIUM_AND_ABOVE",
+          civicIntegrity: "BLOCK_MEDIUM_AND_ABOVE"
+        }
+      },
+      textEmbedding: {
+        model: "gemini-embedding-001",
+        taskType: "RETRIEVAL_DOCUMENT",
+        outputDimensionality: 2000,
+        autoEmbedding: true,
+        autoTruncate: true,
+        batchSize: 10
+      },
+      updatedAt: new Date()
     };
+
+    // Save default config to database for future use
+    try {
+      await db.insert(settings).values({
+        key: "app_config",
+        value: defaultConfig
+      }).onConflictDoNothing();
+    } catch (error) {
+      console.warn('Failed to save default config to database:', error);
+    }
+
+    return defaultConfig;
   }
 
   async updateAppConfig(updates: UpdateAppConfig): Promise<AppConfig> {
-    // For now, return the default config merged with updates
-    // TODO: Implement database persistence for app config
     const currentConfig = await this.getAppConfig();
     
     const updatedConfig = {
@@ -1546,10 +1576,35 @@ export class DatabaseStorage implements IStorage {
           ...currentConfig.geminiApi.safetySettings,
           ...(updates.geminiApi?.safetySettings || {})
         }
-      }
+      },
+      textEmbedding: {
+        ...currentConfig.textEmbedding,
+        ...(updates.textEmbedding || {})
+      },
+      updatedAt: new Date()
     };
     
-    return updatedConfig;
+    try {
+      // Update or insert the config in database
+      const result = await db.insert(settings)
+        .values({
+          key: "app_config",
+          value: updatedConfig
+        })
+        .onConflictDoUpdate({
+          target: settings.key,
+          set: {
+            value: updatedConfig,
+            updatedAt: sql`now()`
+          }
+        })
+        .returning();
+        
+      return result[0].value as AppConfig;
+    } catch (error) {
+      console.error('Failed to save config to database:', error);
+      throw new Error('Failed to update application configuration');
+    }
   }
 
   // Add missing mention parsing methods
