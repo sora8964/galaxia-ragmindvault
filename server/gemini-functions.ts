@@ -204,7 +204,9 @@ const functions = {
 // Function implementations
 async function searchObjects(args: any): Promise<string> {
   try {
-    const { query, type, limit = 20 } = args;
+    // Get app config for default search limit
+    const appConfig = await storage.getAppConfig();
+    const { query, type, limit = appConfig.functionCalling.defaultPageSize } = args;
     
     // Check if query is date-specific (skip expensive vector search for date queries)
     const isDateQuery = /\d{4}年\d{1,2}月|\d{4}-\d{1,2}|\d{6,8}/i.test(query);
@@ -272,7 +274,7 @@ async function searchObjects(args: any): Promise<string> {
         return (b.similarity || 0) - (a.similarity || 0);
       })
       .map(item => item.doc)
-      .slice(0, limit);
+      .slice(0, Math.min(limit, appConfig.functionCalling.maxPageSize));
 
     if (combinedResults.length === 0) {
       return `No documents found for query: "${query}"${type ? ` (type: ${type})` : ''}`;
@@ -694,11 +696,13 @@ async function findRelevantExcerpts(args: any): Promise<string> {
 // New semantic search with pagination support
 async function searchObjectsSemantic(args: any): Promise<string> {
   try {
-    const { query, type, page = 1, pageSize = 10 } = args;
+    // Get app config for default page size
+    const appConfig = await storage.getAppConfig();
+    const { query, type, page = 1, pageSize = appConfig.functionCalling.defaultPageSize } = args;
     
-    // Validate and clamp parameters
+    // Validate and clamp parameters using config
     const validPage = Math.max(1, Number(page) || 1);
-    const validPageSize = Math.min(Math.max(pageSize, 1), 50);
+    const validPageSize = Math.min(Math.max(pageSize, 1), appConfig.functionCalling.maxPageSize);
     const startIndex = (validPage - 1) * validPageSize;
     
     console.log(`Semantic search: query="${query}", type=${type}, page=${page}, pageSize=${validPageSize}`);
