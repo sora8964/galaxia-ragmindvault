@@ -806,26 +806,34 @@ Use @mentions like @[person:習近平], @[document:項目計劃書], @[letter:�
         systemInstruction,
         tools: [{
           functionDeclarations: Object.values(functions) as any[]
-        }]
+        }],
+        thinkingConfig: {
+          includeThoughts: true,
+          thinkingBudget: -1  // Dynamic thinking - let model decide
+        }
       },
       contents: geminiMessages
     });
 
-    // Track function calls for the response
+    // Track function calls and thinking for the response
     const functionCalls: Array<{name: string; arguments: any; result?: any}> = [];
     let finalResponse = '';
+    let thinkingSummary = '';
 
     // Handle function calls with proper follow-up analysis
     if (response.candidates?.[0]?.content?.parts) {
       const parts = response.candidates[0].content.parts;
       let hasTextResponse = false;
       
-      // Check if there's both function calls and text response
+      // Process all parts to extract thinking, text, and function calls
       for (const part of parts) {
-        if (part.text) {
+        if (part.text && part.thought) {
+          // This is thinking content
+          thinkingSummary += part.text;
+        } else if (part.text && !part.thought) {
+          // This is regular response text
           hasTextResponse = true;
           finalResponse += part.text;
-          break;
         }
       }
       
@@ -849,7 +857,13 @@ Use @mentions like @[person:習近平], @[document:項目計劃書], @[letter:�
             // Make follow-up call with function result for analysis (with retry logic)
             const followUpResponse = await generateContentWithRetry(ai, {
               model: "gemini-2.5-pro",
-              config: { systemInstruction },
+              config: { 
+                systemInstruction,
+                thinkingConfig: {
+                  includeThoughts: true,
+                  thinkingBudget: -1  // Dynamic thinking
+                }
+              },
               contents: [
                 ...geminiMessages,
                 {
@@ -868,7 +882,25 @@ Use @mentions like @[person:習近平], @[document:項目計劃書], @[letter:�
               ]
             }, functionResult);
             
-            finalResponse = followUpResponse.text || "I apologize, but I couldn't analyze the search results. Please try again.";
+            // Extract thinking and text from follow-up response
+            if (followUpResponse.candidates?.[0]?.content?.parts) {
+              const followUpParts = followUpResponse.candidates[0].content.parts;
+              let followUpContent = '';
+              for (const followUpPart of followUpParts) {
+                if (followUpPart.text && followUpPart.thought) {
+                  thinkingSummary += followUpPart.text;
+                } else if (followUpPart.text && !followUpPart.thought) {
+                  followUpContent += followUpPart.text;
+                }
+              }
+              if (followUpContent) {
+                finalResponse = followUpContent;
+              }
+            }
+            
+            if (!finalResponse) {
+              finalResponse = followUpResponse.text || "I apologize, but I couldn't analyze the search results. Please try again.";
+            }
           } catch (error) {
             console.error(`Function call error for ${functionName}:`, error);
             functionCallRecord.result = `Error: ${error}`;
@@ -890,7 +922,7 @@ Use @mentions like @[person:習近平], @[document:項目計劃書], @[letter:�
     return {
       content: finalResponse,
       functionCalls,
-      thinking: undefined
+      thinking: thinkingSummary || undefined
     };
   } catch (error) {
     console.error('Gemini function calling error:', error);

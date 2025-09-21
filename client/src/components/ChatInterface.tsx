@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from "react";
-import { Send, Bot, User, Sparkles, Brain, Settings, MoreVertical, Edit, Trash2, Check, X, Loader2, RefreshCw, Square, Search, FileText, User as UserIcon, Building, AlertTriangle, BookOpen, Users } from "lucide-react";
+import { Send, Bot, User, Sparkles, Brain, Settings, MoreVertical, Edit, Trash2, Check, X, Loader2, RefreshCw, Square, Search, FileText, User as UserIcon, Building, AlertTriangle, BookOpen, Users, ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -131,6 +131,56 @@ function FunctionCallDisplay({ functionCall }: { functionCall: { name: string; a
               }
             })()}
           </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// Thinking Display Component
+function ThinkingDisplay({ thinking }: { thinking: string }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  
+  if (!thinking || thinking.trim() === '') {
+    return null;
+  }
+
+  const isLong = thinking.length > 200;
+  const displayText = isLong && !isExpanded ? thinking.substring(0, 200) + '...' : thinking;
+
+  return (
+    <Card className="bg-indigo-50 dark:bg-indigo-950/30 border-indigo-200 dark:border-indigo-800 mb-2">
+      <CardContent className="p-3">
+        <div className="flex items-center gap-2 mb-2">
+          <Brain className="h-3 w-3 flex-shrink-0 text-indigo-600 dark:text-indigo-400" />
+          <span className="font-medium text-xs text-indigo-700 dark:text-indigo-300">AI 思考過程</span>
+          <Badge variant="secondary" className="text-xs bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300">
+            Thinking
+          </Badge>
+        </div>
+        <div className="text-xs text-indigo-600 dark:text-indigo-300 whitespace-pre-wrap">
+          {displayText}
+        </div>
+        {isLong && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="mt-2 h-6 px-2 text-xs text-indigo-600 dark:text-indigo-400"
+            data-testid="button-toggle-thinking"
+          >
+            {isExpanded ? (
+              <>
+                <ChevronUp className="h-3 w-3 mr-1" />
+                收起
+              </>
+            ) : (
+              <>
+                <ChevronDown className="h-3 w-3 mr-1" />
+                展開思考
+              </>
+            )}
+          </Button>
         )}
       </CardContent>
     </Card>
@@ -1140,18 +1190,9 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
             )}
             
             <div className={`max-w-2xl ${message.role === 'user' ? 'order-2' : ''}`}>
-              {/* Thinking indicator */}
+              {/* Thinking display */}
               {message.thinking && (
-                <div className="mb-2">
-                  <Card className="bg-muted/50 border-dashed">
-                    <CardContent className="p-2">
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <Brain className="h-3 w-3" />
-                        <span>思考中: {message.thinking}</span>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </div>
+                <ThinkingDisplay thinking={message.thinking} />
               )}
 
               {/* Function calls */}
