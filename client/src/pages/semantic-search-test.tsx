@@ -79,15 +79,6 @@ export function SemanticSearchTest() {
     }
   };
 
-  const quickSearches = [
-    "星河明居",
-    "2025年8月",
-    "星河明居 2025年8月",
-    "譚香文去信置佳",
-    "會德豐",
-    "住宅屬會",
-    "恢復住宅",
-  ];
 
   const getTypeIcon = (docType: string) => {
     const typeConfig = documentTypes.find(t => t.value === docType);
@@ -191,22 +182,6 @@ export function SemanticSearchTest() {
             </Button>
           </div>
 
-          <div className="space-y-2">
-            <Label>快速搜尋</Label>
-            <div className="flex gap-2 flex-wrap">
-              {quickSearches.map((searchQuery, index) => (
-                <Button
-                  key={index}
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setQuery(searchQuery)}
-                  data-testid={`button-quick-search-${index}`}
-                >
-                  {searchQuery}
-                </Button>
-              ))}
-            </div>
-          </div>
         </CardContent>
       </Card>
 
