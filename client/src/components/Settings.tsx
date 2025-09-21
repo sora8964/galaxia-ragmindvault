@@ -624,6 +624,330 @@ export function Settings() {
                 </div>
               </CardContent>
             </Card>
+
+            {/* Retrieval Settings */}
+            <Card data-testid="card-retrieval-settings">
+              <CardHeader>
+                <CardTitle>智能檢索設定</CardTitle>
+                <CardDescription>
+                  配置自動文檔檢索和上下文生成的參數設定
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <FormField
+                  control={form.control}
+                  name="retrieval.autoRag"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                      <div className="space-y-0.5">
+                        <FormLabel className="text-base">自動文檔檢索</FormLabel>
+                        <FormDescription>
+                          在對話時自動檢索相關文檔作為上下文
+                        </FormDescription>
+                      </div>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                          data-testid="switch-auto-rag"
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="retrieval.docTopK"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>文檔檢索上限</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            min="1"
+                            max="100"
+                            data-testid="input-doc-top-k"
+                            {...field}
+                            value={field.value}
+                            onChange={(e) => field.onChange(parseInt(e.target.value))}
+                          />
+                        </FormControl>
+                        <FormDescription>每次檢索的最大文檔數量 (1-100)</FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="retrieval.chunkTopK"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>文檔塊檢索上限</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            min="1"
+                            max="200"
+                            data-testid="input-chunk-top-k"
+                            {...field}
+                            value={field.value}
+                            onChange={(e) => field.onChange(parseInt(e.target.value))}
+                          />
+                        </FormControl>
+                        <FormDescription>每次檢索的最大文檔塊數量 (1-200)</FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="retrieval.budgetTokens"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Token 預算</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            min="1000"
+                            max="50000"
+                            data-testid="input-budget-tokens"
+                            {...field}
+                            value={field.value}
+                            onChange={(e) => field.onChange(parseInt(e.target.value))}
+                          />
+                        </FormControl>
+                        <FormDescription>上下文的最大 Token 數量 (1000-50000)</FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="retrieval.strategy"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>檢索策略</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl>
+                            <SelectTrigger data-testid="select-retrieval-strategy">
+                              <SelectValue />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="balanced">平衡</SelectItem>
+                            <SelectItem value="aggressive">積極</SelectItem>
+                            <SelectItem value="conservative">保守</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormDescription>選擇檢索策略的積極程度</FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="retrieval.minDocSim"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>文檔相似度門檻</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            max="1"
+                            data-testid="input-min-doc-sim"
+                            {...field}
+                            value={field.value}
+                            onChange={(e) => field.onChange(parseFloat(e.target.value))}
+                          />
+                        </FormControl>
+                        <FormDescription>文檔相似度的最低門檻 (0.0-1.0)</FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="retrieval.minChunkSim"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>文檔塊相似度門檻</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            max="1"
+                            data-testid="input-min-chunk-sim"
+                            {...field}
+                            value={field.value}
+                            onChange={(e) => field.onChange(parseFloat(e.target.value))}
+                          />
+                        </FormControl>
+                        <FormDescription>文檔塊相似度的最低門檻 (0.0-1.0)</FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <FormField
+                  control={form.control}
+                  name="retrieval.addCitations"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                      <div className="space-y-0.5">
+                        <FormLabel className="text-base">添加引用</FormLabel>
+                        <FormDescription>
+                          在回應中自動添加文檔引用資訊
+                        </FormDescription>
+                      </div>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                          data-testid="switch-add-citations"
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+              </CardContent>
+            </Card>
+
+            {/* Function Calling Settings */}
+            <Card data-testid="card-function-calling-settings">
+              <CardHeader>
+                <CardTitle>Function Calling 設定</CardTitle>
+                <CardDescription>
+                  配置 AI 函數調用和分頁搜索的參數設定
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <FormField
+                  control={form.control}
+                  name="functionCalling.enabled"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                      <div className="space-y-0.5">
+                        <FormLabel className="text-base">啟用 Function Calling</FormLabel>
+                        <FormDescription>
+                          允許 AI 調用搜索和檢索函數
+                        </FormDescription>
+                      </div>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                          data-testid="switch-function-calling-enabled"
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="functionCalling.defaultPageSize"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>預設分頁大小</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            min="1"
+                            max="50"
+                            data-testid="input-default-page-size"
+                            {...field}
+                            value={field.value}
+                            onChange={(e) => field.onChange(parseInt(e.target.value))}
+                          />
+                        </FormControl>
+                        <FormDescription>每頁顯示的搜索結果數量 (1-50)</FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="functionCalling.maxPageSize"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>最大分頁大小</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            min="1"
+                            max="50"
+                            data-testid="input-max-page-size"
+                            {...field}
+                            value={field.value}
+                            onChange={(e) => field.onChange(parseInt(e.target.value))}
+                          />
+                        </FormControl>
+                        <FormDescription>單頁搜索結果的最大限制 (1-50)</FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="functionCalling.maxIterations"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>最大迭代次數</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            min="1"
+                            max="10"
+                            data-testid="input-max-iterations"
+                            {...field}
+                            value={field.value}
+                            onChange={(e) => field.onChange(parseInt(e.target.value))}
+                          />
+                        </FormControl>
+                        <FormDescription>單次對話的最大函數調用次數 (1-10)</FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <FormField
+                  control={form.control}
+                  name="functionCalling.enablePagination"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                      <div className="space-y-0.5">
+                        <FormLabel className="text-base">啟用分頁搜索</FormLabel>
+                        <FormDescription>
+                          允許 AI 使用分頁進行多輪搜索以獲得更多結果
+                        </FormDescription>
+                      </div>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                          data-testid="switch-enable-pagination"
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+              </CardContent>
+            </Card>
           </form>
         </Form>
       </div>
