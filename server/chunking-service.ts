@@ -4,10 +4,10 @@ import { generateTextEmbedding } from "./gemini-simple";
 import type { Document, Chunk, InsertChunk } from "@shared/schema";
 
 export class ChunkingService {
-  // Reasonable chunk size for Chinese text with overlap
-  private readonly CHUNK_SIZE = 800; // 800 characters per chunk
-  private readonly OVERLAP_SIZE = 150; // 150 characters overlap
-  private readonly MIN_CHUNK_SIZE = 200; // Don't chunk if smaller than this
+  // Optimized chunk size for Chinese text with reduced chunking overhead
+  private readonly CHUNK_SIZE = 1300; // 1300 characters per chunk (increased from 800)
+  private readonly OVERLAP_SIZE = 100; // 100 characters overlap (reduced from 150 but maintained for context)
+  private readonly MIN_CHUNK_SIZE = 400; // Don't chunk if smaller than this (increased from 200)
 
   // Convert @mentions to embedding format
   private convertMentionsToEmbeddingFormat(text: string): string {
