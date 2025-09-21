@@ -44,20 +44,21 @@ export function SemanticSearchTest() {
     
     try {
       const params = new URLSearchParams({
-        search: query.trim(),
+        query: query.trim(),
+        limit: "20",
         ...(type !== "all" && { type }),
       });
 
-      const response = await fetch(`/api/objects?${params}`);
+      const response = await fetch(`/api/embeddings/search?${params}`);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
       const data = await response.json();
-      setResults(data.objects || []);
+      setResults(data.results || []);
       setSearchStats({
         total: data.total || 0,
-        query: query.trim(),
+        query: data.query || query.trim(),
         type: type,
         executionTime: performance.now(), // 簡化的執行時間
       });
@@ -82,6 +83,7 @@ export function SemanticSearchTest() {
     "星河明居",
     "2025年8月",
     "星河明居 2025年8月",
+    "譚香文去信置佳",
     "會德豐",
     "住宅屬會",
     "恢復住宅",
@@ -117,7 +119,7 @@ export function SemanticSearchTest() {
         <CardHeader>
           <CardTitle>測試語意搜尋功能</CardTitle>
           <CardDescription>
-            測試混合式搜尋系統，包括語意向量搜尋和關鍵字匹配
+            使用向量語義搜索來尋找意思相近的文檔，即使沒有完全匹配的關鍵字也能找到相關內容
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
