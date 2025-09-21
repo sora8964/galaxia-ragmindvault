@@ -102,10 +102,11 @@ export class ChunkingService {
       // Step 1: Delete all existing chunks for this document
       await storage.deleteChunksByDocumentId(document.id);
       
-      // Step 2: Create embedding content (name + aliases + content)
+      // Step 2: Create embedding content (name + aliases + date + content)
       const embeddingText = [
         document.name,
         ...document.aliases,
+        document.date, // 包含日期信息以支持時間搜索
         document.content
       ].filter(Boolean).join(' ');
 
