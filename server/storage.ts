@@ -147,13 +147,13 @@ export class MemStorage implements IStorage {
       },
       retrieval: {
         autoRag: true,
-        docTopK: 6,
-        chunkTopK: 24,
+        docTopK: 30,  // Increased to 30 for user prompts
+        chunkTopK: 90, // Proportionally increased for better coverage  
         perDocChunkCap: 6,
         contextWindow: 1,
         minDocSim: 0.25,
         minChunkSim: 0.30,
-        budgetTokens: 6000,
+        budgetTokens: 12000,  // Increased token budget for larger context
         strategy: 'balanced' as const,
         addCitations: true
       },

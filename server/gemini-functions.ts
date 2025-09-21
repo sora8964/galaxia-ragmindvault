@@ -32,6 +32,33 @@ const functions = {
     }
   },
 
+  searchObjectsSemantic: {
+    name: "searchObjectsSemantic",
+    description: "Perform semantic search for documents with pagination support. Returns only titles and basic info, allowing you to fetch full content later using getObjectDetails. Use this for comprehensive exploration of relevant documents.",
+    parameters: {
+      type: "object",
+      properties: {
+        query: {
+          type: "string",
+          description: "Semantic search query (natural language)"
+        },
+        type: {
+          type: "string",
+          description: "Filter by document type: person, document, letter, entity, issue, log, or meeting (optional)"
+        },
+        page: {
+          type: "number",
+          description: "Page number (starting from 1, default: 1)"
+        },
+        pageSize: {
+          type: "number",
+          description: "Number of results per page (default: 10, max: 50)"
+        }
+      },
+      required: ["query"]
+    }
+  },
+
   getObjectDetails: {
     name: "getObjectDetails",
     description: "Get the full content and details of a specific document, person, letter, entity, issue, log, or meeting. For issues, automatically includes all associated logs.",
@@ -662,6 +689,121 @@ async function findRelevantExcerpts(args: any): Promise<string> {
   }
 }
 
+// New semantic search with pagination support
+async function searchObjectsSemantic(args: any): Promise<string> {
+  try {
+    const { query, type, page = 1, pageSize = 10 } = args;
+    
+    // Validate and clamp parameters
+    const validPage = Math.max(1, Number(page) || 1);
+    const validPageSize = Math.min(Math.max(pageSize, 1), 50);
+    const startIndex = (validPage - 1) * validPageSize;
+    
+    console.log(`Semantic search: query="${query}", type=${type}, page=${page}, pageSize=${validPageSize}`);
+    
+    // Generate embedding for semantic search
+    const queryEmbedding = await generateTextEmbedding(query);
+    if (queryEmbedding.length === 0) {
+      return JSON.stringify({
+        results: [],
+        pagination: { page, pageSize: validPageSize, totalResults: 0, totalPages: 0 },
+        message: "Unable to generate embedding for semantic search"
+      });
+    }
+    
+    // Perform vector search to get semantic results 
+    const vectorResults = await storage.searchObjectsByVector(queryEmbedding, 1000); // Large limit for comprehensive results
+    
+    // Sort by similarity to ensure consistent ordering
+    const sortedResults = vectorResults.sort((a: any, b: any) => (b.similarity || 0) - (a.similarity || 0));
+    
+    // Filter by type if specified
+    const filteredResults = type 
+      ? sortedResults.filter((doc: any) => doc.type === type)
+      : sortedResults;
+    
+    // Calculate pagination
+    const totalResults = filteredResults.length;
+    const totalPages = Math.ceil(totalResults / validPageSize);
+    const endIndex = Math.min(startIndex + validPageSize, totalResults);
+    const pageResults = filteredResults.slice(startIndex, endIndex);
+    
+    const getIcon = (type: string) => {
+      switch (type) {
+        case 'person': return '👤';
+        case 'document': return '📄';
+        case 'letter': return '✉️';
+        case 'entity': return '🏢';
+        case 'issue': return '📋';
+        case 'log': return '📝';
+        case 'meeting': return '👥';
+        default: return '📄';
+      }
+    };
+    
+    // Format results as lightweight summaries (titles and basic info only)
+    const results = pageResults.map((doc: any) => ({
+      id: doc.id,
+      name: doc.name,
+      type: doc.type,
+      snippet: doc.content.substring(0, 100) + (doc.content.length > 100 ? '...' : ''),
+      aliases: doc.aliases || [],
+      date: doc.date || null,
+      relevanceScore: (doc.similarity * 100).toFixed(1)
+    }));
+    
+    const pagination = {
+      page: validPage,
+      pageSize: validPageSize,
+      totalResults,
+      totalPages,
+      hasNextPage: validPage < totalPages,
+      hasPrevPage: validPage > 1
+    };
+    
+    // Handle out-of-range pages
+    if (validPage > totalPages && totalResults > 0) {
+      return `❌ Page ${validPage} is out of range. Total pages: ${totalPages}. Use page 1-${totalPages}.`;
+    }
+    
+    // Create formatted summary for AI
+    let summary = `📋 **Semantic Search Results** (Page ${validPage}/${totalPages})\n\n`;
+    summary += `**Query:** "${query}"${type ? ` | **Type Filter:** ${type}` : ''}\n`;
+    summary += `**Total Results:** ${totalResults} | **Showing:** ${pageResults.length} results\n\n`;
+    
+    if (pageResults.length === 0) {
+      summary += `❌ No results found${totalResults > 0 ? ` on page ${validPage}` : ''}`;
+    } else {
+      summary += pageResults.map((doc: any, index: number) => {
+        const resultNumber = startIndex + index + 1;
+        return `**${resultNumber}.** ${getIcon(doc.type)} **${doc.name}** (ID: \`${doc.id}\`)\n` +
+               `   📊 Relevance: ${(doc.similarity * 100).toFixed(1)}%\n` +
+               `   📝 Preview: ${doc.content.substring(0, 150)}${doc.content.length > 150 ? '...' : ''}\n` +
+               (doc.aliases && doc.aliases.length > 0 ? `   🏷️ Aliases: ${doc.aliases.join(', ')}\n` : '') +
+               (doc.date ? `   📅 Date: ${doc.date}\n` : '');
+      }).join('\n');
+      
+      summary += `\n💡 **Next Steps:**\n`;
+      summary += `• Use \`getObjectDetails("document_id")\` to read full content of any document\n`;
+      if (pagination.hasNextPage) {
+        summary += `• Use \`searchObjectsSemantic\` with page=${validPage + 1} to see more results\n`;
+      }
+      if (pagination.hasPrevPage) {
+        summary += `• Use \`searchObjectsSemantic\` with page=${validPage - 1} to see previous results\n`;
+      }
+    }
+    
+    return summary;
+    
+  } catch (error) {
+    return JSON.stringify({
+      results: [],
+      pagination: { page: 1, pageSize: 10, totalResults: 0, totalPages: 0 },
+      error: `Error in semantic search: ${error}`
+    });
+  }
+}
+
 // Helper function to calculate cosine similarity
 function cosineSimilarity(a: number[], b: number[]): number {
   if (a.length !== b.length) return 0;
@@ -685,6 +827,8 @@ export async function callFunction(functionName: string, args: any): Promise<str
   switch (functionName) {
     case "searchObjects":
       return await searchObjects(args);
+    case "searchObjectsSemantic":
+      return await searchObjectsSemantic(args);
     case "getObjectDetails":
       return await getObjectDetails(args);
     case "createObject":
@@ -760,15 +904,31 @@ export async function chatWithGeminiFunctions(options: GeminiFunctionChatOptions
     let systemInstruction = `You are an AI assistant for an advanced document and knowledge management system. You help users organize, search, and understand their documents, people, entities, issues, logs, and meetings.
 
 You have access to the following functions to help users:
-- searchObjects: Find documents, people, entities, issues, logs, and meetings by keywords
-- getObjectDetails: Get full content of specific documents (issues automatically include associated logs)
-- findRelevantExcerpts: **PREFERRED for long documents** - Find relevant excerpts using intelligent dual-stage retrieval. Returns contextualized snippets with citations instead of overwhelming full content
+
+**SEARCH & EXPLORATION FUNCTIONS (Use iteratively for comprehensive analysis):**
+- searchObjectsSemantic: **POWERFUL SEMANTIC SEARCH** with pagination - Returns lightweight summaries (titles, snippets, relevance scores) of unlimited results. Use this extensively to explore the knowledge base with different queries and then selectively read full content with getObjectDetails. Perfect for comprehensive research and discovery.
+- searchObjects: Fast keyword-based search for specific terms or names
+- getObjectDetails: Get full content of specific documents - use AFTER finding relevant IDs with searchObjectsSemantic
+- findRelevantExcerpts: Find specific excerpts from documents using intelligent retrieval
+
+**CONTENT MANAGEMENT FUNCTIONS:**
 - createObject: Create new documents, person profiles, entities, issues, logs, or meetings
 - updateObject: Modify existing documents
 - findSimilarDocuments: Find semantically similar content
 - parseMentions: Analyze @mentions in text
 
-**IMPORTANT**: For documents that might be long (meetings, detailed reports, etc.), prefer findRelevantExcerpts over getObjectDetails to provide focused, relevant information with proper citations. Always call the appropriate function rather than making assumptions about what exists in the knowledge base.
+**ITERATIVE RESEARCH STRATEGY:**
+1. Start with searchObjectsSemantic to get a comprehensive overview of relevant documents
+2. Review pagination results and explore multiple pages if needed
+3. Use getObjectDetails selectively to read full content of the most relevant documents
+4. Combine insights from multiple documents to provide comprehensive answers
+
+**IMPORTANT PRINCIPLES:**
+- DON'T be afraid of the context window - Gemini 2.5 Pro can handle very large contexts
+- USE searchObjectsSemantic extensively with different queries to explore the knowledge base thoroughly  
+- ITERATE through multiple pages of results when relevant
+- READ full documents with getObjectDetails when you need complete information
+- COMBINE information from multiple sources for comprehensive responses
 
 Use @mentions like @[person:習近平], @[document:項目計劃書], @[letter:感謝信], @[entity:公司名稱], @[issue:問題標題], @[log:日誌名稱], or @[meeting:會議名稱] when referring to specific entities.`;
 
