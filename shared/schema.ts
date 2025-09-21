@@ -364,21 +364,30 @@ export const textEmbeddingConfigSchema = z.object({
 
 export const retrievalConfigSchema = z.object({
   autoRag: z.boolean().default(true),
-  docTopK: z.number().default(6),
-  chunkTopK: z.number().default(24), 
+  docTopK: z.number().default(30), // Updated default from 6 to 30 for better context
+  chunkTopK: z.number().default(90), // Updated default from 24 to 90
   perDocChunkCap: z.number().default(6),
   contextWindow: z.number().default(1),
   minDocSim: z.number().default(0.25),
   minChunkSim: z.number().default(0.30),
-  budgetTokens: z.number().default(6000),
+  budgetTokens: z.number().default(12000), // Updated default from 6000 to 12000
   strategy: z.enum(['balanced', 'aggressive', 'conservative']).default('balanced'),
   addCitations: z.boolean().default(true)
+});
+
+export const functionCallingConfigSchema = z.object({
+  enabled: z.boolean().default(true),
+  maxPageSize: z.number().int().min(1).max(50).default(50),
+  defaultPageSize: z.number().int().min(1).max(50).default(20), // Increased from 10 to 20 for better results
+  maxIterations: z.number().int().min(1).max(10).default(5),
+  enablePagination: z.boolean().default(true)
 });
 
 export const appConfigSchema = z.object({
   geminiApi: geminiApiConfigSchema.default({}),
   textEmbedding: textEmbeddingConfigSchema.default({}),
   retrieval: retrievalConfigSchema.default({}),
+  functionCalling: functionCallingConfigSchema.default({}),
   updatedAt: z.date().default(() => new Date())
 });
 
@@ -386,6 +395,7 @@ export const appConfigSchema = z.object({
 export type GeminiApiConfig = z.infer<typeof geminiApiConfigSchema>;
 export type TextEmbeddingConfig = z.infer<typeof textEmbeddingConfigSchema>;
 export type RetrievalConfig = z.infer<typeof retrievalConfigSchema>;
+export type FunctionCallingConfig = z.infer<typeof functionCallingConfigSchema>;
 export type AppConfig = z.infer<typeof appConfigSchema>;
 
 export const insertAppConfigSchema = appConfigSchema.omit({ updatedAt: true });
