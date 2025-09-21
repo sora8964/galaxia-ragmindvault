@@ -382,7 +382,18 @@ export class MemStorage implements IStorage {
         }
       }
       
-      // Simple and reliable: any match criteria met = document is relevant
+      // For multi-term queries, use intelligent matching logic first
+      if (queryTerms.length > 1) {
+        const hasDateTerm = queryTerms.some(term => /\d{4}年\d{1,2}月?/.test(term));
+        const contentTerms = queryTerms.filter(term => !/\d{4}年\d{1,2}月?/.test(term));
+        
+        if (hasDateTerm && contentTerms.length > 0) {
+          // For date + content queries, only use smart combination result
+          return matchesFlexibleTerms;
+        }
+      }
+      
+      // For single-term or non-date queries, use basic matching
       return matchesName || matchesContent || matchesAliases || matchesDatePattern || matchesFlexibleTerms;
     });
     
