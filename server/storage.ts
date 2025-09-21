@@ -337,10 +337,21 @@ export class MemStorage implements IStorage {
       let matchesFlexibleTerms = false;
       const queryTerms = query.trim().split(/\s+/).filter(term => term.length > 1);
       
+      // Debug: Log query analysis for combination search
+      if (query.includes('星河明居') && query.includes('2025年8月')) {
+        console.log(`Debug: Analyzing query "${query}"`);
+        console.log(`  queryTerms:`, queryTerms);
+      }
+      
       if (queryTerms.length > 1) {
         // Check if query contains both content terms and date patterns
         const hasDateTerm = queryTerms.some(term => /\d{4}年\d{1,2}月?/.test(term));
         const contentTerms = queryTerms.filter(term => !/\d{4}年\d{1,2}月?/.test(term));
+        
+        if (query.includes('星河明居') && query.includes('2025年8月')) {
+          console.log(`  hasDateTerm:`, hasDateTerm);
+          console.log(`  contentTerms:`, contentTerms);
+        }
         
         if (hasDateTerm && contentTerms.length > 0) {
           // For date + content queries, require ALL content terms AND date match
@@ -350,6 +361,15 @@ export class MemStorage implements IStorage {
                    doc.content.toLowerCase().includes(lowerTerm) ||
                    doc.aliases.some(alias => alias.toLowerCase().includes(lowerTerm));
           });
+          // Debug: log the matching process for troubleshooting
+          if (doc.name.includes('懇請會德豐同意恢復住宅屬會')) {
+            console.log(`Debug match for ${doc.name}:`);
+            console.log(`  contentTerms:`, contentTerms);
+            console.log(`  matchesAllContentTerms:`, matchesAllContentTerms);
+            console.log(`  matchesDatePattern:`, matchesDatePattern);
+            console.log(`  doc.date:`, doc.date);
+          }
+          // Smart combination: content terms + date pattern must both match
           matchesFlexibleTerms = matchesAllContentTerms && matchesDatePattern;
         } else {
           // For non-date multi-term queries, match any term
@@ -362,6 +382,18 @@ export class MemStorage implements IStorage {
         }
       }
       
+      // For multi-term queries, use intelligent matching logic first
+      if (queryTerms.length > 1) {
+        const hasDateTerm = queryTerms.some(term => /\d{4}年\d{1,2}月?/.test(term));
+        const contentTerms = queryTerms.filter(term => !/\d{4}年\d{1,2}月?/.test(term));
+        
+        if (hasDateTerm && contentTerms.length > 0) {
+          // For date + content queries, only use smart combination result
+          return matchesFlexibleTerms;
+        }
+      }
+      
+      // For single-term or non-date queries, use basic matching
       return matchesName || matchesContent || matchesAliases || matchesDatePattern || matchesFlexibleTerms;
     });
     
@@ -762,7 +794,7 @@ export class MemStorage implements IStorage {
   // Chunk operations
   async getChunksByDocumentId(documentId: string): Promise<Chunk[]> {
     return Array.from(this.chunks.values())
-      .filter(chunk => chunk.documentId === documentId)
+      .filter(chunk => chunk.objectId === documentId)
       .sort((a, b) => a.chunkIndex - b.chunkIndex);
   }
 
@@ -771,7 +803,7 @@ export class MemStorage implements IStorage {
     const now = new Date();
     const chunk: Chunk = {
       id,
-      documentId: insertChunk.documentId,
+      objectId: insertChunk.objectId,
       content: insertChunk.content,
       chunkIndex: insertChunk.chunkIndex,
       startPosition: insertChunk.startPosition,

@@ -269,7 +269,7 @@ export interface SearchResult {
 export interface MentionItem {
   id: string;
   name: string;
-  type: "person" | "document" | "entity" | "issue" | "log" | "meeting";
+  type: "person" | "document" | "letter" | "entity" | "issue" | "log" | "meeting";
   aliases: string[];
 }
 
