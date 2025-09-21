@@ -125,7 +125,7 @@ function FunctionCallDisplay({ functionCall }: { functionCall: { name: string; a
             </Badge>
           )}
         </div>
-        {functionCall.name === 'searchObjects' && functionCall.result && (
+        {(functionCall.name === 'searchObjects' || functionCall.name === 'searchObjectsSemantic') && functionCall.result && (
           <div className="mt-1 text-xs text-muted-foreground">
             {(() => {
               try {
