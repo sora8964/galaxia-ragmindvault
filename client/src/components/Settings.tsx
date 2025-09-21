@@ -294,7 +294,7 @@ export function Settings() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Model</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <Select onValueChange={field.onChange} value={field.value}>
                           <FormControl>
                             <SelectTrigger data-testid="select-gemini-model">
                               <SelectValue placeholder="Select model" />
@@ -445,7 +445,7 @@ export function Settings() {
                         render={({ field }) => (
                           <FormItem>
                             <FormLabel>{label}</FormLabel>
-                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <Select onValueChange={field.onChange} value={field.value}>
                               <FormControl>
                                 <SelectTrigger data-testid={`select-safety-${key}`}>
                                   <SelectValue />
@@ -484,7 +484,7 @@ export function Settings() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Embedding Model</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <Select onValueChange={field.onChange} value={field.value}>
                           <FormControl>
                             <SelectTrigger data-testid="select-embedding-model">
                               <SelectValue />
@@ -506,7 +506,7 @@ export function Settings() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Task Type</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <Select onValueChange={field.onChange} value={field.value}>
                           <FormControl>
                             <SelectTrigger data-testid="select-task-type">
                               <SelectValue />
@@ -732,7 +732,7 @@ export function Settings() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>檢索策略</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <Select onValueChange={field.onChange} value={field.value}>
                           <FormControl>
                             <SelectTrigger data-testid="select-retrieval-strategy">
                               <SelectValue />
