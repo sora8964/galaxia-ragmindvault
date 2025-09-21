@@ -72,6 +72,25 @@ const settingsFormSchema = z.object({
     autoTruncate: z.boolean(),
     batchSize: z.number().int().min(1).max(100),
   }),
+  retrieval: z.object({
+    autoRag: z.boolean(),
+    docTopK: z.number().min(1).max(100),
+    chunkTopK: z.number().min(1).max(200),
+    perDocChunkCap: z.number().min(1).max(20),
+    contextWindow: z.number().min(0).max(5),
+    minDocSim: z.number().min(0).max(1),
+    minChunkSim: z.number().min(0).max(1),
+    budgetTokens: z.number().min(1000).max(50000),
+    strategy: z.enum(['balanced', 'aggressive', 'conservative']),
+    addCitations: z.boolean(),
+  }),
+  functionCalling: z.object({
+    enabled: z.boolean(),
+    maxPageSize: z.number().int().min(1).max(50),
+    defaultPageSize: z.number().int().min(1).max(50),
+    maxIterations: z.number().int().min(1).max(10),
+    enablePagination: z.boolean(),
+  }),
 });
 
 type SettingsFormData = z.infer<typeof settingsFormSchema>;
@@ -145,6 +164,25 @@ export function Settings() {
         autoEmbedding: true,
         autoTruncate: true,
         batchSize: 10,
+      },
+      retrieval: {
+        autoRag: true,
+        docTopK: 30,
+        chunkTopK: 90,
+        perDocChunkCap: 6,
+        contextWindow: 1,
+        minDocSim: 0.25,
+        minChunkSim: 0.30,
+        budgetTokens: 12000,
+        strategy: 'balanced',
+        addCitations: true,
+      },
+      functionCalling: {
+        enabled: true,
+        maxPageSize: 50,
+        defaultPageSize: 20,
+        maxIterations: 5,
+        enablePagination: true,
       },
     },
   });
