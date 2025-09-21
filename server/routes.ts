@@ -994,11 +994,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Query text is required" });
       }
       
+      console.log(`🔍 [DEBUG] Semantic search test with query: "${query}", limit: ${limit}`);
+      
       // Generate embedding for the query
       const queryEmbedding = await generateTextEmbedding(query);
+      console.log(`🔍 [DEBUG] Generated embedding length: ${queryEmbedding.length}`);
       
       // Search for similar documents
       const similarDocuments = await storage.searchObjectsByVector(queryEmbedding, parseInt(limit as string) || 10);
+      
+      console.log(`🔍 [DEBUG] Semantic search test returned ${similarDocuments.length} results:`,
+        similarDocuments.map(doc => ({
+          id: doc.id.substring(0, 8),
+          name: doc.name,
+          similarity: doc.similarity,
+          type: doc.type
+        }))
+      );
       
       res.json({
         query,

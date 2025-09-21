@@ -161,10 +161,26 @@ export class RetrievalService {
     excludeIds: string[]
   ): Promise<AppObject[]> {
     try {
+      console.log(`🔍 [DEBUG] Auto-retrieval starting with config:`, {
+        docTopK: config.docTopK,
+        minDocSim: config.minDocSim,
+        excludeIds: excludeIds.length,
+        embeddingLength: queryEmbedding.length
+      });
+
       // Get top candidates using vector search
       const vectorCandidates = await storage.searchObjectsByVector(
         queryEmbedding, 
         config.docTopK * 2 // Get more candidates for filtering
+      );
+
+      console.log(`🔍 [DEBUG] Vector search returned ${vectorCandidates.length} candidates:`, 
+        vectorCandidates.map(doc => ({
+          id: doc.id.substring(0, 8),
+          name: doc.name,
+          similarity: doc.similarity,
+          type: doc.type
+        }))
       );
 
       // Filter out excluded documents
@@ -172,10 +188,22 @@ export class RetrievalService {
         !excludeIds.includes(doc.id)
       );
 
+      console.log(`🔍 [DEBUG] After excluding ${excludeIds.length} docs: ${filtered.length} candidates remain`);
+
       // Apply minimum similarity threshold and return top K
-      return filtered
-        .filter(doc => doc.similarity && doc.similarity >= config.minDocSim)
-        .slice(0, config.docTopK);
+      const thresholdFiltered = filtered.filter(doc => doc.similarity && doc.similarity >= config.minDocSim);
+      console.log(`🔍 [DEBUG] After ${config.minDocSim} threshold: ${thresholdFiltered.length} docs remain:`,
+        thresholdFiltered.map(doc => ({
+          id: doc.id.substring(0, 8),
+          name: doc.name,
+          similarity: doc.similarity
+        }))
+      );
+
+      const final = thresholdFiltered.slice(0, config.docTopK);
+      console.log(`🔍 [DEBUG] Final ${config.docTopK} docs selected:`, final.length);
+
+      return final;
 
     } catch (error) {
       console.error('Error in document retrieval:', error);
