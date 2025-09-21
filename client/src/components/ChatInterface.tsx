@@ -288,8 +288,8 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
 
   // Compute the final messages to display
   const messages = useMemo(() => {
-    return mergeMessages(databaseMessages, localMessages);
-  }, [databaseMessages, localMessages]);
+    return mergeMessages(conversationMessages, localMessages);
+  }, [conversationMessages, localMessages]);
 
   // Check if we should show the regenerate button
   const shouldShowRegenerateButton = useMemo(() => {
