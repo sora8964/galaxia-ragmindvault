@@ -84,7 +84,7 @@ export async function generateTextEmbedding(text: string): Promise<number[]> {
 // Word document extraction function using mammoth
 export async function extractTextFromWord(wordBase64: string): Promise<string> {
   try {
-    const mammoth = require('mammoth');
+    const mammoth = (await import('mammoth')).default;
     
     // Convert base64 to buffer
     const buffer = Buffer.from(wordBase64, 'base64');
