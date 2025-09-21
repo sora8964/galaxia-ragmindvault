@@ -166,7 +166,7 @@ export function FunctionCallingTest() {
             <TabsContent value="search" className="space-y-4">
               <Card>
                 <CardHeader>
-                  <CardTitle>searchObjectsSemantic - 語意搜尋</CardTitle>
+                  <CardTitle>searchObjects - 語意搜尋（含分頁）</CardTitle>
                   <CardDescription>使用語意向量搜尋文件、人員、書信、實體、議題、日誌和會議，支援分頁功能</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -219,16 +219,16 @@ export function FunctionCallingTest() {
                     </div>
                   </div>
                   <Button 
-                    onClick={() => testFunction("searchObjectsSemantic", {
+                    onClick={() => testFunction("searchObjects", {
                       ...searchForm,
                       type: searchForm.type === "all" ? undefined : searchForm.type
                     })}
                     disabled={loading || !searchForm.query.trim()}
                   >
-                    {loading && activeFunction === "searchObjectsSemantic" ? (
+                    {loading && activeFunction === "searchObjects" ? (
                       <><Loader2 className="mr-2 h-4 w-4 animate-spin" />搜尋中...</>
                     ) : (
-                      <>語意搜尋</>
+                      <>語意搜尋（含分頁）</>
                     )}
                   </Button>
                 </CardContent>

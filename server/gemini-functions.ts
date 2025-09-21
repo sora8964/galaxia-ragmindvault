@@ -11,30 +11,7 @@ const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
 const functions = {
   searchObjects: {
     name: "searchObjects",
-    description: "Search for documents, people, letters, entities, issues, logs, and meetings in the knowledge base using keywords",
-    parameters: {
-      type: "object",
-      properties: {
-        query: {
-          type: "string",
-          description: "Search query keywords"
-        },
-        type: {
-          type: "string",
-          description: "Filter by document type: person, document, letter, entity, issue, log, or meeting (optional)"
-        },
-        limit: {
-          type: "number",
-          description: "Maximum number of results to return (default: 20)"
-        }
-      },
-      required: ["query"]
-    }
-  },
-
-  searchObjectsSemantic: {
-    name: "searchObjectsSemantic",
-    description: "Perform semantic search for documents with pagination support. Returns only titles and basic info, allowing you to fetch full content later using getObjectDetails. Use this for comprehensive exploration of relevant documents.",
+    description: "Perform semantic search for documents, people, letters, entities, issues, logs, and meetings with pagination support. Returns only titles and basic info, allowing you to fetch full content later using getObjectDetails. Use this for comprehensive exploration of relevant documents.",
     parameters: {
       type: "object",
       properties: {
@@ -201,95 +178,91 @@ const functions = {
   }
 };
 
-// Function implementations
+// Function implementations  
 async function searchObjects(args: any): Promise<string> {
   try {
-    // Get app config for default search limit
+    // Get app config for default page size
     const appConfig = await storage.getAppConfig();
-    const { query, type, limit = appConfig.functionCalling.defaultPageSize } = args;
+    const { query, type, page = 1, pageSize = appConfig.functionCalling.defaultPageSize } = args;
     
-    // Check if query is date-specific (skip expensive vector search for date queries)
-    const isDateQuery = /\d{4}年\d{1,2}月|\d{4}-\d{1,2}|\d{6,8}/i.test(query);
+    // Validate and clamp parameters using config
+    const validPage = Math.max(1, Number(page) || 1);
+    const validPageSize = Math.min(Math.max(pageSize, 1), appConfig.functionCalling.maxPageSize);
+    const startIndex = (validPage - 1) * validPageSize;
     
-    // Start with keyword search (fast, handles dates well)
-    const keywordResult = await storage.searchObjects(query, type);
-    const keywordDocs = keywordResult.objects;
+    console.log(`Semantic search: query="${query}", type=${type}, page=${page}, pageSize=${validPageSize}`);
     
-    let vectorDocuments: any[] = [];
-    
-    // Only run vector search if:
-    // 1. Not a date-specific query, AND
-    // 2. Keyword search returned fewer than 3 results
-    if (!isDateQuery && keywordDocs.length < 3) {
-      try {
-        console.log('Running semantic search as keyword results are sparse');
-        const queryEmbedding = await Promise.race([
-          generateTextEmbedding(query),
-          new Promise((_, reject) => setTimeout(() => reject(new Error('Embedding timeout')), 1500))
-        ]);
-        const vectorResults = await Promise.race([
-          storage.searchObjectsByVector(queryEmbedding as number[], limit),
-          new Promise((_, reject) => setTimeout(() => reject(new Error('Vector search timeout')), 1500))
-        ]);
-        // Filter by type if specified
-        vectorDocuments = type ? (vectorResults as any[]).filter(doc => doc.type === type) : vectorResults as any[];
-      } catch (error) {
-        console.warn('Vector search failed or timed out, using keyword results only:', error);
-        vectorDocuments = [];
-      }
-    }
-
-    // Combine and deduplicate results
-    const allDocuments = new Map<string, { doc: any; sources: string[]; similarity?: number }>();
-
-    // Add keyword results with source tracking
-    keywordDocs.forEach(doc => {
-      if (!allDocuments.has(doc.id)) {
-        allDocuments.set(doc.id, { doc, sources: ['keyword'], similarity: 0 });
-      } else {
-        allDocuments.get(doc.id)!.sources.push('keyword');
-      }
-    });
-
-    // Add vector results with source tracking (preserve similarity)
-    vectorDocuments.forEach(doc => {
-      if (!allDocuments.has(doc.id)) {
-        allDocuments.set(doc.id, { doc, sources: ['semantic'], similarity: doc.similarity || 0 });
-      } else {
-        const existing = allDocuments.get(doc.id)!;
-        existing.sources.push('semantic');
-        existing.similarity = doc.similarity || 0; // Store similarity for later sorting
-      }
-    });
-
-    // Convert to array and prioritize documents found by both methods
-    const combinedResults = Array.from(allDocuments.values())
-      .sort((a, b) => {
-        // Documents found by both methods get highest priority
-        const aScore = a.sources.length;
-        const bScore = b.sources.length;
-        if (aScore !== bScore) return bScore - aScore;
-        
-        // Within same priority, sort by similarity (descending)
-        return (b.similarity || 0) - (a.similarity || 0);
-      })
-      .map(item => item.doc)
-      .slice(0, Math.min(limit, appConfig.functionCalling.maxPageSize));
-
-    if (combinedResults.length === 0) {
-      return `No documents found for query: "${query}"${type ? ` (type: ${type})` : ''}`;
+    // Generate embedding for semantic search
+    const queryEmbedding = await generateTextEmbedding(query);
+    if (queryEmbedding.length === 0) {
+      return JSON.stringify({
+        results: [],
+        pagination: { page, pageSize: validPageSize, totalResults: 0, totalPages: 0 },
+        message: "Unable to generate embedding for semantic search"
+      });
     }
     
-    // Compact summary with reduced content
-    const summary = combinedResults.map((doc: Document) => 
-      `• **${doc.name}** [${doc.type}] (ID: ${doc.id})\n` +
-      `  ${doc.content.substring(0, 200)}${doc.content.length > 200 ? '...' : ''}\n` +
-      (doc.aliases.length > 0 ? `  Aliases: ${doc.aliases.join(', ')}\n` : '')
-    ).join('\n');
+    // Perform vector search to get semantic results 
+    const vectorResults = await storage.searchObjectsByVector(queryEmbedding, 1000); // Large limit for comprehensive results
     
-    return `Found ${combinedResults.length} documents. Analyze the content below:\n\n${summary}`;
+    // Sort by similarity to ensure consistent ordering
+    const sortedResults = vectorResults.sort((a: any, b: any) => (b.similarity || 0) - (a.similarity || 0));
+    
+    // Filter by type if specified
+    const filteredResults = type 
+      ? sortedResults.filter((doc: any) => doc.type === type)
+      : sortedResults;
+    
+    // Calculate pagination
+    const totalResults = filteredResults.length;
+    const totalPages = Math.ceil(totalResults / validPageSize);
+    const endIndex = Math.min(startIndex + validPageSize, totalResults);
+    const pageResults = filteredResults.slice(startIndex, endIndex);
+    
+    const getIcon = (type: string) => {
+      switch (type) {
+        case 'person': return '👤';
+        case 'document': return '📄';
+        case 'letter': return '✉️';
+        case 'entity': return '🏢';
+        case 'issue': return '📋';
+        case 'log': return '📝';
+        case 'meeting': return '👥';
+        default: return '📄';
+      }
+    };
+    
+    // Format results as lightweight summaries (titles and basic info only)
+    const results = pageResults.map((doc: any) => ({
+      id: doc.id,
+      name: doc.name,
+      type: doc.type,
+      snippet: doc.content.substring(0, 100) + (doc.content.length > 100 ? '...' : ''),
+      aliases: doc.aliases || [],
+      date: doc.date || null,
+      similarity: doc.similarity,
+      icon: getIcon(doc.type)
+    }));
+
+    return JSON.stringify({
+      results,
+      pagination: {
+        page: validPage,
+        pageSize: validPageSize,
+        totalResults,
+        totalPages
+      },
+      query,
+      type,
+      message: `Found ${totalResults} semantic matches${type ? ` (type: ${type})` : ''}`
+    });
   } catch (error) {
-    return `Error searching documents: ${error}`;
+    console.error('Semantic search error:', error);
+    return JSON.stringify({
+      results: [],
+      pagination: { page: 1, pageSize: 10, totalResults: 0, totalPages: 0 },
+      error: `Semantic search failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+    });
   }
 }
 
@@ -693,122 +666,6 @@ async function findRelevantExcerpts(args: any): Promise<string> {
   }
 }
 
-// New semantic search with pagination support
-async function searchObjectsSemantic(args: any): Promise<string> {
-  try {
-    // Get app config for default page size
-    const appConfig = await storage.getAppConfig();
-    const { query, type, page = 1, pageSize = appConfig.functionCalling.defaultPageSize } = args;
-    
-    // Validate and clamp parameters using config
-    const validPage = Math.max(1, Number(page) || 1);
-    const validPageSize = Math.min(Math.max(pageSize, 1), appConfig.functionCalling.maxPageSize);
-    const startIndex = (validPage - 1) * validPageSize;
-    
-    console.log(`Semantic search: query="${query}", type=${type}, page=${page}, pageSize=${validPageSize}`);
-    
-    // Generate embedding for semantic search
-    const queryEmbedding = await generateTextEmbedding(query);
-    if (queryEmbedding.length === 0) {
-      return JSON.stringify({
-        results: [],
-        pagination: { page, pageSize: validPageSize, totalResults: 0, totalPages: 0 },
-        message: "Unable to generate embedding for semantic search"
-      });
-    }
-    
-    // Perform vector search to get semantic results 
-    const vectorResults = await storage.searchObjectsByVector(queryEmbedding, 1000); // Large limit for comprehensive results
-    
-    // Sort by similarity to ensure consistent ordering
-    const sortedResults = vectorResults.sort((a: any, b: any) => (b.similarity || 0) - (a.similarity || 0));
-    
-    // Filter by type if specified
-    const filteredResults = type 
-      ? sortedResults.filter((doc: any) => doc.type === type)
-      : sortedResults;
-    
-    // Calculate pagination
-    const totalResults = filteredResults.length;
-    const totalPages = Math.ceil(totalResults / validPageSize);
-    const endIndex = Math.min(startIndex + validPageSize, totalResults);
-    const pageResults = filteredResults.slice(startIndex, endIndex);
-    
-    const getIcon = (type: string) => {
-      switch (type) {
-        case 'person': return '👤';
-        case 'document': return '📄';
-        case 'letter': return '✉️';
-        case 'entity': return '🏢';
-        case 'issue': return '📋';
-        case 'log': return '📝';
-        case 'meeting': return '👥';
-        default: return '📄';
-      }
-    };
-    
-    // Format results as lightweight summaries (titles and basic info only)
-    const results = pageResults.map((doc: any) => ({
-      id: doc.id,
-      name: doc.name,
-      type: doc.type,
-      snippet: doc.content.substring(0, 100) + (doc.content.length > 100 ? '...' : ''),
-      aliases: doc.aliases || [],
-      date: doc.date || null,
-      relevanceScore: (doc.similarity * 100).toFixed(1)
-    }));
-    
-    const pagination = {
-      page: validPage,
-      pageSize: validPageSize,
-      totalResults,
-      totalPages,
-      hasNextPage: validPage < totalPages,
-      hasPrevPage: validPage > 1
-    };
-    
-    // Handle out-of-range pages
-    if (validPage > totalPages && totalResults > 0) {
-      return `❌ Page ${validPage} is out of range. Total pages: ${totalPages}. Use page 1-${totalPages}.`;
-    }
-    
-    // Create formatted summary for AI
-    let summary = `📋 **Semantic Search Results** (Page ${validPage}/${totalPages})\n\n`;
-    summary += `**Query:** "${query}"${type ? ` | **Type Filter:** ${type}` : ''}\n`;
-    summary += `**Total Results:** ${totalResults} | **Showing:** ${pageResults.length} results\n\n`;
-    
-    if (pageResults.length === 0) {
-      summary += `❌ No results found${totalResults > 0 ? ` on page ${validPage}` : ''}`;
-    } else {
-      summary += pageResults.map((doc: any, index: number) => {
-        const resultNumber = startIndex + index + 1;
-        return `**${resultNumber}.** ${getIcon(doc.type)} **${doc.name}** (ID: \`${doc.id}\`)\n` +
-               `   📊 Relevance: ${(doc.similarity * 100).toFixed(1)}%\n` +
-               `   📝 Preview: ${doc.content.substring(0, 150)}${doc.content.length > 150 ? '...' : ''}\n` +
-               (doc.aliases && doc.aliases.length > 0 ? `   🏷️ Aliases: ${doc.aliases.join(', ')}\n` : '') +
-               (doc.date ? `   📅 Date: ${doc.date}\n` : '');
-      }).join('\n');
-      
-      summary += `\n💡 **Next Steps:**\n`;
-      summary += `• Use \`getObjectDetails("document_id")\` to read full content of any document\n`;
-      if (pagination.hasNextPage) {
-        summary += `• Use \`searchObjectsSemantic\` with page=${validPage + 1} to see more results\n`;
-      }
-      if (pagination.hasPrevPage) {
-        summary += `• Use \`searchObjectsSemantic\` with page=${validPage - 1} to see previous results\n`;
-      }
-    }
-    
-    return summary;
-    
-  } catch (error) {
-    return JSON.stringify({
-      results: [],
-      pagination: { page: 1, pageSize: 10, totalResults: 0, totalPages: 0 },
-      error: `Error in semantic search: ${error}`
-    });
-  }
-}
 
 // Helper function to calculate cosine similarity
 function cosineSimilarity(a: number[], b: number[]): number {
@@ -833,8 +690,6 @@ export async function callFunction(functionName: string, args: any): Promise<str
   switch (functionName) {
     case "searchObjects":
       return await searchObjects(args);
-    case "searchObjectsSemantic":
-      return await searchObjectsSemantic(args);
     case "getObjectDetails":
       return await getObjectDetails(args);
     case "createObject":
@@ -912,9 +767,8 @@ export async function chatWithGeminiFunctions(options: GeminiFunctionChatOptions
 You have access to the following functions to help users:
 
 **SEARCH & EXPLORATION FUNCTIONS (Use iteratively for comprehensive analysis):**
-- searchObjectsSemantic: **POWERFUL SEMANTIC SEARCH** with pagination - Returns lightweight summaries (titles, snippets, relevance scores) of unlimited results. Use this extensively to explore the knowledge base with different queries and then selectively read full content with getObjectDetails. Perfect for comprehensive research and discovery.
-- searchObjects: Fast keyword-based search for specific terms or names
-- getObjectDetails: Get full content of specific documents - use AFTER finding relevant IDs with searchObjectsSemantic
+- searchObjects: **POWERFUL SEMANTIC SEARCH** with pagination - Returns lightweight summaries (titles, snippets, relevance scores) of unlimited results. Use this extensively to explore the knowledge base with different queries and then selectively read full content with getObjectDetails. Perfect for comprehensive research and discovery.
+- getObjectDetails: Get full content of specific documents - use AFTER finding relevant IDs with searchObjects
 - findRelevantExcerpts: Find specific excerpts from documents using intelligent retrieval
 
 **CONTENT MANAGEMENT FUNCTIONS:**
@@ -924,14 +778,14 @@ You have access to the following functions to help users:
 - parseMentions: Analyze @mentions in text
 
 **ITERATIVE RESEARCH STRATEGY:**
-1. Start with searchObjectsSemantic to get a comprehensive overview of relevant documents
+1. Start with searchObjects to get a comprehensive overview of relevant documents
 2. Review pagination results and explore multiple pages if needed
 3. Use getObjectDetails selectively to read full content of the most relevant documents
 4. Combine insights from multiple documents to provide comprehensive answers
 
 **IMPORTANT PRINCIPLES:**
 - DON'T be afraid of the context window - Gemini 2.5 Pro can handle very large contexts
-- USE searchObjectsSemantic extensively with different queries to explore the knowledge base thoroughly  
+- USE searchObjects extensively with different queries to explore the knowledge base thoroughly  
 - ITERATE through multiple pages of results when relevant
 - READ full documents with getObjectDetails when you need complete information
 - COMBINE information from multiple sources for comprehensive responses
