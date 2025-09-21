@@ -1,9 +1,16 @@
-// Intelligent RAG (Retrieval-Augmented Generation) Service
-// Implements dual-stage retrieval with context windowing and citation management
+import { storage } from './storage';
+import { generateTextEmbedding } from './gemini-simple';
+import { AppObject } from '@shared/schema';
 
-import { storage } from "./storage";
-import { generateTextEmbedding } from "./gemini-simple";
-import { AppObject, RetrievalConfig } from "@shared/schema";
+// Interfaces for auto-context and retrieval
+export interface Citation {
+  id: number;
+  docId: string;
+  docName: string;
+  docType: string;
+  chunkIds?: number[];
+  relevanceScore: number;
+}
 
 export interface RetrievalContext {
   contextText: string;
@@ -12,13 +19,15 @@ export interface RetrievalContext {
   retrievalMetadata: RetrievalMetadata;
 }
 
-export interface Citation {
-  id: number;
-  docId: string;
-  docName: string;
-  docType: string;
-  chunkIds?: number[];
-  relevanceScore: number;
+export interface RetrievalConfig {
+  docTopK: number;
+  chunkTopK: number;
+  perDocChunkCap: number;
+  minDocSim: number;
+  minChunkSim: number;
+  contextWindow: number;
+  budgetTokens: number;
+  addCitations: boolean;
 }
 
 export interface ContextDocument {
@@ -49,17 +58,12 @@ export class RetrievalService {
     const startTime = Date.now();
     const { userText, explicitContextIds = [], mentions = [], config } = options;
     
-    console.log(`[AutoRAG] Starting buildAutoContext for: "${userText}"`);
-    
     // Get current app config
     const appConfig = await storage.getAppConfig();
     const retrievalConfig = { ...appConfig.retrieval, ...config };
     
-    console.log(`[AutoRAG] Config - autoRag: ${retrievalConfig.autoRag}, docTopK: ${retrievalConfig.docTopK}`);
-    
     // Skip if autoRag is disabled
     if (!retrievalConfig.autoRag) {
-      console.log(`[AutoRAG] Skipping - autoRag is disabled`);
       return {
         contextText: "",
         citations: [],
@@ -76,7 +80,6 @@ export class RetrievalService {
 
     // Skip for very short queries
     if (userText.trim().length < 10) {
-      console.log(`[AutoRAG] Skipping - query too short (${userText.trim().length} chars): "${userText}"`);
       return {
         contextText: "",
         citations: [],
@@ -92,11 +95,8 @@ export class RetrievalService {
     }
 
     try {
-      console.log(`[AutoRAG] Proceeding with retrieval for query length: ${userText.trim().length}`);
-      
       // Stage 1: Generate query embedding
       const queryEmbedding = await generateTextEmbedding(userText);
-      console.log(`[AutoRAG] Generated embedding with ${queryEmbedding.length} dimensions`);
       
       // Stage 2: Document-level retrieval
       const candidateDocs = await this.performDocumentRetrieval(
@@ -104,7 +104,6 @@ export class RetrievalService {
         retrievalConfig, 
         explicitContextIds.concat(mentions)
       );
-      console.log(`[AutoRAG] Found ${candidateDocs.length} candidate documents`);
 
       if (candidateDocs.length === 0) {
         return {
@@ -121,7 +120,7 @@ export class RetrievalService {
         };
       }
 
-      // Stage 3: Chunk-level retrieval and windowing
+      // Stage 3: Chunk-level retrieval using vector search
       const retrievalResult = await this.performChunkRetrieval(
         candidateDocs,
         queryEmbedding,
@@ -202,42 +201,59 @@ export class RetrievalService {
     }> = [];
 
     let totalChunks = 0;
+    
+    // Use vector-based chunk search - this is the key fix!
+    const vectorChunks = await storage.searchChunksByVector(queryEmbedding, config.chunkTopK || 20);
+    
+    // Filter chunks to only include those from our candidate documents
+    const candidateDocIds = new Set(docs.map(doc => doc.id));
+    const filteredChunks = vectorChunks.filter(chunk => candidateDocIds.has(chunk.objectId));
 
-    // Process each document
-    for (const doc of docs) {
-      try {
-        // Get chunks for this document
-        const chunks = await storage.getChunksByObjectId(doc.id);
-        totalChunks += chunks.length;
+    // Process each vector-matched chunk
+    for (const chunk of filteredChunks) {
+      const doc = docs.find(d => d.id === chunk.objectId);
+      if (!doc) continue;
 
-        if (chunks.length === 0) {
-          // Fallback: use document content directly for short docs
-          if (doc.content.length <= 2000) {
-            allExcerpts.push({
-              docId: doc.id,
-              docName: doc.name,
-              docType: doc.type,
-              content: doc.content,
-              relevanceScore: (doc as any).similarity || 0.5,
-              chunkIndex: 0,
-              isFullDocument: true
-            });
-          }
-          continue;
-        }
-
-        // Score chunks and apply windowing
-        const docExcerpts = await this.scoreAndWindowChunks(
-          doc,
-          chunks,
-          userText,
-          config
+      // Apply minimum similarity threshold
+      if (chunk.similarity && chunk.similarity >= config.minChunkSim) {
+        // Apply context windowing
+        const windowedContent = this.applyContextWindow(
+          doc.content,
+          chunk.startPosition,
+          chunk.endPosition,
+          config.contextWindow
         );
 
-        allExcerpts.push(...docExcerpts.slice(0, config.perDocChunkCap));
+        allExcerpts.push({
+          docId: doc.id,
+          docName: doc.name,
+          docType: doc.type,
+          content: windowedContent,
+          relevanceScore: chunk.similarity,
+          chunkIndex: chunk.chunkIndex,
+          isFullDocument: false
+        });
+      }
+    }
 
-      } catch (error) {
-        console.error(`Error processing chunks for document ${doc.id}:`, error);
+    // Fallback: handle documents without chunks
+    for (const doc of docs) {
+      const chunks = await storage.getChunksByObjectId(doc.id);
+      totalChunks += chunks.length;
+
+      if (chunks.length === 0) {
+        // Fallback: use document content directly for short docs
+        if (doc.content.length <= 2000) {
+          allExcerpts.push({
+            docId: doc.id,
+            docName: doc.name,
+            docType: doc.type,
+            content: doc.content,
+            relevanceScore: (doc as any).similarity || 0.5,
+            chunkIndex: 0,
+            isFullDocument: true
+          });
+        }
       }
     }
 
@@ -281,9 +297,7 @@ export class RetrievalService {
       contextParts.push(`${excerpt.content}${citationLabel}`);
     });
 
-    const contextText = contextParts.length > 0 
-      ? `Retrieved Context:\n\n${contextParts.join('\n\n---\n\n')}`
-      : '';
+    const contextText = contextParts.join('\n\n');
 
     return {
       contextText,
@@ -292,135 +306,57 @@ export class RetrievalService {
       retrievalMetadata: {
         totalDocs: docs.length,
         totalChunks,
-        strategy: config.strategy,
+        strategy: 'balanced',
         estimatedTokens
       }
     };
   }
 
-  private async scoreAndWindowChunks(
-    doc: AppObject,
-    chunks: any[],
-    userText: string,
-    config: RetrievalConfig
-  ): Promise<Array<{
-    docId: string;
-    docName: string;
-    docType: string;
-    content: string;
-    relevanceScore: number;
-    chunkIndex: number;
-    isFullDocument: boolean;
-  }>> {
-    
-    const lowerQuery = userText.toLowerCase();
-    
-    // Better Chinese text processing - extract meaningful terms
-    const extractChineseTerms = (text: string): string[] => {
-      const terms: string[] = [];
-      // Common Chinese patterns - names, places, times, etc.
-      const patterns = [
-        /[\u4e00-\u9fff]{2,4}/g, // 2-4 character Chinese phrases
-        /\d+年\d*月?/g,          // Dates like 2025年8月, 8月
-        /\d+月/g,                // Months like 8月
-        /\d+年/g,                // Years like 2025年
-      ];
-      
-      for (const pattern of patterns) {
-        const matches = text.match(pattern) || [];
-        terms.push(...matches);
-      }
-      
-      // Also add the original query for exact matching
-      if (text.length <= 20) {
-        terms.push(text);
-      }
-      
-      return [...new Set(terms)].filter(term => term.length >= 2);
-    };
-    
-    const queryWords = lowerQuery.includes(' ') 
-      ? lowerQuery.split(/\s+/).filter(word => word.length > 2)
-      : extractChineseTerms(lowerQuery);
-      
-    const excerpts = [];
-    
-    console.log(`[AutoRAG] Scoring chunks for doc "${doc.name}" - Query words: [${queryWords.join(', ')}], Threshold: ${config.minChunkSim * 100}`);
-
-    for (const chunk of chunks) {
-      const lowerContent = chunk.content.toLowerCase();
-      
-      // Enhanced relevance scoring for Chinese text
-      let score = 0;
-      for (const word of queryWords) {
-        const regex = new RegExp(word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
-        const occurrences = (lowerContent.match(regex) || []).length;
-        
-        if (occurrences > 0) {
-          // Weight longer terms more heavily
-          const wordWeight = Math.max(word.length, 2);
-          score += occurrences * wordWeight;
-          console.log(`[AutoRAG] Found "${word}" ${occurrences} times, adding ${occurrences * wordWeight} points`);
-        }
-      }
-
-      console.log(`[AutoRAG] Chunk ${chunk.chunkIndex} score: ${score}, threshold: ${config.minChunkSim * 100}`);
-      
-      if (score > 0 && score >= config.minChunkSim * 100) { // Adjust threshold
-        // Apply context windowing
-        const windowedContent = this.applyContextWindow(
-          doc.content,
-          chunk.startPosition,
-          chunk.endPosition,
-          config.contextWindow
-        );
-
-        excerpts.push({
-          docId: doc.id,
-          docName: doc.name,
-          docType: doc.type,
-          content: windowedContent,
-          relevanceScore: score / 100, // Normalize
-          chunkIndex: chunk.chunkIndex,
-          isFullDocument: false
-        });
-        
-        console.log(`[AutoRAG] ✅ Chunk ${chunk.chunkIndex} passed threshold`);
-      } else {
-        console.log(`[AutoRAG] ❌ Chunk ${chunk.chunkIndex} failed threshold (score: ${score} < ${config.minChunkSim * 100})`);
-      }
-    }
-
-    return excerpts;
-  }
-
   private applyContextWindow(
     fullContent: string,
-    chunkStart: number,
-    chunkEnd: number,
+    startPos: number,
+    endPos: number,
     windowSize: number
   ): string {
     if (windowSize <= 0) {
-      return fullContent.substring(chunkStart, chunkEnd);
+      return fullContent.substring(startPos, endPos);
     }
 
-    const windowExpansion = Math.floor((chunkEnd - chunkStart) * windowSize / 2);
-    const expandedStart = Math.max(0, chunkStart - windowExpansion);
-    const expandedEnd = Math.min(fullContent.length, chunkEnd + windowExpansion);
+    const expandedStart = Math.max(0, startPos - windowSize);
+    const expandedEnd = Math.min(fullContent.length, endPos + windowSize);
     
     return fullContent.substring(expandedStart, expandedEnd);
   }
 
   private applyTokenBudget(
-    excerpts: any[],
+    excerpts: Array<{
+      docId: string;
+      docName: string;
+      docType: string;
+      content: string;
+      relevanceScore: number;
+      chunkIndex: number;
+      isFullDocument: boolean;
+    }>,
     budgetTokens: number
-  ): { finalExcerpts: any[]; estimatedTokens: number } {
-    
+  ): {
+    finalExcerpts: Array<{
+      docId: string;
+      docName: string;
+      docType: string;
+      content: string;
+      relevanceScore: number;
+      chunkIndex: number;
+      isFullDocument: boolean;
+    }>;
+    estimatedTokens: number;
+  } {
     const finalExcerpts = [];
     let estimatedTokens = 0;
 
     for (const excerpt of excerpts) {
-      const excerptTokens = Math.ceil(excerpt.content.length / 4); // Rough estimate
+      // Rough token estimation: ~4 characters per token
+      const excerptTokens = Math.ceil(excerpt.content.length / 4);
       
       if (estimatedTokens + excerptTokens <= budgetTokens) {
         finalExcerpts.push(excerpt);
