@@ -42,16 +42,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { type, search } = req.query;
       
       if (search) {
-        const result = await storage.searchDocuments(
+        const result = await storage.searchObjects(
           search as string, 
           type as "person" | "document" | "letter" | "entity" | "issue" | "log" | "meeting" | undefined
         );
         res.json(result);
       } else if (type) {
-        const documents = await storage.getDocumentsByType(type as "person" | "document" | "letter" | "entity" | "issue" | "log" | "meeting");
+        const documents = await storage.getObjectsByType(type as "person" | "document" | "letter" | "entity" | "issue" | "log" | "meeting");
         res.json({ objects: documents, total: documents.length });
       } else {
-        const documents = await storage.getAllDocuments();
+        const documents = await storage.getAllObjects();
         res.json({ objects: documents, total: documents.length });
       }
     } catch (error) {
@@ -62,7 +62,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/objects/:id", async (req, res) => {
     try {
-      const document = await storage.getDocument(req.params.id);
+      const document = await storage.getObject(req.params.id);
       if (!document) {
         return res.status(404).json({ error: "Document not found" });
       }
@@ -79,7 +79,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const preprocessedData = preprocessDocumentData(req.body);
       const validatedData = insertObjectSchema.parse(preprocessedData);
       
-      const document = await storage.createDocument(validatedData);
+      const document = await storage.createObject(validatedData);
       
       // Trigger immediate embedding for mention-created documents
       if (!validatedData.isFromOCR) {
@@ -102,7 +102,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const preprocessedData = preprocessDocumentData(req.body);
       const validatedData = updateObjectSchema.parse(preprocessedData);
       
-      const document = await storage.updateDocument(req.params.id, validatedData);
+      const document = await storage.updateObject(req.params.id, validatedData);
       if (!document) {
         return res.status(404).json({ error: "Document not found" });
       }
@@ -125,13 +125,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       
       // Get document first to check if it has a file
-      const document = await storage.getDocument(id);
+      const document = await storage.getObject(id);
       if (!document) {
         return res.status(404).json({ error: "Document not found" });
       }
       
       // Delete the document from database
-      const success = await storage.deleteDocument(id);
+      const success = await storage.deleteObject(id);
       if (!success) {
         return res.status(404).json({ error: "Failed to delete document" });
       }
@@ -251,7 +251,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Parse mentions from content and auto-populate contextDocuments
       const content = req.body.content || '';
       const mentions = await storage.parseMentions(content);
-      const contextDocuments = await storage.resolveMentionDocuments(mentions);
+      const contextDocuments = await storage.resolveMentionObjects(mentions);
       
       const validatedData = insertMessageSchema.parse({
         ...req.body,
@@ -301,7 +301,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let contextDocuments = req.body.contextDocuments || [];
       if (req.body.content) {
         const mentions = await storage.parseMentions(req.body.content);
-        const resolvedDocuments = await storage.resolveMentionDocuments(mentions);
+        const resolvedDocuments = await storage.resolveMentionObjects(mentions);
         contextDocuments = [...contextDocuments, ...resolvedDocuments];
       }
       
@@ -390,7 +390,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const validatedData = parseMentionsSchema.parse(req.body);
       const mentions = await storage.parseMentions(validatedData.text);
-      const resolvedDocumentIds = await storage.resolveMentionDocuments(mentions);
+      const resolvedDocumentIds = await storage.resolveMentionObjects(mentions);
       
       res.json({
         mentions,
@@ -413,10 +413,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Validate function name
       const validFunctions = [
-        'searchDocuments',
-        'getDocumentDetails', 
-        'createDocument',
-        'updateDocument',
+        'searchObjects',
+        'getObjectDetails', 
+        'createObject',
+        'updateObject',
         'findSimilarDocuments',
         'parseMentions',
         'findRelevantExcerpts'
@@ -486,7 +486,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userText = lastUserMessage?.content || '';
       
       const mentions = await storage.parseMentions(userText);
-      const mentionIds = await storage.resolveMentionDocuments(mentions);
+      const mentionIds = await storage.resolveMentionObjects(mentions);
       
       // Fetch actual mention document objects
       const mentionDocuments = [];
@@ -573,7 +573,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userText = lastUserMessage?.content || '';
       
       const mentions = await storage.parseMentions(userText);
-      const mentionIds = await storage.resolveMentionDocuments(mentions);
+      const mentionIds = await storage.resolveMentionObjects(mentions);
       
       // Fetch actual mention document objects
       const mentionDocuments = [];
@@ -762,7 +762,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         needsEmbedding: true
       };
       
-      const document = await storage.createDocument(documentData);
+      const document = await storage.createObject(documentData);
       
       // Trigger immediate embedding since Word documents are clean
       await embeddingService.triggerImmediateEmbedding(document.id);
@@ -812,7 +812,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         hasFile: true
       };
       
-      const document = await storage.createDocument(documentData);
+      const document = await storage.createObject(documentData);
       
       // Upload file to GCP Storage after document creation
       try {
@@ -825,10 +825,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         );
         
         // Update document with file path
-        await storage.updateDocument(document.id, { filePath });
+        await storage.updateObject(document.id, { filePath });
         
         // Return document with updated file info
-        const updatedDocument = await storage.getDocument(document.id);
+        const updatedDocument = await storage.getObject(document.id);
         res.status(201).json(updatedDocument);
       } catch (storageError) {
         console.warn('File upload to GCP Storage failed, but document was created:', storageError);
@@ -847,7 +847,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       
       // Get document from database
-      const document = await storage.getDocument(id);
+      const document = await storage.getObject(id);
       if (!document) {
         return res.status(404).json({ error: "Document not found" });
       }
@@ -886,7 +886,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { expires = 60 } = req.query; // Default 60 minutes
       
       // Get document from database
-      const document = await storage.getDocument(id);
+      const document = await storage.getObject(id);
       if (!document) {
         return res.status(404).json({ error: "Document not found" });
       }
@@ -947,7 +947,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const queryEmbedding = await generateTextEmbedding(query);
       
       // Search for similar documents
-      const similarDocuments = await storage.searchDocumentsByVector(queryEmbedding, limit);
+      const similarDocuments = await storage.searchObjectsByVector(queryEmbedding, limit);
       
       res.json({
         query,
@@ -962,8 +962,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/embeddings/status", async (req, res) => {
     try {
-      const documentsNeedingEmbedding = await storage.getDocumentsNeedingEmbedding();
-      const allDocuments = await storage.getAllDocuments();
+      const documentsNeedingEmbedding = await storage.getObjectsNeedingEmbedding();
+      const allDocuments = await storage.getAllObjects();
       const documentsWithEmbedding = allDocuments.filter(doc => doc.hasEmbedding);
       
       res.json({
@@ -1009,7 +1009,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const validatedQuery = documentRelationshipQuerySchema.parse(req.query);
       
       // Verify document exists
-      const document = await storage.getDocument(id);
+      const document = await storage.getObject(id);
       if (!document) {
         return res.status(404).json({ error: "Document not found" });
       }
@@ -1129,7 +1129,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       
       // Verify document exists
-      const document = await storage.getDocument(id);
+      const document = await storage.getObject(id);
       if (!document) {
         return res.status(404).json({ error: "Document not found" });
       }
@@ -1170,7 +1170,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Verify both documents exist
-      const document = await storage.getDocument(id);
+      const document = await storage.getObject(id);
       if (!document) {
         return res.status(404).json({ error: "Document not found" });
       }
