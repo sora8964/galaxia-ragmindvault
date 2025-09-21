@@ -18,7 +18,7 @@ export function FunctionCallingTest() {
   // Form states for different functions
   const [searchForm, setSearchForm] = useState({
     query: "",
-    type: "",
+    type: "all",
     limit: 5
   });
 
@@ -53,7 +53,7 @@ export function FunctionCallingTest() {
   const [excerptsForm, setExcerptsForm] = useState({
     query: "",
     documentId: "",
-    type: "",
+    type: "all",
     maxExcerpts: 5,
     contextWindow: 400
   });
@@ -185,7 +185,7 @@ export function FunctionCallingTest() {
                           <SelectValue placeholder="選擇類型（可選）" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="">全部類型</SelectItem>
+                          <SelectItem value="all">全部類型</SelectItem>
                           {documentTypes.map((type) => (
                             <SelectItem key={type.value} value={type.value}>
                               {type.label}
@@ -206,7 +206,10 @@ export function FunctionCallingTest() {
                     </div>
                   </div>
                   <Button 
-                    onClick={() => testFunction("searchDocuments", searchForm)}
+                    onClick={() => testFunction("searchDocuments", {
+                      ...searchForm,
+                      type: searchForm.type === "all" ? "" : searchForm.type
+                    })}
                     disabled={loading || !searchForm.query.trim()}
                   >
                     {loading && activeFunction === "searchDocuments" ? (
@@ -502,7 +505,7 @@ export function FunctionCallingTest() {
                             <SelectValue placeholder="選擇類型" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="">全部類型</SelectItem>
+                            <SelectItem value="all">全部類型</SelectItem>
                             {documentTypes.map((type) => (
                               <SelectItem key={type.value} value={type.value}>
                                 {type.label}
@@ -537,7 +540,10 @@ export function FunctionCallingTest() {
                     </div>
                   </div>
                   <Button 
-                    onClick={() => testFunction("findRelevantExcerpts", excerptsForm)}
+                    onClick={() => testFunction("findRelevantExcerpts", {
+                      ...excerptsForm,
+                      type: excerptsForm.type === "all" ? "" : excerptsForm.type
+                    })}
                     disabled={loading || !excerptsForm.query.trim()}
                   >
                     {loading && activeFunction === "findRelevantExcerpts" ? (
