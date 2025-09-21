@@ -1249,10 +1249,22 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
 
               {/* Auto-retrieved context for user messages */}
               {message.role === 'user' && message.contextMetadata?.autoRetrieved && (
-                <AutoRetrievalDisplay 
-                  autoRetrieved={message.contextMetadata.autoRetrieved} 
-                  className="mb-2" 
-                />
+                <>
+                  <div className="mb-2 p-2 bg-yellow-100 text-black text-xs rounded">
+                    DEBUG: AutoRetrieval found {message.contextMetadata.autoRetrieved.usedDocs?.length || 0} docs
+                  </div>
+                  <AutoRetrievalDisplay 
+                    autoRetrieved={message.contextMetadata.autoRetrieved} 
+                    className="mb-2" 
+                  />
+                </>
+              )}
+              
+              {/* Debug: Show if contextMetadata exists but no autoRetrieved */}
+              {message.role === 'user' && message.contextMetadata && !message.contextMetadata.autoRetrieved && (
+                <div className="mb-2 p-2 bg-red-100 text-black text-xs rounded">
+                  DEBUG: ContextMetadata exists but no autoRetrieved
+                </div>
               )}
               
               <div 
