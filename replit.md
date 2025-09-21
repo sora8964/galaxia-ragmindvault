@@ -25,6 +25,15 @@ The UI is organized into specialized components including ChatInterface for AI c
 ### AI Integration Strategy
 The application implements Google Gemini AI integration through two approaches: a simplified direct chat interface and an advanced function-calling system. The AI can search documents, retrieve specific document details, and create new entries. Context documents are automatically included in conversations when @mentions are detected, enabling contextually-aware responses.
 
+### Enhanced Search Architecture
+The system now features a sophisticated hybrid search capability that combines semantic vector search with traditional keyword matching. This enterprise-grade search system addresses the challenge of finding documents through meaning rather than just exact text matches. The search enhancement includes:
+
+- **Hybrid Search Strategy**: Parallel execution of vector-based semantic search and enhanced keyword search
+- **Chinese Date Pattern Matching**: Intelligent parsing of Chinese date formats ("2025年8月") to match various English date patterns ("202508", "2025-08", etc.)
+- **Semantic Vector Search**: Uses Google Gemini embeddings to find documents by semantic similarity, enabling queries like "星河明居 2025年8月" to match relevant content even without exact keyword matches
+- **Result Prioritization**: Documents found by both semantic and keyword methods receive highest priority
+- **Graceful Fallback**: System falls back to keyword search if vector operations fail, ensuring reliability
+
 ### State Management
 Client-side state is managed through React Query for server state and React's built-in state management for UI state. The application uses optimistic updates and caching strategies to provide responsive user interactions. Toast notifications provide user feedback for actions and errors.
 
