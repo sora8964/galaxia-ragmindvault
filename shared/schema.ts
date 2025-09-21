@@ -368,7 +368,7 @@ export const retrievalConfigSchema = z.object({
   chunkTopK: z.number().default(90), // Updated default from 24 to 90
   perDocChunkCap: z.number().default(6),
   contextWindow: z.number().default(1),
-  minDocSim: z.number().default(0.25),
+  minDocSim: z.number().default(0.15), // Lowered from 0.25 to 0.15 for more inclusive results
   minChunkSim: z.number().default(0.30),
   budgetTokens: z.number().default(12000), // Updated default from 6000 to 12000
   strategy: z.enum(['balanced', 'aggressive', 'conservative']).default('balanced'),
