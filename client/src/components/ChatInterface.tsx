@@ -281,15 +281,6 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
     cacheTime: 0, // Disable caching
   });
 
-  // Debug: Log conversation messages
-  console.log('🔍 [DEBUG] ConversationMessages:', conversationMessages.length, conversationMessages.map(m => ({
-    id: m.id,
-    role: m.role,
-    content: m.content.slice(0, 50),
-    hasContextMetadata: !!m.contextMetadata,
-    hasAutoRetrieved: !!(m.contextMetadata?.autoRetrieved),
-    usedDocsCount: m.contextMetadata?.autoRetrieved?.usedDocs?.length || 0
-  })));
 
   // Smart merge function to combine database messages with local messages
   const mergeMessages = (dbMessages: StreamMessage[], localMsgs: StreamMessage[]): StreamMessage[] => {
@@ -1264,43 +1255,6 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
                 <ContextIndicator contexts={message.contextUsed} className="mb-2" />
               )}
 
-              {/* Auto-retrieved context for user messages */}
-              {(() => {
-                const shouldShowAutoRetrieval = message.role === 'user' && message.contextMetadata?.autoRetrieved;
-                console.log('🔍 [DEBUG] Message render check:', {
-                  messageId: message.id,
-                  role: message.role,
-                  hasContextMetadata: !!message.contextMetadata,
-                  hasAutoRetrieved: !!(message.contextMetadata?.autoRetrieved),
-                  shouldShowAutoRetrieval,
-                  autoRetrieval: message.contextMetadata?.autoRetrieved
-                });
-                
-                if (shouldShowAutoRetrieval) {
-                  return (
-                    <>
-                      <div className="mb-2 p-2 bg-yellow-100 text-black text-xs rounded">
-                        DEBUG: AutoRetrieval found {message.contextMetadata.autoRetrieved.usedDocs?.length || 0} docs
-                      </div>
-                      <AutoRetrievalDisplay 
-                        autoRetrieved={message.contextMetadata.autoRetrieved} 
-                        className="mb-2" 
-                      />
-                    </>
-                  );
-                }
-                
-                // Debug: Show if contextMetadata exists but no autoRetrieved
-                if (message.role === 'user' && message.contextMetadata && !message.contextMetadata.autoRetrieved) {
-                  return (
-                    <div className="mb-2 p-2 bg-red-100 text-black text-xs rounded">
-                      DEBUG: ContextMetadata exists but no autoRetrieved
-                    </div>
-                  );
-                }
-                
-                return null;
-              })()}
               
               <div 
                 className="relative group"
@@ -1379,9 +1333,19 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
                             </>
                           )}
                         </div>
-                        <div className="text-xs opacity-70 mt-2">
-                          {message.timestamp ? message.timestamp.toLocaleTimeString() : '時間未知'}
-                        </div>
+                        {message.timestamp && (
+                          <div className="text-xs opacity-70 mt-2">
+                            {message.timestamp.toLocaleTimeString()}
+                          </div>
+                        )}
+                        
+                        {/* Auto-retrieved context for user messages - shown after message content */}
+                        {message.role === 'user' && (
+                          <AutoRetrievalDisplay 
+                            autoRetrieved={message.contextMetadata?.autoRetrieved || null} 
+                            className="mt-2" 
+                          />
+                        )}
                       </>
                     )}
                   </CardContent>
