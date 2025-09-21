@@ -333,17 +333,33 @@ export class MemStorage implements IStorage {
         );
       }
       
-      // Split query into terms and match any of them
+      // Split query into terms and handle combinations intelligently
       let matchesFlexibleTerms = false;
       const queryTerms = query.trim().split(/\s+/).filter(term => term.length > 1);
       
       if (queryTerms.length > 1) {
-        matchesFlexibleTerms = queryTerms.some(term => {
-          const lowerTerm = term.toLowerCase();
-          return doc.name.toLowerCase().includes(lowerTerm) ||
-                 doc.content.toLowerCase().includes(lowerTerm) ||
-                 doc.aliases.some(alias => alias.toLowerCase().includes(lowerTerm));
-        });
+        // Check if query contains both content terms and date patterns
+        const hasDateTerm = queryTerms.some(term => /\d{4}年\d{1,2}月?/.test(term));
+        const contentTerms = queryTerms.filter(term => !/\d{4}年\d{1,2}月?/.test(term));
+        
+        if (hasDateTerm && contentTerms.length > 0) {
+          // For date + content queries, require ALL content terms AND date match
+          const matchesAllContentTerms = contentTerms.every(term => {
+            const lowerTerm = term.toLowerCase();
+            return doc.name.toLowerCase().includes(lowerTerm) ||
+                   doc.content.toLowerCase().includes(lowerTerm) ||
+                   doc.aliases.some(alias => alias.toLowerCase().includes(lowerTerm));
+          });
+          matchesFlexibleTerms = matchesAllContentTerms && matchesDatePattern;
+        } else {
+          // For non-date multi-term queries, match any term
+          matchesFlexibleTerms = queryTerms.some(term => {
+            const lowerTerm = term.toLowerCase();
+            return doc.name.toLowerCase().includes(lowerTerm) ||
+                   doc.content.toLowerCase().includes(lowerTerm) ||
+                   doc.aliases.some(alias => alias.toLowerCase().includes(lowerTerm));
+          });
+        }
       }
       
       return matchesName || matchesContent || matchesAliases || matchesDatePattern || matchesFlexibleTerms;
