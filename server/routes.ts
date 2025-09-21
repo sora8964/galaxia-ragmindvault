@@ -459,7 +459,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Validate function name
       const validFunctions = [
         'searchObjects',
-        'searchDocuments', // Added missing function
+        'searchObjectsSemantic', // Updated to use semantic search
         'getObjectDetails', 
         'createObject',
         'updateObject',
