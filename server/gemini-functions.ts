@@ -177,28 +177,40 @@ const functions = {
 // Function implementations
 async function searchDocuments(args: any): Promise<string> {
   try {
-    const { query, type, limit = 10 } = args;
+    const { query, type, limit = 5 } = args;
     
-    // Hybrid search: Combine semantic (vector) search with keyword search
-    const [keywordResult, vectorDocuments] = await Promise.all([
-      // Traditional keyword search (enhanced with date pattern matching)
-      storage.searchDocuments(query, type),
-      // Semantic vector search
-      (async () => {
-        try {
-          const queryEmbedding = await generateTextEmbedding(query);
-          const vectorResults = await storage.searchDocumentsByVector(queryEmbedding, limit * 2);
-          // Filter by type if specified
-          return type ? vectorResults.filter(doc => doc.type === type) : vectorResults;
-        } catch (error) {
-          console.warn('Vector search failed, falling back to keyword search only:', error);
-          return [];
-        }
-      })()
-    ]);
+    // Check if query is date-specific (skip expensive vector search for date queries)
+    const isDateQuery = /\d{4}年\d{1,2}月|\d{4}-\d{1,2}|\d{6,8}/i.test(query);
+    
+    // Start with keyword search (fast, handles dates well)
+    const keywordResult = await storage.searchDocuments(query, type);
+    const keywordDocs = keywordResult.objects;
+    
+    let vectorDocuments: any[] = [];
+    
+    // Only run vector search if:
+    // 1. Not a date-specific query, AND
+    // 2. Keyword search returned fewer than 3 results
+    if (!isDateQuery && keywordDocs.length < 3) {
+      try {
+        console.log('Running semantic search as keyword results are sparse');
+        const queryEmbedding = await Promise.race([
+          generateTextEmbedding(query),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Embedding timeout')), 1500))
+        ]);
+        const vectorResults = await Promise.race([
+          storage.searchDocumentsByVector(queryEmbedding as number[], limit),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Vector search timeout')), 1500))
+        ]);
+        // Filter by type if specified
+        vectorDocuments = type ? (vectorResults as any[]).filter(doc => doc.type === type) : vectorResults as any[];
+      } catch (error) {
+        console.warn('Vector search failed or timed out, using keyword results only:', error);
+        vectorDocuments = [];
+      }
+    }
 
     // Combine and deduplicate results
-    const keywordDocs = keywordResult.objects;
     const allDocuments = new Map<string, { doc: any; sources: string[] }>();
 
     // Add keyword results with source tracking
@@ -237,26 +249,14 @@ async function searchDocuments(args: any): Promise<string> {
       return `No documents found for query: "${query}"${type ? ` (type: ${type})` : ''}`;
     }
     
-    const getIcon = (type: string) => {
-      switch (type) {
-        case 'person': return '👤';
-        case 'document': return '📄';
-        case 'letter': return '✉️';
-        case 'entity': return '🏢';
-        case 'issue': return '📋';
-        case 'log': return '📝';
-        case 'meeting': return '👥';
-        default: return '📄';
-      }
-    };
-    
+    // Compact summary with reduced content
     const summary = combinedResults.map((doc: Document) => 
-      `- ${getIcon(doc.type)} **${doc.name}** (ID: ${doc.id})\n` +
-      `  ${doc.content.substring(0, 800)}${doc.content.length > 800 ? '...' : ''}\n` +
-      (doc.aliases.length > 0 ? `  Also known as: ${doc.aliases.join(', ')}\n` : '')
+      `• **${doc.name}** [${doc.type}] (ID: ${doc.id})\n` +
+      `  ${doc.content.substring(0, 200)}${doc.content.length > 200 ? '...' : ''}\n` +
+      (doc.aliases.length > 0 ? `  Aliases: ${doc.aliases.join(', ')}\n` : '')
     ).join('\n');
     
-    return `Found ${combinedResults.length} document(s) using hybrid semantic + keyword search. Please analyze the content below to answer the user's question:\n\n${summary}`;
+    return `Found ${combinedResults.length} documents. Analyze the content below:\n\n${summary}`;
   } catch (error) {
     return `Error searching documents: ${error}`;
   }
@@ -714,6 +714,40 @@ export interface GeminiFunctionChatOptions {
   contextDocuments?: Document[];
 }
 
+// Helper function to handle generateContent with retry logic
+async function generateContentWithRetry(ai: any, params: any, functionResult?: string): Promise<any> {
+  try {
+    return await ai.models.generateContent(params);
+  } catch (error: any) {
+    // If it's an INTERNAL 500 error and we have function result, try with shortened result
+    if (error?.status === 500 && functionResult) {
+      console.warn('Gemini API returned 500, retrying with shortened function result');
+      try {
+        // Shorten function result by 50%
+        const shortenedResult = functionResult.substring(0, Math.floor(functionResult.length * 0.5)) + '\n\n[Result truncated due to size limits]';
+        
+        // Update the function response in params
+        const retryParams = { ...params };
+        if (retryParams.contents && retryParams.contents.length > 0) {
+          const lastContent = retryParams.contents[retryParams.contents.length - 1];
+          if (lastContent?.parts?.[0]?.functionResponse) {
+            lastContent.parts[0].functionResponse.response.result = shortenedResult;
+          }
+        }
+        
+        return await ai.models.generateContent(retryParams);
+      } catch (retryError) {
+        console.error('Retry with shortened result also failed:', retryError);
+        // Return a minimal fallback response
+        return {
+          text: 'I found relevant information but encountered processing limits. Please try a more specific query or break your request into smaller parts.'
+        };
+      }
+    }
+    throw error;
+  }
+}
+
 export async function chatWithGeminiFunctions(options: GeminiFunctionChatOptions): Promise<string> {
   try {
     const { messages, contextDocuments = [] } = options;
@@ -762,7 +796,7 @@ Use @mentions like @[person:習近平], @[document:項目計劃書], @[letter:�
       parts: [{ text: msg.content }]
     }));
 
-    const response = await ai.models.generateContent({
+    const response = await generateContentWithRetry(ai, {
       model: "gemini-2.5-pro",
       config: {
         systemInstruction,
@@ -794,8 +828,8 @@ Use @mentions like @[person:習近平], @[document:項目計劃書], @[letter:�
           
           const functionResult = await callFunction(functionName || "", args);
           
-          // Make follow-up call with function result for analysis
-          const followUpResponse = await ai.models.generateContent({
+          // Make follow-up call with function result for analysis (with retry logic)
+          const followUpResponse = await generateContentWithRetry(ai, {
             model: "gemini-2.5-pro",
             config: { systemInstruction },
             contents: [
@@ -814,7 +848,7 @@ Use @mentions like @[person:習近平], @[document:項目計劃書], @[letter:�
                 }]
               }
             ]
-          });
+          }, functionResult);
           
           return followUpResponse.text || "I apologize, but I couldn't analyze the search results. Please try again.";
         }
