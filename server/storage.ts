@@ -53,7 +53,7 @@ export interface IStorage {
   
   // Embedding operations
   updateObjectEmbedding(id: string, embedding: number[]): Promise<boolean>;
-  searchObjectsByVector(queryVector: number[], limit?: number): Promise<Document[]>;
+  searchObjectsByVector(queryVector: number[], limit?: number): Promise<Array<Document & { similarity: number }>>;
   getObjectsNeedingEmbedding(): Promise<Document[]>;
   
   // Chunk operations
@@ -889,7 +889,7 @@ export class MemStorage implements IStorage {
     return similarities
       .sort((a, b) => b.similarity - a.similarity)
       .slice(0, limit)
-      .map(item => ({ ...item, similarity: undefined })); // Remove similarity from result
+      .map(item => ({ ...item.doc, similarity: item.similarity })); // Include similarity in result
   }
 
   // Settings operations
@@ -1242,7 +1242,7 @@ export class DatabaseStorage implements IStorage {
     return (result.rowCount || 0) > 0;
   }
 
-  async searchObjectsByVector(queryVector: number[], limit: number = 10): Promise<Document[]> {
+  async searchObjectsByVector(queryVector: number[], limit: number = 10): Promise<Array<Document & { similarity: number }>> {
     try {
       // Use cosine distance for vector similarity search
       const result = await db.execute(sql`
@@ -1274,7 +1274,8 @@ export class DatabaseStorage implements IStorage {
         isFromOCR: row.is_from_ocr as boolean,
         hasBeenEdited: row.has_been_edited as boolean,
         createdAt: new Date(row.created_at as string),
-        updatedAt: new Date(row.updated_at as string)
+        updatedAt: new Date(row.updated_at as string),
+        similarity: row.similarity as number
       }));
     } catch (error) {
       console.error('Error in searchDocumentsByVector:', error);

@@ -153,7 +153,7 @@ export class RetrievalService {
   ): Promise<AppObject[]> {
     try {
       // Get top candidates using vector search
-      const vectorCandidates = await storage.searchDocumentsByVector(
+      const vectorCandidates = await storage.searchObjectsByVector(
         queryEmbedding, 
         config.docTopK * 2 // Get more candidates for filtering
       );
@@ -197,7 +197,7 @@ export class RetrievalService {
     for (const doc of docs) {
       try {
         // Get chunks for this document
-        const chunks = await storage.getChunksByDocumentId(doc.id);
+        const chunks = await storage.getChunksByObjectId(doc.id);
         totalChunks += chunks.length;
 
         if (chunks.length === 0) {
@@ -208,7 +208,7 @@ export class RetrievalService {
               docName: doc.name,
               docType: doc.type,
               content: doc.content,
-              relevanceScore: doc.similarity || 0.5,
+              relevanceScore: (doc as any).similarity || 0.5,
               chunkIndex: 0,
               isFullDocument: true
             });

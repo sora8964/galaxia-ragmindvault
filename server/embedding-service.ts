@@ -23,7 +23,7 @@ export class EmbeddingService {
   // Process a single document embedding with chunking
   async processDocumentEmbedding(documentId: string): Promise<boolean> {
     try {
-      const document = await storage.getDocument(documentId);
+      const document = await storage.getObject(documentId);
       if (!document) {
         console.error(`Document ${documentId} not found`);
         return false;
@@ -60,7 +60,7 @@ export class EmbeddingService {
       
       try {
         // Process documents needing embedding
-        const documentsNeedingEmbedding = await storage.getDocumentsNeedingEmbedding();
+        const documentsNeedingEmbedding = await storage.getObjectsNeedingEmbedding();
         
         for (const doc of documentsNeedingEmbedding) {
           if (!this.processingQueue.includes(doc.id)) {
@@ -101,9 +101,9 @@ export class EmbeddingService {
 
   // Mark OCR document as ready for embedding after editing
   async markOCRDocumentAsEdited(documentId: string): Promise<void> {
-    const doc = await storage.getDocument(documentId);
+    const doc = await storage.getObject(documentId);
     if (doc && doc.isFromOCR) {
-      await storage.updateDocument(documentId, { hasBeenEdited: true });
+      await storage.updateObject(documentId, { hasBeenEdited: true });
       await this.queueDocumentForEmbedding(documentId);
     }
   }

@@ -100,7 +100,7 @@ export class ChunkingService {
       console.log(`Processing chunks for document: ${document.name}`);
       
       // Step 1: Delete all existing chunks for this document
-      await storage.deleteChunksByDocumentId(document.id);
+      await storage.deleteChunksByObjectId(document.id);
       
       // Step 2: Create embedding content (name + aliases + date + content)
       const embeddingText = [
@@ -112,7 +112,7 @@ export class ChunkingService {
 
       // Step 3: Generate main document embedding
       const documentEmbedding = await generateTextEmbedding(embeddingText);
-      await storage.updateDocumentEmbedding(document.id, documentEmbedding);
+      await storage.updateObjectEmbedding(document.id, documentEmbedding);
       
       // Step 4: Check if chunking is needed
       const processedContent = this.convertMentionsToEmbeddingFormat(document.content);
