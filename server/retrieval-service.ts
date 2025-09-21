@@ -314,19 +314,58 @@ export class RetrievalService {
   }>> {
     
     const lowerQuery = userText.toLowerCase();
-    const queryWords = lowerQuery.split(/\s+/).filter(word => word.length > 2);
+    
+    // Better Chinese text processing - extract meaningful terms
+    const extractChineseTerms = (text: string): string[] => {
+      const terms: string[] = [];
+      // Common Chinese patterns - names, places, times, etc.
+      const patterns = [
+        /[\u4e00-\u9fff]{2,4}/g, // 2-4 character Chinese phrases
+        /\d+年\d*月?/g,          // Dates like 2025年8月, 8月
+        /\d+月/g,                // Months like 8月
+        /\d+年/g,                // Years like 2025年
+      ];
+      
+      for (const pattern of patterns) {
+        const matches = text.match(pattern) || [];
+        terms.push(...matches);
+      }
+      
+      // Also add the original query for exact matching
+      if (text.length <= 20) {
+        terms.push(text);
+      }
+      
+      return [...new Set(terms)].filter(term => term.length >= 2);
+    };
+    
+    const queryWords = lowerQuery.includes(' ') 
+      ? lowerQuery.split(/\s+/).filter(word => word.length > 2)
+      : extractChineseTerms(lowerQuery);
+      
     const excerpts = [];
+    
+    console.log(`[AutoRAG] Scoring chunks for doc "${doc.name}" - Query words: [${queryWords.join(', ')}], Threshold: ${config.minChunkSim * 100}`);
 
     for (const chunk of chunks) {
       const lowerContent = chunk.content.toLowerCase();
       
-      // Simple relevance scoring
+      // Enhanced relevance scoring for Chinese text
       let score = 0;
       for (const word of queryWords) {
-        const occurrences = (lowerContent.match(new RegExp(word, 'g')) || []).length;
-        score += occurrences * word.length;
+        const regex = new RegExp(word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
+        const occurrences = (lowerContent.match(regex) || []).length;
+        
+        if (occurrences > 0) {
+          // Weight longer terms more heavily
+          const wordWeight = Math.max(word.length, 2);
+          score += occurrences * wordWeight;
+          console.log(`[AutoRAG] Found "${word}" ${occurrences} times, adding ${occurrences * wordWeight} points`);
+        }
       }
 
+      console.log(`[AutoRAG] Chunk ${chunk.chunkIndex} score: ${score}, threshold: ${config.minChunkSim * 100}`);
+      
       if (score > 0 && score >= config.minChunkSim * 100) { // Adjust threshold
         // Apply context windowing
         const windowedContent = this.applyContextWindow(
@@ -345,6 +384,10 @@ export class RetrievalService {
           chunkIndex: chunk.chunkIndex,
           isFullDocument: false
         });
+        
+        console.log(`[AutoRAG] ✅ Chunk ${chunk.chunkIndex} passed threshold`);
+      } else {
+        console.log(`[AutoRAG] ❌ Chunk ${chunk.chunkIndex} failed threshold (score: ${score} < ${config.minChunkSim * 100})`);
       }
     }
 
