@@ -78,8 +78,8 @@ export class RetrievalService {
       };
     }
 
-    // Skip for very short queries
-    if (userText.trim().length < 10) {
+    // Skip for very short queries (adjusted for Chinese text)
+    if (userText.trim().length < 3) {
       return {
         contextText: "",
         citations: [],
