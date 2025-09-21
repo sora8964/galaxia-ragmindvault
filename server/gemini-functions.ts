@@ -748,7 +748,11 @@ async function generateContentWithRetry(ai: any, params: any, functionResult?: s
   }
 }
 
-export async function chatWithGeminiFunctions(options: GeminiFunctionChatOptions): Promise<string> {
+export async function chatWithGeminiFunctions(options: GeminiFunctionChatOptions): Promise<{
+  content: string;
+  functionCalls: Array<{name: string; arguments: any; result?: any}>;
+  thinking?: string;
+}> {
   try {
     const { messages, contextDocuments = [] } = options;
     
@@ -807,6 +811,10 @@ Use @mentions like @[person:習近平], @[document:項目計劃書], @[letter:�
       contents: geminiMessages
     });
 
+    // Track function calls for the response
+    const functionCalls: Array<{name: string; arguments: any; result?: any}> = [];
+    let finalResponse = '';
+
     // Handle function calls with proper follow-up analysis
     if (response.candidates?.[0]?.content?.parts) {
       const parts = response.candidates[0].content.parts;
@@ -816,53 +824,80 @@ Use @mentions like @[person:習近平], @[document:項目計劃書], @[letter:�
       for (const part of parts) {
         if (part.text) {
           hasTextResponse = true;
+          finalResponse += part.text;
           break;
         }
       }
       
-      // If there are function calls but no text response, we need follow-up analysis
+      // Process function calls
       for (const part of parts) {
         if (part.functionCall) {
           const { name: functionName, args } = part.functionCall;
           console.log(`Calling function: ${functionName}`, args);
           
-          const functionResult = await callFunction(functionName || "", args);
+          // Record the function call
+          const functionCallRecord = {
+            name: functionName || '',
+            arguments: args || {},
+            result: undefined as any
+          };
           
-          // Make follow-up call with function result for analysis (with retry logic)
-          const followUpResponse = await generateContentWithRetry(ai, {
-            model: "gemini-2.5-pro",
-            config: { systemInstruction },
-            contents: [
-              ...geminiMessages,
-              {
-                role: "model",
-                parts: [{ functionCall: part.functionCall }]
-              },
-              {
-                role: "user",
-                parts: [{
-                  functionResponse: {
-                    name: functionName,
-                    response: { result: functionResult }
-                  }
-                }]
-              }
-            ]
-          }, functionResult);
+          try {
+            const functionResult = await callFunction(functionName || "", args);
+            functionCallRecord.result = functionResult;
+            
+            // Make follow-up call with function result for analysis (with retry logic)
+            const followUpResponse = await generateContentWithRetry(ai, {
+              model: "gemini-2.5-pro",
+              config: { systemInstruction },
+              contents: [
+                ...geminiMessages,
+                {
+                  role: "model",
+                  parts: [{ functionCall: part.functionCall }]
+                },
+                {
+                  role: "user",
+                  parts: [{
+                    functionResponse: {
+                      name: functionName,
+                      response: { result: functionResult }
+                    }
+                  }]
+                }
+              ]
+            }, functionResult);
+            
+            finalResponse = followUpResponse.text || "I apologize, but I couldn't analyze the search results. Please try again.";
+          } catch (error) {
+            console.error(`Function call error for ${functionName}:`, error);
+            functionCallRecord.result = `Error: ${error}`;
+            finalResponse = `Error executing ${functionName}: ${error}`;
+          }
           
-          return followUpResponse.text || "I apologize, but I couldn't analyze the search results. Please try again.";
+          functionCalls.push(functionCallRecord);
         }
       }
       
-      // If there's text response, return it
-      if (hasTextResponse) {
-        return response.text || "I apologize, but I couldn't generate a response. Please try again.";
+      // If there's text response but no function calls, use it
+      if (hasTextResponse && functionCalls.length === 0) {
+        finalResponse = response.text || "I apologize, but I couldn't generate a response. Please try again.";
       }
+    } else {
+      finalResponse = response.text || "I apologize, but I couldn't generate a response. Please try again.";
     }
 
-    return response.text || "I apologize, but I couldn't generate a response. Please try again.";
+    return {
+      content: finalResponse,
+      functionCalls,
+      thinking: undefined
+    };
   } catch (error) {
     console.error('Gemini function calling error:', error);
-    throw new Error(`Failed to chat with Gemini functions: ${error}`);
+    return {
+      content: `Error: ${error}`,
+      functionCalls: [],
+      thinking: undefined
+    };
   }
 }

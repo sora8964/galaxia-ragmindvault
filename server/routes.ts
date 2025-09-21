@@ -643,11 +643,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
           contextDocuments
         });
 
-        // Since response is a string, we'll use it as content directly
-        // Note: thinking and functionCalls are not available in this implementation
+        // Extract content and function calls from the response
+        const content = response.content || '';
+        const functionCallsData = response.functionCalls || [];
+        const thinkingData = response.thinking;
+        
+        // Update the tracking variables
+        functionCalls = functionCallsData;
+        thinking = thinkingData || '';
         
         // Stream content token by token
-        const content = response || '';
         const words = content.split(' ');
         for (let i = 0; i < words.length; i++) {
           const token = (i === 0 ? '' : ' ') + words[i];
@@ -673,8 +678,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             role: "assistant",
             content: fullResponse,
             contextDocuments: [...contextDocumentIds, ...autoContext.usedDocs.map(d => d.id)],
-            thinking: null,
-            functionCalls: null,
+            thinking: thinking || null,
+            functionCalls: functionCalls.length > 0 ? functionCalls : null,
             status: "completed"
           });
         }
