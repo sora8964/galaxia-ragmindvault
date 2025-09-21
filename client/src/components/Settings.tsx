@@ -958,6 +958,87 @@ export function Settings() {
                 />
               </CardContent>
             </Card>
+
+            {/* Chunking Configuration */}
+            <Card>
+              <CardHeader>
+                <CardTitle>文檔切片設定</CardTitle>
+                <CardDescription>
+                  配置文檔切片的大小、重疊和啟用狀態參數
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <FormField
+                  control={form.control}
+                  name="chunking.enabled"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                      <div className="space-y-0.5">
+                        <FormLabel className="text-base">啟用文檔切片</FormLabel>
+                        <FormDescription>
+                          啟用後文檔會被分割成小片段來提高搜尋準確度
+                        </FormDescription>
+                      </div>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                          data-testid="switch-enable-chunking"
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="chunking.chunkSize"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>切片大小 (字符數)</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            min="256"
+                            max="8000"
+                            data-testid="input-chunk-size"
+                            {...field}
+                            value={field.value}
+                            onChange={(e) => field.onChange(parseInt(e.target.value))}
+                          />
+                        </FormControl>
+                        <FormDescription>每個文檔切片的字符數量 (256-8000)</FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="chunking.overlap"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>重疊長度 (字符數)</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            min="0"
+                            max="2000"
+                            data-testid="input-chunk-overlap"
+                            {...field}
+                            value={field.value}
+                            onChange={(e) => field.onChange(parseInt(e.target.value))}
+                          />
+                        </FormControl>
+                        <FormDescription>相鄰切片間的重疊字符數量 (0-2000)</FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </CardContent>
+            </Card>
           </form>
         </Form>
       </div>
