@@ -8,9 +8,11 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
 import { SimpleMentionSearch } from "@/components/SimpleMentionSearch";
-import { Plus, Calendar, Search, Mail, Eye, Upload } from "lucide-react";
+import { Plus, Calendar, Search, Mail, Eye, Upload, FileText, CheckCircle, AlertCircle, Loader2, X } from "lucide-react";
 import { queryClient } from "@/lib/queryClient";
 import type { AppObject } from "@shared/schema";
 
@@ -25,6 +27,16 @@ interface GroupedLetters {
   [key: string]: AppObject[];
 }
 
+interface UploadingFile {
+  id: string;
+  name: string;
+  size: number;
+  status: 'uploading' | 'processing' | 'completed' | 'error';
+  progress: number;
+  extractedText?: string;
+  error?: string;
+}
+
 export function LettersGroupedList() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
@@ -36,6 +48,7 @@ export function LettersGroupedList() {
     aliases: [],
     date: null
   });
+  const [uploadingFiles, setUploadingFiles] = useState<UploadingFile[]>([]);
 
   // Handle file upload
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -67,14 +80,38 @@ export function LettersGroupedList() {
       return;
     }
 
+    // Add files to uploading state
+    const newUploadingFiles = validFiles.map(file => ({
+      id: Date.now().toString() + Math.random().toString(36),
+      name: file.name,
+      size: file.size,
+      status: 'uploading' as const,
+      progress: 10,
+    }));
+
+    setUploadingFiles(prev => [...prev, ...newUploadingFiles]);
+
     // Upload each valid file
-    for (const file of validFiles) {
+    for (let i = 0; i < validFiles.length; i++) {
+      const file = validFiles[i];
+      const fileId = newUploadingFiles[i].id;
+      
       try {
         const reader = new FileReader();
         reader.onload = async () => {
           try {
+            // Update progress to reading complete
+            setUploadingFiles(prev => prev.map(f => 
+              f.id === fileId ? { ...f, progress: 30 } : f
+            ));
+
             const base64 = reader.result as string;
             const base64Data = base64.split(',')[1];
+            
+            // Update progress to uploading
+            setUploadingFiles(prev => prev.map(f => 
+              f.id === fileId ? { ...f, progress: 60 } : f
+            ));
             
             const endpoint = file.name.toLowerCase().endsWith('.pdf') 
               ? "/api/objects/pdf-upload"
@@ -93,41 +130,97 @@ export function LettersGroupedList() {
             
             if (!response.ok) throw new Error("Upload failed");
             
+            // Update to processing
+            setUploadingFiles(prev => prev.map(f => 
+              f.id === fileId ? { ...f, status: 'processing', progress: 80 } : f
+            ));
+            
             const data = await response.json();
-            toast({
-              title: "上傳成功",
-              description: `${file.name} 已成功上傳`,
-            });
+            
+            // Complete
+            setUploadingFiles(prev => prev.map(f => 
+              f.id === fileId ? { 
+                ...f, 
+                status: 'completed', 
+                progress: 100,
+                extractedText: data.isFromOCR ? data.content?.substring(0, 200) + '...' : undefined
+              } : f
+            ));
             
             // Refresh the letters list
             queryClient.invalidateQueries({ queryKey: ["/api/objects"] });
+            
           } catch (error) {
-            toast({
-              title: "上傳失敗",
-              description: `${file.name} 上傳失敗: ${error instanceof Error ? error.message : '未知錯誤'}`,
-              variant: "destructive",
-            });
+            setUploadingFiles(prev => prev.map(f => 
+              f.id === fileId ? { 
+                ...f, 
+                status: 'error', 
+                error: error instanceof Error ? error.message : '上傳失敗'
+              } : f
+            ));
           }
         };
         reader.onerror = () => {
-          toast({
-            title: "文件讀取失敗",
-            description: `無法讀取文件 ${file.name}`,
-            variant: "destructive",
-          });
+          setUploadingFiles(prev => prev.map(f => 
+            f.id === fileId ? { 
+              ...f, 
+              status: 'error', 
+              error: '文件讀取失敗'
+            } : f
+          ));
         };
         reader.readAsDataURL(file);
       } catch (error) {
-        toast({
-          title: "文件處理失敗",
-          description: `處理文件 ${file.name} 時發生錯誤`,
-          variant: "destructive",
-        });
+        setUploadingFiles(prev => prev.map(f => 
+          f.id === fileId ? { 
+            ...f, 
+            status: 'error', 
+            error: '文件處理失敗'
+          } : f
+        ));
       }
     }
 
     // Reset input
     event.target.value = '';
+  };
+
+  // Helper functions for upload progress display
+  const formatFileSize = (bytes: number) => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
+  const getStatusIcon = (status: UploadingFile['status']) => {
+    switch (status) {
+      case 'uploading':
+      case 'processing':
+        return <Loader2 className="h-4 w-4 animate-spin" />;
+      case 'completed':
+        return <CheckCircle className="h-4 w-4 text-green-500" />;
+      case 'error':
+        return <AlertCircle className="h-4 w-4 text-red-500" />;
+    }
+  };
+
+  const getStatusText = (status: UploadingFile['status']) => {
+    switch (status) {
+      case 'uploading':
+        return '上傳中...';
+      case 'processing':
+        return 'OCR處理中...';
+      case 'completed':
+        return '完成';
+      case 'error':
+        return '錯誤';
+    }
+  };
+
+  const removeUploadingFile = (fileId: string) => {
+    setUploadingFiles(prev => prev.filter(f => f.id !== fileId));
   };
 
   // Fetch letters
@@ -278,6 +371,7 @@ export function LettersGroupedList() {
             {/* Upload button */}
             <Button
               onClick={() => document.getElementById('letter-file-upload')?.click()}
+              disabled={uploadingFiles.some(f => f.status === 'uploading' || f.status === 'processing')}
               data-testid="button-upload-letter"
             >
               <Upload className="w-4 h-4 mr-2" />
@@ -365,6 +459,86 @@ export function LettersGroupedList() {
             </Dialog>
           </div>
         </div>
+
+        {/* Upload progress display */}
+        {uploadingFiles.length > 0 && (
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Upload className="h-5 w-5" />
+                上傳進度 ({uploadingFiles.length})
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {uploadingFiles.map((file) => (
+                <div key={file.id} className="p-4 border rounded-lg space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <FileText className="h-5 w-5 text-primary flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium truncate">{file.name}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {formatFileSize(file.size)}
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center gap-2">
+                      <Badge variant="secondary" className="flex items-center gap-1">
+                        {getStatusIcon(file.status)}
+                        <span>{getStatusText(file.status)}</span>
+                      </Badge>
+                      {(file.status === 'completed' || file.status === 'error') && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => removeUploadingFile(file.id)}
+                          data-testid={`button-remove-upload-${file.id}`}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {(file.status === 'uploading' || file.status === 'processing') && (
+                    <Progress value={file.progress} className="h-2" />
+                  )}
+                  
+                  {file.status === 'completed' && file.extractedText && (
+                    <div className="mt-3 p-3 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded-md">
+                      <div className="flex items-center gap-2 mb-2">
+                        <CheckCircle className="h-4 w-4 text-green-600" />
+                        <p className="text-sm font-medium text-green-800 dark:text-green-200">上傳成功！</p>
+                      </div>
+                      <p className="text-sm text-muted-foreground mb-2">提取的文本預覽:</p>
+                      <p className="text-sm">{file.extractedText}</p>
+                    </div>
+                  )}
+                  
+                  {file.status === 'completed' && !file.extractedText && (
+                    <div className="mt-3 p-3 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded-md">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle className="h-4 w-4 text-green-600" />
+                        <p className="text-sm font-medium text-green-800 dark:text-green-200">文件上傳成功！</p>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {file.status === 'error' && file.error && (
+                    <div className="mt-3 p-3 bg-destructive/10 border border-destructive/20 rounded-md">
+                      <div className="flex items-center gap-2">
+                        <AlertCircle className="h-4 w-4 text-destructive" />
+                        <p className="text-sm text-destructive font-medium">上傳失敗</p>
+                      </div>
+                      <p className="text-sm text-destructive mt-1">{file.error}</p>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        )}
 
         {/* Search */}
         <div className="mb-6">
