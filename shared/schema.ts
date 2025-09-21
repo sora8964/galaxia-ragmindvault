@@ -383,11 +383,21 @@ export const functionCallingConfigSchema = z.object({
   enablePagination: z.boolean().default(true)
 });
 
+export const chunkingConfigSchema = z.object({
+  chunkSize: z.number().int().min(256).max(8000).default(2000), // Characters per chunk
+  overlap: z.number().int().min(0).max(2000).default(200), // Overlap characters between chunks
+  minChunkSize: z.number().int().min(100).max(1000).default(300), // Minimum chunk size
+  boundaryMode: z.enum(['sentence', 'word', 'none']).default('sentence'), // How to handle chunk boundaries
+  preserveFormatting: z.boolean().default(true), // Whether to preserve paragraph breaks and formatting
+  maxSentenceLength: z.number().int().min(500).max(5000).default(2500) // Max sentence length before force splitting
+});
+
 export const appConfigSchema = z.object({
   geminiApi: geminiApiConfigSchema.default({}),
   textEmbedding: textEmbeddingConfigSchema.default({}),
   retrieval: retrievalConfigSchema.default({}),
   functionCalling: functionCallingConfigSchema.default({}),
+  chunking: chunkingConfigSchema.default({}),
   updatedAt: z.date().default(() => new Date())
 });
 
