@@ -824,7 +824,7 @@ export class MemStorage implements IStorage {
     
     const similarities = chunksWithEmbeddings.map(chunk => {
       const similarity = this.cosineSimilarity(queryVector, chunk.embedding!);
-      const document = this.documents.get(chunk.documentId);
+      const document = this.documents.get(chunk.objectId);
       return { 
         ...chunk, 
         document: document!, 
