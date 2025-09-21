@@ -48,8 +48,8 @@ function MentionLink({ mention, className, isAIResponse }: MentionLinkProps) {
 
   const displayText = mention.displayName || mention.name;
 
-  // 如果是AI回覆且對象不存在，只顯示純文字
-  if (isAIResponse && !exists && !isLoading) {
+  // 如果是AI回覆且對象不存在，只顯示純文字（包括載入中狀態）
+  if (isAIResponse && (!exists || isLoading)) {
     return (
       <span 
         className={className}
