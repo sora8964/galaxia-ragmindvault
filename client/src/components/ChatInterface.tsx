@@ -259,6 +259,14 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
+  // Update currentConversationId when conversationId prop changes
+  useEffect(() => {
+    setCurrentConversationId(conversationId || null);
+    // Clear local messages when switching conversations
+    setLocalMessages([]);
+    setDatabaseMessages([]);
+  }, [conversationId]);
+
 
 
   // Get conversation data
@@ -1248,7 +1256,6 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
               {message.contextUsed && message.contextUsed.length > 0 && (
                 <ContextIndicator contexts={message.contextUsed} className="mb-2" />
               )}
-
               
               <div 
                 className="relative group"
@@ -1332,14 +1339,6 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
                             {message.timestamp.toLocaleTimeString()}
                           </div>
                         )}
-                        
-                        {/* Auto-retrieved context for user messages - shown after message content */}
-                        {message.role === 'user' && (
-                          <AutoRetrievalDisplay 
-                            autoRetrieved={message.contextMetadata?.autoRetrieved || null} 
-                            className="mt-2" 
-                          />
-                        )}
                       </>
                     )}
                   </CardContent>
@@ -1350,7 +1349,7 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
                  persistedMessageIds.has(message.id) && 
                  !message.isStreaming && 
                  editingMessageId !== message.id && (
-                  <div className={`absolute top-2 ${message.role === 'user' ? 'left-2' : 'right-2'} z-10`}>
+                  <div className="absolute top-2 right-2 z-10">
                     <DropdownMenu open={openMenuId === message.id} onOpenChange={(open) => setOpenMenuId(open ? message.id : null)}>
                       <DropdownMenuTrigger asChild>
                         <Button
@@ -1358,8 +1357,8 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
                           size="icon"
                           className={`h-6 w-6 rounded-full ${
                             message.role === 'user' 
-                              ? 'text-primary-foreground' 
-                              : 'text-muted-foreground'
+                              ? 'text-primary-foreground hover:bg-primary-foreground/20' 
+                              : 'text-muted-foreground hover:bg-muted'
                           }`}
                           aria-label="更多動作"
                           data-testid={`button-message-menu-${message.id}`}
@@ -1368,7 +1367,7 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent 
-                        align={message.role === 'user' ? 'start' : 'end'}
+                        align="end"
                         className="w-32"
                         data-testid={`menu-message-actions-${message.id}`}
                       >
@@ -1412,6 +1411,14 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
                   </div>
                 )}
               </div>
+
+              {/* Auto-retrieved context for user messages - shown after user prompt bubble */}
+              {message.role === 'user' && message.contextMetadata?.autoRetrieved && (
+                <AutoRetrievalDisplay 
+                  autoRetrieved={message.contextMetadata.autoRetrieved} 
+                  className="mt-2" 
+                />
+              )}
             </div>
             
             {message.role === 'user' && (

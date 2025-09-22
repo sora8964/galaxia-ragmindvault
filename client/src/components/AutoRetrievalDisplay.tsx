@@ -76,66 +76,73 @@ export function AutoRetrievalDisplay({ autoRetrieved, className }: AutoRetrieval
   const citations = autoRetrieved?.citations || [];
   const [isExpanded, setIsExpanded] = useState(false);
 
+  if (!autoRetrieved || docCount === 0) {
+    return null;
+  }
+
   return (
     <div 
       className={cn(
-        "flex flex-col gap-2 px-3 py-2 rounded-lg border bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800 text-blue-800 dark:text-blue-200",
+        "bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800 rounded-lg border mb-2",
         className
       )}
       data-testid="auto-retrieval-display"
     >
-      <div className="flex items-center gap-2">
-        <SearchIcon className="w-4 h-4" />
-        <Button
-          variant="ghost"
-          size="sm"
-          className="p-0 h-auto text-sm font-medium text-blue-800 dark:text-blue-200 hover:bg-transparent"
-          onClick={() => setIsExpanded(!isExpanded)}
-          data-testid="button-toggle-retrieval-details"
-        >
-          自動檢索了 {docCount} 個相關物件
-          {docCount > 0 && (
-            isExpanded ? 
-              <ChevronUp className="w-4 h-4 ml-1" /> : 
-              <ChevronDown className="w-4 h-4 ml-1" />
+      <div className="p-3">
+        <div className="flex items-center gap-2 mb-2">
+          <SearchIcon className="h-3 w-3 flex-shrink-0 text-blue-600 dark:text-blue-400" />
+          <span className="font-medium text-xs text-blue-700 dark:text-blue-300">自動檢索</span>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="p-0 h-auto text-xs font-medium text-blue-700 dark:text-blue-300 hover:bg-transparent"
+            onClick={() => setIsExpanded(!isExpanded)}
+            data-testid="button-toggle-retrieval-details"
+          >
+            檢索了 {docCount} 個相關物件
+            {docCount > 0 && (
+              isExpanded ? 
+                <ChevronUp className="w-3 h-3 ml-1" /> : 
+                <ChevronDown className="w-3 h-3 ml-1" />
+            )}
+          </Button>
+          
+          {autoRetrieved?.retrievalMetadata?.processingTimeMs && (
+            <span className="text-xs text-blue-600 dark:text-blue-400 ml-auto">
+              ({autoRetrieved.retrievalMetadata.processingTimeMs}ms)
+            </span>
           )}
-        </Button>
+        </div>
         
-        {autoRetrieved?.retrievalMetadata?.processingTimeMs && (
-          <span className="text-xs text-blue-600 dark:text-blue-400">
-            ({autoRetrieved.retrievalMetadata.processingTimeMs}ms)
-          </span>
+        {isExpanded && (
+          <div className="flex flex-col gap-1">
+            {autoRetrieved.usedDocs.map((doc) => {
+              const IconComponent = getTypeIcon(doc.type);
+              // Find matching citation for relevance score
+              const citation = citations.find(c => c.docId === doc.id);
+              const score = citation?.relevanceScore;
+              
+              return (
+                <Link key={doc.id} href={`${getDetailPath(doc.type)}/${doc.id}`}>
+                  <Badge 
+                    variant="secondary" 
+                    className="text-xs h-auto py-1 px-2 justify-start bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700 w-full hover-elevate cursor-pointer"
+                    data-testid={`auto-retrieved-doc-${doc.id}`}
+                  >
+                    <IconComponent className="w-3 h-3 mr-2 flex-shrink-0" />
+                    <span className="truncate flex-1">{doc.name}</span>
+                    {score && (
+                      <span className="ml-2 text-blue-500 flex-shrink-0">
+                        {(score * 100).toFixed(0)}%
+                      </span>
+                    )}
+                  </Badge>
+                </Link>
+              );
+            })}
+          </div>
         )}
       </div>
-      
-      {docCount > 0 && autoRetrieved && isExpanded && (
-        <div className="flex flex-col gap-1">
-          {autoRetrieved.usedDocs.map((doc) => {
-            const IconComponent = getTypeIcon(doc.type);
-            // Find matching citation for relevance score
-            const citation = citations.find(c => c.docId === doc.id);
-            const score = citation?.relevanceScore;
-            
-            return (
-              <Link key={doc.id} href={`${getDetailPath(doc.type)}/${doc.id}`}>
-                <Badge 
-                  variant="secondary" 
-                  className="text-xs h-auto py-1 px-2 justify-start bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700 w-full hover-elevate cursor-pointer"
-                  data-testid={`auto-retrieved-doc-${doc.id}`}
-                >
-                  <IconComponent className="w-3 h-3 mr-2 flex-shrink-0" />
-                  <span className="truncate flex-1">{doc.name}</span>
-                  {score && (
-                    <span className="ml-2 text-blue-500 flex-shrink-0">
-                      {(score * 100).toFixed(0)}%
-                    </span>
-                  )}
-                </Badge>
-              </Link>
-            );
-          })}
-        </div>
-      )}
     </div>
   );
 }
