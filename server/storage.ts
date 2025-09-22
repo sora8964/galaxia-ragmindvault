@@ -1344,8 +1344,9 @@ export class DatabaseStorage implements IStorage {
     return (result.rowCount || 0) > 0;
   }
 
-  async searchChunksByVector(queryVector: number[], limit: number = 10): Promise<Array<Chunk & { document: Document }>> {
+  async searchChunksByVector(queryVector: number[], limit: number = 10): Promise<Array<Chunk & { document: Document; similarity: number }>> {
     try {
+      console.log(`🔍 [CHUNK-SEARCH] Query vector length: ${queryVector.length}`);
       // Join chunks with their parent documents and search by vector similarity
       const result = await db.execute(sql`
         SELECT 
@@ -1377,6 +1378,11 @@ export class DatabaseStorage implements IStorage {
         LIMIT ${limit}
       `);
       
+      console.log(`🔍 [CHUNK-SEARCH] SQL query returned ${result.rows.length} rows`);
+      if (result.rows.length > 0) {
+        console.log(`🔍 [CHUNK-SEARCH] First row similarity: ${result.rows[0].similarity}`);
+      }
+      
       return result.rows.map(row => ({
         // Chunk properties
         id: row.id as string,
@@ -1388,6 +1394,7 @@ export class DatabaseStorage implements IStorage {
         embedding: row.embedding as number[] | null,
         hasEmbedding: row.has_embedding as boolean,
         embeddingStatus: row.embedding_status as "pending" | "completed" | "failed",
+        similarity: row.similarity as number,
         createdAt: new Date(row.created_at as string),
         updatedAt: new Date(row.updated_at as string),
         // Document properties

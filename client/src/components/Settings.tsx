@@ -83,6 +83,8 @@ const settingsFormSchema = z.object({
     budgetTokens: z.number().min(1000).max(50000),
     strategy: z.enum(['balanced', 'aggressive', 'conservative']),
     addCitations: z.boolean(),
+    semanticSearchLimit: z.number().int().min(100).max(5000),
+    contentTruncateLength: z.number().int().min(100).max(10000),
   }),
   functionCalling: z.object({
     enabled: z.boolean(),
@@ -181,6 +183,8 @@ export function Settings() {
         budgetTokens: 12000,
         strategy: 'balanced',
         addCitations: true,
+        semanticSearchLimit: 1000,
+        contentTruncateLength: 1000,
       },
       functionCalling: {
         enabled: true,
@@ -695,7 +699,7 @@ export function Settings() {
                     name="retrieval.chunkTopK"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>文檔塊檢索上限</FormLabel>
+                        <FormLabel>文檔塊檢索上限(chunkTopK)</FormLabel>
                         <FormControl>
                           <Input
                             type="number"
@@ -809,27 +813,73 @@ export function Settings() {
                   />
                 </div>
 
-                <FormField
-                  control={form.control}
-                  name="retrieval.addCitations"
-                  render={({ field }) => (
-                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                      <div className="space-y-0.5">
-                        <FormLabel className="text-base">添加引用</FormLabel>
-                        <FormDescription>
-                          在回應中自動添加文檔引用資訊
-                        </FormDescription>
-                      </div>
-                      <FormControl>
-                        <Switch
-                          checked={field.value}
-                          onCheckedChange={field.onChange}
-                          data-testid="switch-add-citations"
-                        />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
+                  <FormField
+                    control={form.control}
+                    name="retrieval.semanticSearchLimit"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>語意搜尋結果上限(semanticSearchLimit)</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            min="100"
+                            max="5000"
+                            data-testid="input-semantic-search-limit"
+                            {...field}
+                            value={field.value}
+                            onChange={(e) => field.onChange(parseInt(e.target.value))}
+                          />
+                        </FormControl>
+                        <FormDescription>語意搜尋時的最大候選結果數量 (100-5000)</FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="retrieval.contentTruncateLength"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>文檔內容截斷長度(contentTruncateLength)</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            min="100"
+                            max="10000"
+                            data-testid="input-content-truncate-length"
+                            {...field}
+                            value={field.value}
+                            onChange={(e) => field.onChange(parseInt(e.target.value))}
+                          />
+                        </FormControl>
+                        <FormDescription>搜尋結果中文檔內容的最大顯示長度 (100-10000)</FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="retrieval.addCitations"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                        <div className="space-y-0.5">
+                          <FormLabel className="text-base">添加引用</FormLabel>
+                          <FormDescription>
+                            在回應中自動添加文檔引用資訊
+                          </FormDescription>
+                        </div>
+                        <FormControl>
+                          <Switch
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                            data-testid="switch-add-citations"
+                          />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
               </CardContent>
             </Card>
 

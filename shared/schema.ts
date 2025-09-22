@@ -372,7 +372,9 @@ export const retrievalConfigSchema = z.object({
   minChunkSim: z.number().default(0.30),
   budgetTokens: z.number().default(12000), // Updated default from 6000 to 12000
   strategy: z.enum(['balanced', 'aggressive', 'conservative']).default('balanced'),
-  addCitations: z.boolean().default(true)
+  addCitations: z.boolean().default(true),
+  semanticSearchLimit: z.number().int().min(100).max(5000).default(1000), // Maximum results for semantic search
+  contentTruncateLength: z.number().int().min(100).max(10000).default(1000) // Maximum content length for display
 });
 
 export const functionCallingConfigSchema = z.object({

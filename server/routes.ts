@@ -990,20 +990,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // GET version for direct URL access
   app.get("/api/embeddings/search", async (req, res) => {
     try {
-      const { query, limit = 10 } = req.query;
+      const { query, limit } = req.query;
       
       if (!query || typeof query !== 'string') {
         return res.status(400).json({ error: "Query text is required" });
       }
       
-      console.log(`🔍 [DEBUG] Semantic search test with query: "${query}", limit: ${limit}`);
+      // Get default limit from config
+      const appConfig = await storage.getAppConfig();
+      const defaultLimit = appConfig.retrieval?.semanticSearchLimit || 1000;
+      const searchLimit = limit ? parseInt(limit as string) : defaultLimit;
+      
+      console.log(`🔍 [DEBUG] Semantic search test with query: "${query}", limit: ${searchLimit}`);
       
       // Generate embedding for the query
       const queryEmbedding = await generateTextEmbedding(query);
       console.log(`🔍 [DEBUG] Generated embedding length: ${queryEmbedding.length}`);
       
       // Search for similar documents
-      const similarDocuments = await storage.searchObjectsByVector(queryEmbedding, parseInt(limit as string) || 10);
+      const similarDocuments = await storage.searchObjectsByVector(queryEmbedding, searchLimit);
       
       console.log(`🔍 [DEBUG] Semantic search test returned ${similarDocuments.length} results:`,
         similarDocuments.map(doc => ({
@@ -1059,17 +1064,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // POST version for programmatic access
   app.post("/api/embeddings/search", async (req, res) => {
     try {
-      const { query, limit = 10 } = req.body;
+      const { query, limit } = req.body;
       
       if (!query || typeof query !== 'string') {
         return res.status(400).json({ error: "Query text is required" });
       }
       
+      // Get default limit from config
+      const appConfig = await storage.getAppConfig();
+      const defaultLimit = appConfig.retrieval?.semanticSearchLimit;
+      const searchLimit = limit || defaultLimit;
+      
       // Generate embedding for the query
       const queryEmbedding = await generateTextEmbedding(query);
       
       // Search for similar documents
-      const similarDocuments = await storage.searchObjectsByVector(queryEmbedding, limit);
+      const similarDocuments = await storage.searchObjectsByVector(queryEmbedding, searchLimit);
       
       res.json({
         query,

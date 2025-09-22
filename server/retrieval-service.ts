@@ -58,9 +58,20 @@ export class RetrievalService {
     const startTime = Date.now();
     const { userText, explicitContextIds = [], mentions = [], config } = options;
     
+    console.log(`🔍 [AUTO-RETRIEVAL] Starting auto-context build for query: "${userText}"`);
+    
     // Get current app config
     const appConfig = await storage.getAppConfig();
     const retrievalConfig = { ...appConfig.retrieval, ...config };
+    
+    console.log(`🔍 [AUTO-RETRIEVAL] Config:`, {
+      autoRag: retrievalConfig.autoRag,
+      docTopK: retrievalConfig.docTopK,
+      chunkTopK: retrievalConfig.chunkTopK,
+      minDocSim: retrievalConfig.minDocSim,
+      minChunkSim: retrievalConfig.minChunkSim,
+      budgetTokens: retrievalConfig.budgetTokens
+    });
     
     // Skip if autoRag is disabled
     if (!retrievalConfig.autoRag) {
@@ -96,16 +107,21 @@ export class RetrievalService {
 
     try {
       // Stage 1: Generate query embedding
+      console.log(`🔍 [AUTO-RETRIEVAL] Stage 1: Generating query embedding...`);
       const queryEmbedding = await generateTextEmbedding(userText);
+      console.log(`🔍 [AUTO-RETRIEVAL] Query embedding generated, length: ${queryEmbedding.length}`);
       
       // Stage 2: Document-level retrieval
+      console.log(`🔍 [AUTO-RETRIEVAL] Stage 2: Document-level retrieval...`);
       const candidateDocs = await this.performDocumentRetrieval(
         queryEmbedding, 
         retrievalConfig, 
         explicitContextIds.concat(mentions)
       );
+      console.log(`🔍 [AUTO-RETRIEVAL] Document retrieval returned ${candidateDocs.length} candidate docs`);
 
       if (candidateDocs.length === 0) {
+        console.log(`🔍 [AUTO-RETRIEVAL] No candidate documents found, returning empty context`);
         return {
           contextText: "",
           citations: [],
@@ -121,12 +137,14 @@ export class RetrievalService {
       }
 
       // Stage 3: Chunk-level retrieval using vector search
+      console.log(`🔍 [AUTO-RETRIEVAL] Stage 3: Chunk-level retrieval...`);
       const retrievalResult = await this.performChunkRetrieval(
         candidateDocs,
         queryEmbedding,
         userText,
         retrievalConfig
       );
+      console.log(`🔍 [AUTO-RETRIEVAL] Chunk retrieval completed, found ${retrievalResult.usedDocs.length} used docs`);
 
       const processingTime = Date.now() - startTime;
       
@@ -231,20 +249,35 @@ export class RetrievalService {
     let totalChunks = 0;
     
     // Use vector-based chunk search - this is the key fix!
+    console.log(`🔍 [CHUNK-RETRIEVAL] Searching for chunks with query embedding length: ${queryEmbedding.length}`);
     const vectorChunks = await storage.searchChunksByVector(queryEmbedding, config.chunkTopK || 20);
-    console.log(`🔍 [DEBUG] Chunk search returned ${vectorChunks.length} chunks total`);
+    console.log(`🔍 [CHUNK-RETRIEVAL] Vector search returned ${vectorChunks.length} chunks total`);
+    
+    // Log top chunks with similarity scores
+    if (vectorChunks.length > 0) {
+      console.log(`🔍 [CHUNK-RETRIEVAL] Top 5 chunks by similarity:`, 
+        vectorChunks.slice(0, 5).map(chunk => ({
+          id: chunk.id.substring(0, 8),
+          objectId: chunk.objectId.substring(0, 8),
+          similarity: chunk.similarity,
+          contentLength: chunk.content.length
+        }))
+      );
+    }
     
     // Filter chunks to only include those from our candidate documents
     const candidateDocIds = new Set(docs.map(doc => doc.id));
+    console.log(`🔍 [CHUNK-RETRIEVAL] Candidate document IDs:`, Array.from(candidateDocIds).map(id => id.substring(0, 8)));
     const filteredChunks = vectorChunks.filter(chunk => candidateDocIds.has(chunk.objectId));
-    console.log(`🔍 [DEBUG] After filtering to candidate docs: ${filteredChunks.length} chunks remain`);
+    console.log(`🔍 [CHUNK-RETRIEVAL] After filtering to candidate docs: ${filteredChunks.length} chunks remain`);
 
     // Process each vector-matched chunk
+    console.log(`🔍 [CHUNK-RETRIEVAL] Processing ${filteredChunks.length} filtered chunks with minChunkSim=${config.minChunkSim}`);
     for (const chunk of filteredChunks) {
       const doc = docs.find(d => d.id === chunk.objectId);
       if (!doc) continue;
 
-      console.log(`🔍 [DEBUG] Processing chunk from ${doc.name}: similarity=${chunk.similarity}, minChunkSim=${config.minChunkSim}`);
+      console.log(`🔍 [CHUNK-RETRIEVAL] Processing chunk from ${doc.name}: similarity=${chunk.similarity}, minChunkSim=${config.minChunkSim}`);
 
       // Apply minimum similarity threshold
       if (chunk.similarity && chunk.similarity >= config.minChunkSim) {
@@ -265,20 +298,23 @@ export class RetrievalService {
           chunkIndex: chunk.chunkIndex,
           isFullDocument: false
         });
-        console.log(`🔍 [DEBUG] Added excerpt from ${doc.name}, relevance: ${chunk.similarity}`);
+        console.log(`🔍 [CHUNK-RETRIEVAL] ✅ Added excerpt from ${doc.name}, relevance: ${chunk.similarity}`);
       } else {
-        console.log(`🔍 [DEBUG] Chunk from ${doc.name} below threshold: ${chunk.similarity} < ${config.minChunkSim}`);
+        console.log(`🔍 [CHUNK-RETRIEVAL] ❌ Chunk from ${doc.name} below threshold: ${chunk.similarity} < ${config.minChunkSim}`);
       }
     }
 
     // Fallback: handle documents without chunks
+    console.log(`🔍 [CHUNK-RETRIEVAL] Checking fallback for ${docs.length} documents...`);
     for (const doc of docs) {
       const chunks = await storage.getChunksByObjectId(doc.id);
       totalChunks += chunks.length;
 
       if (chunks.length === 0) {
+        console.log(`🔍 [CHUNK-RETRIEVAL] 📄 Fallback: Document ${doc.name} has no chunks, content length: ${doc.content.length}`);
         // Fallback: use document content directly for short docs
-        if (doc.content.length <= 2000) {
+        if (doc.content.length <= (appConfig.chunking?.chunkSize)) {
+          console.log(`🔍 [CHUNK-RETRIEVAL] ✅ Using fallback for ${doc.name} (length <= ${appConfig.chunking?.chunkSize})`);
           allExcerpts.push({
             docId: doc.id,
             docName: doc.name,
@@ -288,18 +324,24 @@ export class RetrievalService {
             chunkIndex: 0,
             isFullDocument: true
           });
+        } else {
+          console.log(`🔍 [CHUNK-RETRIEVAL] ❌ Skipping fallback for ${doc.name} (length > ${appConfig.chunking?.chunkSize}: ${doc.content.length})`);
         }
+      } else {
+        console.log(`🔍 [CHUNK-RETRIEVAL] Document ${doc.name} has ${chunks.length} chunks, skipping fallback`);
       }
     }
 
     // Rank all excerpts by relevance
     allExcerpts.sort((a, b) => b.relevanceScore - a.relevanceScore);
+    console.log(`🔍 [CHUNK-RETRIEVAL] Total excerpts collected: ${allExcerpts.length}`);
 
     // Apply token budget and build context
     const { finalExcerpts, estimatedTokens } = this.applyTokenBudget(
       allExcerpts, 
       config.budgetTokens
     );
+    console.log(`🔍 [CHUNK-RETRIEVAL] Final excerpts after token budget: ${finalExcerpts.length}`);
 
     // Build citations and context text
     const citations: Citation[] = [];

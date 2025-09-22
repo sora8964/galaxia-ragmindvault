@@ -203,7 +203,8 @@ async function searchObjects(args: any): Promise<string> {
     }
     
     // Perform vector search to get semantic results 
-    const vectorResults = await storage.searchObjectsByVector(queryEmbedding, 1000); // Large limit for comprehensive results
+    const searchLimit = appConfig.retrieval?.semanticSearchLimit || 1000;
+    const vectorResults = await storage.searchObjectsByVector(queryEmbedding, searchLimit);
     
     // Sort by similarity to ensure consistent ordering
     const sortedResults = vectorResults.sort((a: any, b: any) => (b.similarity || 0) - (a.similarity || 0));
@@ -618,7 +619,7 @@ async function findRelevantExcerpts(args: any): Promise<string> {
             documentId: doc.id,
             documentName: doc.name,
             documentType: doc.type,
-            content: doc.content.substring(0, 1000) + (doc.content.length > 1000 ? '...' : ''),
+            content: doc.content.substring(0, appConfig.retrieval?.contentTruncateLength || 1000) + (doc.content.length > (appConfig.retrieval?.contentTruncateLength || 1000) ? '...' : ''),
             relevanceScore: 0.5,
             chunkIndex: 0,
             isFullDocument: false
