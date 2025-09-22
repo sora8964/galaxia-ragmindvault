@@ -64,8 +64,12 @@ When users mention documents or people using @mentions (like @[person:習近平|
   }
 }
 
-// Text Embedding function with 2000 dimensions for pgvector compatibility
-export async function generateTextEmbedding(text: string): Promise<number[]> {
+// Text Embedding function with configurable dimensions
+export async function generateTextEmbedding(
+  text: string, 
+  outputDimensionality: number = 3072,
+  autoTruncate: boolean = true
+): Promise<number[]> {
   try {
     const response = await ai.models.embedContent({
       model: "gemini-embedding-001",
@@ -74,7 +78,15 @@ export async function generateTextEmbedding(text: string): Promise<number[]> {
       }]
     });
 
-    return response.embeddings?.[0]?.values || [];
+    const embedding = response.embeddings?.[0]?.values || [];
+    
+    // Apply dimensionality truncation if needed
+    if (autoTruncate && embedding.length > outputDimensionality) {
+      console.log(`Truncating embedding from ${embedding.length} to ${outputDimensionality} dimensions`);
+      return embedding.slice(0, outputDimensionality);
+    }
+    
+    return embedding;
   } catch (error) {
     console.error('Text embedding error:', error);
     throw new Error(`Failed to generate text embedding: ${error}`);

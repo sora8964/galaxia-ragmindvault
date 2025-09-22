@@ -708,7 +708,7 @@ export class MemStorage implements IStorage {
         type: type as "person" | "document" | "entity" | "issue" | "log",
         name: name.trim(),
         alias: alias?.trim(),
-        documentId: undefined // Will be resolved separately
+        objectId: undefined // Will be resolved separately
       });
     }
     
@@ -741,8 +741,8 @@ export class MemStorage implements IStorage {
       
       if (document && !documentIds.includes(document.id)) {
         documentIds.push(document.id);
-        // Update the mention with resolved document ID
-        mention.documentId = document.id;
+        // Update the mention with resolved object ID
+        mention.objectId = document.id;
       }
     }
     
@@ -882,7 +882,7 @@ export class MemStorage implements IStorage {
       }
     }
     
-    console.log(`Deleted ${deletedCount} chunks for document ${documentId}`);
+    console.log(`Deleted ${deletedCount} chunks for object ${objectId}`);
     return deletedCount > 0;
   }
 
@@ -1548,11 +1548,11 @@ export class DatabaseStorage implements IStorage {
   }
 
 
-  async cleanupRelationshipsForDocument(documentId: string): Promise<boolean> {
+  async cleanupRelationshipsForObject(objectId: string): Promise<boolean> {
     const result = await db.delete(relationships)
       .where(or(
-        eq(relationships.sourceId, documentId),
-        eq(relationships.targetId, documentId)
+        eq(relationships.sourceId, objectId),
+        eq(relationships.targetId, objectId)
       ));
     return (result.rowCount || 0) > 0;
   }
@@ -1698,7 +1698,7 @@ export class DatabaseStorage implements IStorage {
       textEmbedding: {
         model: "gemini-embedding-001",
         taskType: "RETRIEVAL_DOCUMENT",
-        outputDimensionality: 2000,
+        outputDimensionality: 3072,
         autoEmbedding: true,
         autoTruncate: true,
         batchSize: 10
@@ -1795,10 +1795,10 @@ export class DatabaseStorage implements IStorage {
   }
 
   async resolveMentionObjects(mentions: ParsedMention[]): Promise<string[]> {
-    const documentIds: string[] = [];
+    const objectIds: string[] = [];
     
     for (const mention of mentions) {
-      // Try to find document by name or alias
+      // Try to find object by name or alias
       const result = await db.select({ id: objects.id })
         .from(objects)
         .where(or(
@@ -1812,11 +1812,11 @@ export class DatabaseStorage implements IStorage {
         .limit(1);
       
       if (result.length > 0) {
-        documentIds.push(result[0].id);
+        objectIds.push(result[0].id);
       }
     }
     
-    return documentIds;
+    return objectIds;
   }
 }
 

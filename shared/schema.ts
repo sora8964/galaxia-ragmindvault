@@ -307,7 +307,7 @@ export interface ParsedMention {
   type: "person" | "document" | "entity" | "issue" | "log" | "meeting";
   name: string;
   alias?: string;
-  documentId?: string;
+  objectId?: string;
 }
 
 export interface ParseMentionsRequest {

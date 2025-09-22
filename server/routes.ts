@@ -276,12 +276,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Create context metadata for persistence
       const contextMetadata = {
         mentionedPersons: mentions.filter(m => m.type === 'person').map(m => ({ 
-          id: m.id, 
+          id: m.objectId, 
           name: m.name, 
           alias: m.alias 
         })),
         mentionedDocuments: mentions.filter(m => m.type === 'document').map(m => ({ 
-          id: m.id, 
+          id: m.objectId, 
           name: m.name, 
           alias: m.alias 
         })),
@@ -975,7 +975,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Text is required" });
       }
       
-      const embedding = await generateTextEmbedding(text);
+      const appConfig = await storage.getAppConfig();
+      const embedding = await generateTextEmbedding(
+        text,
+        appConfig.textEmbedding?.outputDimensionality || 3072,
+        appConfig.textEmbedding?.autoTruncate !== false
+      );
       
       res.json({
         embedding,
@@ -1004,7 +1009,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`🔍 [DEBUG] Semantic search test with query: "${query}", limit: ${searchLimit}`);
       
       // Generate embedding for the query
-      const queryEmbedding = await generateTextEmbedding(query);
+      const queryEmbedding = await generateTextEmbedding(
+        query,
+        appConfig.textEmbedding?.outputDimensionality || 3072,
+        appConfig.textEmbedding?.autoTruncate !== false
+      );
       console.log(`🔍 [DEBUG] Generated embedding length: ${queryEmbedding.length}`);
       
       // Search for similar documents
@@ -1076,7 +1085,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const searchLimit = limit || defaultLimit;
       
       // Generate embedding for the query
-      const queryEmbedding = await generateTextEmbedding(query);
+      const queryEmbedding = await generateTextEmbedding(
+        query,
+        appConfig.textEmbedding?.outputDimensionality || 3072,
+        appConfig.textEmbedding?.autoTruncate !== false
+      );
       
       // Search for similar documents
       const similarDocuments = await storage.searchObjectsByVector(queryEmbedding, searchLimit);

@@ -193,7 +193,11 @@ async function searchObjects(args: any): Promise<string> {
     console.log(`Semantic search: query="${query}", type=${type}, page=${page}, pageSize=${validPageSize}`);
     
     // Generate embedding for semantic search
-    const queryEmbedding = await generateTextEmbedding(query);
+    const queryEmbedding = await generateTextEmbedding(
+      query,
+      appConfig.textEmbedding?.outputDimensionality || 3072,
+      appConfig.textEmbedding?.autoTruncate !== false
+    );
     if (queryEmbedding.length === 0) {
       return JSON.stringify({
         results: [],
@@ -429,7 +433,12 @@ async function findSimilarDocuments(args: any): Promise<string> {
     const { text, limit = 5, threshold = 0.7 } = args;
     
     // Generate embedding for the query text
-    const queryEmbedding = await generateTextEmbedding(text);
+    const appConfig = await storage.getAppConfig();
+    const queryEmbedding = await generateTextEmbedding(
+      text,
+      appConfig.textEmbedding?.outputDimensionality || 3072,
+      appConfig.textEmbedding?.autoTruncate !== false
+    );
     if (queryEmbedding.length === 0) {
       return "Unable to generate embedding for the query text.";
     }

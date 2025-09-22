@@ -58,6 +58,19 @@ function getTypeName(type: string) {
   return typeNames[type as keyof typeof typeNames] || type;
 }
 
+function getDetailPath(type: string): string {
+  const typeMap: Record<string, string> = {
+    'person': '/people',
+    'document': '/documents',
+    'letter': '/letters',
+    'entity': '/entities',
+    'issue': '/issues',
+    'log': '/logs',
+    'meeting': '/meetings'
+  };
+  return typeMap[type] || '/objects';
+}
+
 export function AutoRetrievalDisplay({ autoRetrieved, className }: AutoRetrievalDisplayProps) {
   const docCount = autoRetrieved?.usedDocs?.length || 0;
   const citations = autoRetrieved?.citations || [];
@@ -80,7 +93,7 @@ export function AutoRetrievalDisplay({ autoRetrieved, className }: AutoRetrieval
           onClick={() => setIsExpanded(!isExpanded)}
           data-testid="button-toggle-retrieval-details"
         >
-          自動檢索了 {docCount} 個相關文件
+          自動檢索了 {docCount} 個相關物件
           {docCount > 0 && (
             isExpanded ? 
               <ChevronUp className="w-4 h-4 ml-1" /> : 
@@ -104,7 +117,7 @@ export function AutoRetrievalDisplay({ autoRetrieved, className }: AutoRetrieval
             const score = citation?.relevanceScore;
             
             return (
-              <Link key={doc.id} href={`/objects/${doc.id}`}>
+              <Link key={doc.id} href={`${getDetailPath(doc.type)}/${doc.id}`}>
                 <Badge 
                   variant="secondary" 
                   className="text-xs h-auto py-1 px-2 justify-start bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700 w-full hover-elevate cursor-pointer"

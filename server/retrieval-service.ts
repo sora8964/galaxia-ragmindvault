@@ -108,7 +108,12 @@ export class RetrievalService {
     try {
       // Stage 1: Generate query embedding
       console.log(`🔍 [AUTO-RETRIEVAL] Stage 1: Generating query embedding...`);
-      const queryEmbedding = await generateTextEmbedding(userText);
+      const appConfig = await storage.getAppConfig();
+      const queryEmbedding = await generateTextEmbedding(
+        userText,
+        appConfig.textEmbedding?.outputDimensionality || 3072,
+        appConfig.textEmbedding?.autoTruncate !== false
+      );
       console.log(`🔍 [AUTO-RETRIEVAL] Query embedding generated, length: ${queryEmbedding.length}`);
       
       // Stage 2: Document-level retrieval
@@ -142,7 +147,8 @@ export class RetrievalService {
         candidateDocs,
         queryEmbedding,
         userText,
-        retrievalConfig
+        retrievalConfig,
+        appConfig
       );
       console.log(`🔍 [AUTO-RETRIEVAL] Chunk retrieval completed, found ${retrievalResult.usedDocs.length} used docs`);
 
@@ -233,7 +239,8 @@ export class RetrievalService {
     docs: AppObject[],
     queryEmbedding: number[],
     userText: string,
-    config: RetrievalConfig
+    config: RetrievalConfig,
+    appConfig: any
   ): Promise<Omit<RetrievalContext, 'retrievalMetadata'> & { retrievalMetadata: Omit<RetrievalMetadata, 'processingTimeMs'> }> {
     
     const allExcerpts: Array<{

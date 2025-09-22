@@ -124,7 +124,11 @@ export class ChunkingService {
       ].filter(Boolean).join(' ');
 
       // Step 3: Generate main document embedding
-      const documentEmbedding = await generateTextEmbedding(embeddingText);
+      const documentEmbedding = await generateTextEmbedding(
+        embeddingText,
+        appConfig.textEmbedding?.outputDimensionality || 3072,
+        appConfig.textEmbedding?.autoTruncate !== false
+      );
       await storage.updateObjectEmbedding(document.id, documentEmbedding);
       
       // Step 4: Check if chunking is enabled for chunk creation
@@ -151,7 +155,11 @@ export class ChunkingService {
         });
 
         // Generate embedding for chunk
-        const chunkEmbedding = await generateTextEmbedding(chunkData.content);
+        const chunkEmbedding = await generateTextEmbedding(
+          chunkData.content,
+          appConfig.textEmbedding?.outputDimensionality || 3072,
+          appConfig.textEmbedding?.autoTruncate !== false
+        );
         await storage.updateChunkEmbedding(chunk.id, chunkEmbedding);
         
         console.log(`Generated embedding for chunk ${chunkData.chunkIndex} of document: ${document.name}`);
