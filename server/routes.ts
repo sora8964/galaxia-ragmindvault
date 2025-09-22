@@ -252,19 +252,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       // Parse mentions from content and auto-populate contextDocuments
       const content = req.body.content || '';
+      const autoRetrievalEnabled = req.body.autoRetrievalEnabled !== false; // Default to true for backward compatibility
       const mentions = await storage.parseMentions(content);
       const contextDocuments = await storage.resolveMentionObjects(mentions);
       
       // Import retrieval service for auto-context on user messages
       const { retrievalService } = await import('./retrieval-service');
       
-      // Auto-retrieve relevant context using RAG for user messages
-      const autoContext = await retrievalService.buildAutoContext({
-        conversationId: req.params.id,
-        userText: content,
-        explicitContextIds: req.body.contextDocuments || [],
-        mentions: contextDocuments
-      });
+      // Auto-retrieve relevant context using RAG for user messages (only if both global and local settings allow it)
+      let autoContext;
+      if (autoRetrievalEnabled) {
+        autoContext = await retrievalService.buildAutoContext({
+          conversationId: req.params.id,
+          userText: content,
+          explicitContextIds: req.body.contextDocuments || [],
+          mentions: contextDocuments
+        });
+      } else {
+        // Return empty context if auto-retrieval is disabled locally
+        autoContext = {
+          contextText: "",
+          citations: [],
+          usedDocs: [],
+          retrievalMetadata: {
+            totalDocs: 0,
+            totalChunks: 0,
+            strategy: 'disabled-locally',
+            estimatedTokens: 0,
+            processingTimeMs: 0
+          }
+        };
+      }
       
       // Combine all context documents including auto-retrieved ones (deduplicated)
       const allContextDocuments = Array.from(new Set([
@@ -610,7 +628,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Streaming chat with function calling
   app.post("/api/chat/stream", async (req, res) => {
     try {
-      const { messages, contextDocumentIds = [], conversationId } = req.body;
+      const { messages, contextDocumentIds = [], conversationId, autoRetrievalEnabled = true } = req.body;
       
       // Import retrieval service
       const { retrievalService } = await import('./retrieval-service');
@@ -636,13 +654,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (doc) explicitContextDocuments.push(doc);
       }
       
-      // Auto-retrieve relevant context using RAG
-      const autoContext = await retrievalService.buildAutoContext({
-        conversationId,
-        userText,
-        explicitContextIds: contextDocumentIds,
-        mentions: mentionIds
-      });
+      // Auto-retrieve relevant context using RAG (only if local setting allows it)
+      // The buildAutoContext function already checks the global autoRag setting
+      let autoContext;
+      if (autoRetrievalEnabled) {
+        autoContext = await retrievalService.buildAutoContext({
+          conversationId,
+          userText,
+          explicitContextIds: contextDocumentIds,
+          mentions: mentionIds
+        });
+      } else {
+        // Return empty context if auto-retrieval is disabled locally
+        autoContext = {
+          contextText: "",
+          citations: [],
+          usedDocs: [],
+          retrievalMetadata: {
+            totalDocs: 0,
+            totalChunks: 0,
+            strategy: 'disabled-locally',
+            estimatedTokens: 0,
+            processingTimeMs: 0
+          }
+        };
+      }
       
       // Combine all context documents  
       const allContextDocuments = [

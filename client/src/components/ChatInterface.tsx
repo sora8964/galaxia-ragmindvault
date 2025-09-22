@@ -27,7 +27,8 @@ import { MentionParser } from "./MentionParser";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import type { MentionItem, Message as DbMessage, Conversation } from "@shared/schema";
+import { Checkbox } from "@/components/ui/checkbox";
+import type { MentionItem, Message as DbMessage, Conversation, AppConfig } from "@shared/schema";
 
 // Function Call Display Component
 function FunctionCallDisplay({ functionCall }: { functionCall: { name: string; arguments: any; result?: any } }) {
@@ -252,12 +253,26 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
   const [editedContent, setEditedContent] = useState<string>('');
   const [deleteConfirmMessageId, setDeleteConfirmMessageId] = useState<string | null>(null);
   const [regeneratingMessageId, setRegeneratingMessageId] = useState<string | null>(null);
+  const [autoRetrievalEnabled, setAutoRetrievalEnabled] = useState<boolean>(true); // 本地自動檢索開關
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const editTextareaRef = useRef<HTMLTextAreaElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  // Query settings to determine if auto-retrieval UI should be shown
+  const { data: appConfig } = useQuery<AppConfig>({
+    queryKey: ['/api/settings'],
+    queryFn: async () => {
+      const response = await apiRequest('GET', '/api/settings');
+      return response.json();
+    },
+    staleTime: 1000 * 60 * 5, // 5 minutes
+  });
+
+  // Only show auto-retrieval checkbox if global setting is enabled
+  const showAutoRetrievalControl = appConfig?.retrieval?.autoRag === true;
 
   // Update currentConversationId when conversationId prop changes
   useEffect(() => {
@@ -473,7 +488,8 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
         const success = await startAssistantStream({
           historyMessages: historySlice,
           contextDocumentIds,
-          conversationId: currentConversationId!
+          conversationId: currentConversationId!,
+          enableAutoRetrieval: autoRetrievalEnabled && (appConfig?.retrieval?.autoRag === true)
         });
         
         if (!success) {
@@ -656,7 +672,8 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
       await apiRequest("POST", `/api/conversations/${activeConversationId}/messages`, {
         role: 'user',
         content: messageContent,
-        contextDocuments: currentContextIds
+        contextDocuments: currentContextIds,
+        autoRetrievalEnabled: autoRetrievalEnabled && (appConfig?.retrieval?.autoRag === true)
       });
 
       // Start streaming AI response using the extracted function
@@ -664,7 +681,8 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
       const success = await startAssistantStream({
         historyMessages: allMessages,
         contextDocumentIds: currentContextIds,
-        conversationId: activeConversationId
+        conversationId: activeConversationId,
+        enableAutoRetrieval: autoRetrievalEnabled && (appConfig?.retrieval?.autoRag === true)
       });
       
       if (!success) {
@@ -695,11 +713,13 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
   const startAssistantStream = useCallback(async ({ 
     historyMessages, 
     contextDocumentIds = [], 
-    conversationId 
+    conversationId,
+    enableAutoRetrieval = true
   }: {
     historyMessages: StreamMessage[];
     contextDocumentIds: string[];
     conversationId: string;
+    enableAutoRetrieval?: boolean;
   }) => {
     if (isStreaming || !conversationId) {
       console.warn('Cannot start stream: already streaming or no conversation ID');
@@ -741,7 +761,8 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
         body: JSON.stringify({
           messages: chatMessages,
           contextDocumentIds,
-          conversationId
+          conversationId,
+          autoRetrievalEnabled: enableAutoRetrieval
         }),
         signal: abortController.signal,
       });
@@ -971,7 +992,8 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
       const success = await startAssistantStream({
         historyMessages: historyForRegeneration,
         contextDocumentIds,
-        conversationId: currentConversationId
+        conversationId: currentConversationId,
+        enableAutoRetrieval: true // 重新生成時總是啟用自動檢索
       });
       
       if (!success) {
@@ -1113,7 +1135,8 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
       const success = await startAssistantStream({
         historyMessages: formattedMessages,
         contextDocumentIds,
-        conversationId: currentConversationId
+        conversationId: currentConversationId,
+        enableAutoRetrieval: true // 重新生成時總是啟用自動檢索
       });
       
       if (success) {
@@ -1200,7 +1223,8 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
       const success = await startAssistantStream({
         historyMessages: historyForRegeneration,
         contextDocumentIds,
-        conversationId: currentConversationId
+        conversationId: currentConversationId,
+        enableAutoRetrieval: true // 重新生成時總是啟用自動檢索
       });
       
       if (success) {
@@ -1557,6 +1581,24 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
             )}
           </Button>
         </div>
+        
+        {/* Auto-retrieval checkbox - only show if global setting is enabled */}
+        {showAutoRetrievalControl && (
+          <div className="mt-3 flex items-center space-x-2">
+            <Checkbox
+              id="auto-retrieval-enabled"
+              checked={autoRetrievalEnabled}
+              onCheckedChange={(checked) => setAutoRetrievalEnabled(!!checked)}
+              data-testid="checkbox-auto-retrieval"
+            />
+            <label
+              htmlFor="auto-retrieval-enabled"
+              className="text-sm text-muted-foreground cursor-pointer select-none"
+            >
+              自動檢索相關物件
+            </label>
+          </div>
+        )}
       </div>
 
       {/* Mention Search Dropdown */}
