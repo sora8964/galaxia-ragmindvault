@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from "react";
-import { Send, Bot, User, Sparkles, Brain, Settings, MoreVertical, Edit, Trash2, Check, X, Loader2, RefreshCw, Square, Search, FileText, User as UserIcon, Building, AlertTriangle, BookOpen, Users, ChevronDown, ChevronUp } from "lucide-react";
+import { Send, Bot, User, Sparkles, Brain, Settings, MoreVertical, Edit, Trash2, Check, X, Loader2, RefreshCw, Square, Search, FileText, User as UserIcon, Building, AlertTriangle, BookOpen, Users, ChevronDown, ChevronUp, AtSign } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -28,7 +28,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { Checkbox } from "@/components/ui/checkbox";
-import type { MentionItem, Message as DbMessage, Conversation, AppConfig } from "@shared/schema";
+import type { MentionItem, Message, Conversation, AppConfig } from "@shared/schema";
 
 // Function Call Display Component
 function FunctionCallDisplay({ functionCall }: { functionCall: { name: string; arguments: any; result?: any } }) {
@@ -197,44 +197,39 @@ function ThinkingDisplay({ thinking }: { thinking: string }) {
 
 interface StreamMessage {
   id: string;
-  content: string;
-  role: 'user' | 'assistant' | 'system';
-  timestamp: Date;
-  contextUsed?: Array<{ id: string; name: string; type: 'person' | 'document' }>;
-  thinking?: string | null;
-  functionCalls?: Array<{name: string; arguments: any; result?: any}> | null;
-  isStreaming?: boolean;
-  contextMetadata?: {
-    mentionedPersons?: Array<{ id: string; name: string; alias?: string }>;
-    mentionedDocuments?: Array<{ id: string; name: string; alias?: string }>;
-    originalPrompt?: string;
-    autoRetrieved?: {
-      usedDocs: Array<{
-        id: string;
-        name: string;
-        type: 'person' | 'document' | 'letter' | 'entity' | 'issue' | 'log' | 'meeting';
-      }>;
-      retrievalMetadata: {
-        totalDocs: number;
-        totalChunks: number;
-        strategy: string;
-        estimatedTokens: number;
-        processingTimeMs?: number;
-      };
-      citations?: Array<{
-        id: number;
-        docId: string;
-        docName: string;
-        docType: string;
-        relevanceScore: number;
-      }>;
-    };
+  content: {
+    text?: string;
+    objects?: string[];
+    metadata?: any;
+    name?: string;
+    arguments?: any;
+    result?: any;
   };
+  role: 'user' | 'assistant' | 'system';
+  type: 'prompt' | 'auto_retrieval_context_object' | 'mention_context_object' | 'response' | 'thinking' | 'function_call';
+  conversationGroupId?: string;
+  timestamp: Date;
+  isStreaming?: boolean;
 }
 
 interface ChatInterfaceProps {
   conversationId?: string;
 }
+
+// Helper function to convert database message to StreamMessage
+const convertDbMessageToStreamMessage = (dbMessage: any): StreamMessage => {
+  return {
+    id: dbMessage.id,
+    content: typeof dbMessage.content === 'string' 
+      ? { text: dbMessage.content }
+      : dbMessage.content,
+    role: dbMessage.role,
+    type: dbMessage.type || 'prompt',
+    conversationGroupId: dbMessage.conversationGroupId,
+    timestamp: new Date(dbMessage.createdAt),
+    isStreaming: false
+  };
+};
 
 export function ChatInterface({ conversationId }: ChatInterfaceProps) {
   // Separate state for local messages and database messages
@@ -291,7 +286,7 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
   });
 
   // Load conversation messages
-  const { data: conversationMessages = [] } = useQuery<DbMessage[]>({
+  const { data: conversationMessages = [] } = useQuery<Message[]>({
     queryKey: ['/api/conversations', currentConversationId, 'messages'],
     enabled: !!currentConversationId,
     staleTime: 0, // Force fresh data
@@ -324,7 +319,8 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
 
   // Compute the final messages to display
   const messages = useMemo(() => {
-    return mergeMessages(conversationMessages, localMessages);
+    const convertedDbMessages = conversationMessages.map(convertDbMessageToStreamMessage);
+    return mergeMessages(convertedDbMessages, localMessages);
   }, [conversationMessages, localMessages]);
 
   // Check if we should show the regenerate button
@@ -440,7 +436,7 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
         // Get the latest messages from database to ensure freshness
         const latestMessages = await queryClient.fetchQuery({
           queryKey: ['/api/conversations', currentConversationId, 'messages']
-        }) as DbMessage[];
+        }) as Message[];
         
         if (!latestMessages || latestMessages.length === 0) {
           console.warn('No messages available for regeneration');
@@ -448,15 +444,7 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
         }
         
         // Convert to stream messages for processing
-        const latestStreamMessages: StreamMessage[] = latestMessages.map((msg: DbMessage) => ({
-          id: msg.id,
-          content: msg.content,
-          role: msg.role,
-          timestamp: new Date(msg.createdAt),
-          thinking: msg.thinking,
-          functionCalls: msg.functionCalls,
-          isStreaming: false,
-        }));
+        const latestStreamMessages: StreamMessage[] = latestMessages.map(convertDbMessageToStreamMessage);
         
         // Find the edited message index
         const editedIndex = latestStreamMessages.findIndex(m => m.id === editedMessageId);
@@ -478,10 +466,8 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
         
         // Extract context objects from the edited message (if available)
         const contextObjectIds: string[] = [];
-        const originalMessage = latestMessages.find(m => m.id === editedMessageId);
-        if (originalMessage && originalMessage.contextObjects) {
-          contextObjectIds.push(...originalMessage.contextObjects);
-        }
+        // For now, we don't extract context from edited messages in the new structure
+        // This can be enhanced later if needed
         
         // Auto-regenerate AI response after user message edit - apply dual control mechanism
         console.log('Starting automatic regeneration after edit...');
@@ -545,23 +531,16 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
   // Convert database messages to stream messages without overriding local state
   useEffect(() => {
     if (conversationMessages.length > 0) {
-      const formattedMessages: StreamMessage[] = conversationMessages.map((msg: DbMessage) => ({
-        id: msg.id,
-        content: msg.content,
-        role: msg.role,
-        timestamp: new Date(msg.createdAt),
-        thinking: msg.thinking,
-        functionCalls: msg.functionCalls,
-        isStreaming: false,
-      }));
-      setDatabaseMessages(formattedMessages);
+      setDatabaseMessages(conversationMessages.map(convertDbMessageToStreamMessage));
     } else if (currentConversationId && databaseMessages.length === 0 && localMessages.length === 0) {
       // Add welcome message for new conversations only if no messages exist
       setDatabaseMessages([{
         id: 'welcome',
-        content: '你好！我是AI Context Manager。我可以幫助你管理文件、處理PDF並進行智能對話。你可以使用@提及功能來引用你的文件。',
+        content: { text: '你好！我是AI Context Manager。我可以幫助你管理文件、處理PDF並進行智能對話。你可以使用@提及功能來引用你的文件。' },
         role: 'assistant',
+        type: 'response',
         timestamp: new Date(),
+        isStreaming: false,
       }]);
     }
   }, [conversationMessages, currentConversationId, databaseMessages.length, localMessages.length]);
@@ -655,8 +634,9 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
     const messageId = `msg-${Date.now()}`;
     const userMessage: StreamMessage = {
       id: messageId,
-      content: input,
+      content: { text: input },
       role: 'user',
+      type: 'prompt',
       timestamp: new Date(),
     };
 
@@ -671,13 +651,13 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
       // Save user message to backend
       await apiRequest("POST", `/api/conversations/${activeConversationId}/messages`, {
         role: 'user',
-        content: messageContent,
-        contextObjects: currentContextIds,
+        type: 'prompt',
+        content: { text: messageContent },
         autoRetrievalEnabled: autoRetrievalEnabled && (appConfig?.retrieval?.autoRag === true)
       });
 
       // Start streaming AI response using the extracted function
-      const allMessages = mergeMessages(databaseMessages, [...localMessages, userMessage]);
+      const allMessages = mergeMessages(conversationMessages.map(convertDbMessageToStreamMessage), [...localMessages, userMessage]);
       const success = await startAssistantStream({
         historyMessages: allMessages,
         contextObjectIds: currentContextIds,
@@ -735,8 +715,9 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
       // Add empty assistant message for streaming
       const assistantMessage: StreamMessage = {
         id: assistantMessageId,
-        content: '',
+        content: { text: '' },
         role: 'assistant',
+        type: 'response',
         timestamp: new Date(),
         isStreaming: true,
       };
@@ -745,7 +726,7 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
       // Prepare messages for AI
       const chatMessages = historyMessages.map(msg => ({
         role: msg.role,
-        content: msg.content
+        content: msg.content.text || ''
       }));
 
       // Create abort controller for this request
@@ -801,14 +782,27 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
                   // Update streaming message content
                   setLocalMessages(prev => prev.map(msg => 
                     msg.id === assistantMessageId 
-                      ? { ...msg, content: msg.content + data.content }
+                      ? { 
+                          ...msg, 
+                          content: { 
+                            ...msg.content, 
+                            text: (msg.content.text || '') + data.content 
+                          }
+                        }
                       : msg
                   ));
                 } else if (data.type === 'thinking') {
                   // Update thinking content
                   setLocalMessages(prev => prev.map(msg => 
                     msg.id === assistantMessageId 
-                      ? { ...msg, thinking: data.content }
+                      ? { 
+                          ...msg, 
+                          content: { 
+                            ...msg.content, 
+                            text: data.content 
+                          },
+                          type: 'thinking'
+                        }
                       : msg
                   ));
                 } else if (data.type === 'function_call') {
@@ -817,7 +811,13 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
                     msg.id === assistantMessageId 
                       ? { 
                           ...msg, 
-                          functionCalls: [...(msg.functionCalls || []), data.content]
+                          content: {
+                            ...msg.content,
+                            name: data.content.name,
+                            arguments: data.content.arguments,
+                            result: data.content.result
+                          },
+                          type: 'function_call'
                         }
                       : msg
                   ));
@@ -905,7 +905,7 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
     
     // Enter edit mode
     setEditingMessageId(messageId);
-    setEditedContent(messageToEdit.content);
+    setEditedContent(messageToEdit.content.text || '');
     setOpenMenuId(null);
     
     // Focus the edit textarea after state update
@@ -940,7 +940,7 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
       // Get the latest messages from database to ensure freshness
       const latestMessages = await queryClient.fetchQuery({
         queryKey: ['/api/conversations', currentConversationId, 'messages']
-      }) as DbMessage[];
+      }) as Message[];
       
       if (!latestMessages || latestMessages.length === 0) {
         toast({
@@ -952,29 +952,20 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
       }
       
       // Convert to stream messages
-      const streamMessages: StreamMessage[] = latestMessages.map((msg: DbMessage) => ({
-        id: msg.id,
-        content: msg.content,
-        role: msg.role,
-        timestamp: new Date(msg.createdAt),
-        thinking: msg.thinking,
-        functionCalls: msg.functionCalls,
-        isStreaming: false,
-      }));
+      const streamMessages: StreamMessage[] = latestMessages.map(convertDbMessageToStreamMessage);
       
       // Find the last user message and extract context
       let lastUserMessageIndex = -1;
       let contextObjectIds: string[] = [];
       
       for (let i = streamMessages.length - 1; i >= 0; i--) {
-        if (streamMessages[i].role === 'user') {
-          lastUserMessageIndex = i;
-          const originalMessage = latestMessages[i];
-          if (originalMessage && originalMessage.contextObjects) {
-            contextObjectIds = [...originalMessage.contextObjects];
+          if (streamMessages[i].role === 'user') {
+            lastUserMessageIndex = i;
+            // For now, we don't extract context objects in the new structure
+            // This can be enhanced later if needed
+            contextObjectIds = [];
+            break;
           }
-          break;
-        }
       }
       
       if (lastUserMessageIndex === -1) {
@@ -1117,19 +1108,11 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
         queryKey: ['/api/conversations', currentConversationId, 'messages']
       });
       
-      const formattedMessages: StreamMessage[] = (updatedMessages as DbMessage[]).map((msg: DbMessage) => ({
-        id: msg.id,
-        content: msg.content,
-        role: msg.role,
-        timestamp: new Date(msg.createdAt),
-        thinking: msg.thinking,
-        functionCalls: msg.functionCalls,
-        isStreaming: false,
-      }));
+      const formattedMessages: StreamMessage[] = (updatedMessages as Message[]).map(convertDbMessageToStreamMessage);
       
-      // Extract context objects from the user message
-      const originalMessage = conversationMessages.find(m => m.id === messageId);
-      const contextObjectIds = originalMessage?.contextObjects || [];
+        // Extract context objects from the user message
+        // For now, we don't extract context objects in the new structure
+        const contextObjectIds: string[] = [];
       
       // Regenerate AI response - apply dual control mechanism
       const success = await startAssistantStream({
@@ -1189,15 +1172,7 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
         queryKey: ['/api/conversations', currentConversationId, 'messages']
       });
       
-      const formattedMessages: StreamMessage[] = (updatedMessages as DbMessage[]).map((msg: DbMessage) => ({
-        id: msg.id,
-        content: msg.content,
-        role: msg.role,
-        timestamp: new Date(msg.createdAt),
-        thinking: msg.thinking,
-        functionCalls: msg.functionCalls,
-        isStreaming: false,
-      }));
+      const formattedMessages: StreamMessage[] = (updatedMessages as Message[]).map(convertDbMessageToStreamMessage);
       
       // Find the last user message in the updated conversation
       const lastUserMessageIndex = formattedMessages.map(m => m.role).lastIndexOf('user');
@@ -1215,9 +1190,9 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
       const historyForRegeneration = formattedMessages.slice(0, lastUserMessageIndex + 1);
       const lastUserMessage = historyForRegeneration[lastUserMessageIndex];
       
-      // Extract context objects from the last user message
-      const originalMessage = conversationMessages.find(m => m.id === lastUserMessage.id);
-      const contextObjectIds = originalMessage?.contextObjects || [];
+        // Extract context objects from the last user message
+        // For now, we don't extract context objects in the new structure
+        const contextObjectIds: string[] = [];
       
       // Regenerate AI response - no auto retrieval needed for AI response regeneration
       const success = await startAssistantStream({
@@ -1264,34 +1239,51 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
             
             <div className={`max-w-2xl ${message.role === 'user' ? 'order-2' : ''}`}>
               {/* Thinking display */}
-              {message.thinking && (
-                <ThinkingDisplay thinking={message.thinking} />
+              {message.type === 'thinking' && (
+                <ThinkingDisplay thinking={message.content.text || ''} />
               )}
 
               {/* Function calls */}
-              {message.functionCalls && message.functionCalls.length > 0 && (
-                <div className="mb-2 space-y-1">
-                  {message.functionCalls.map((fc, index) => (
-                    <FunctionCallDisplay key={index} functionCall={fc} />
-                  ))}
+              {message.type === 'function_call' && (
+                <FunctionCallDisplay functionCall={{
+                  name: message.content.name || '',
+                  arguments: message.content.arguments || {},
+                  result: message.content.result
+                }} />
+              )}
+
+              {/* Context messages - show as subtle indicators */}
+              {message.type === 'auto_retrieval_context_object' && (
+                <div className="mb-2 p-2 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg">
+                  <div className="flex items-center gap-2 text-xs text-blue-600 dark:text-blue-400">
+                    <Search className="h-3 w-3" />
+                    <span>自動檢索了 {message.content.objects?.length || 0} 個相關文件</span>
+                  </div>
                 </div>
               )}
 
-              {message.contextUsed && message.contextUsed.length > 0 && (
-                <ContextIndicator contexts={message.contextUsed} className="mb-2" />
+              {message.type === 'mention_context_object' && (
+                <div className="mb-2 p-2 bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-lg">
+                  <div className="flex items-center gap-2 text-xs text-green-600 dark:text-green-400">
+                    <AtSign className="h-3 w-3" />
+                    <span>引用了 {message.content.objects?.length || 0} 個提及的對象</span>
+                  </div>
+                </div>
               )}
-              
-              <div 
-                className="relative group"
-                onMouseEnter={() => setHoveredMessageId(message.id)}
-                onMouseLeave={() => {
-                  if (openMenuId !== message.id) {
-                    setHoveredMessageId(null);
-                  }
-                }}
-                data-testid={`message-container-${message.id}`}
-              >
-                <Card className={`${message.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-card'}`}>
+
+              {/* Only show main message bubble for prompt and response types */}
+              {(message.type === 'prompt' || message.type === 'response') && (
+                <div 
+                  className="relative group"
+                  onMouseEnter={() => setHoveredMessageId(message.id)}
+                  onMouseLeave={() => {
+                    if (openMenuId !== message.id) {
+                      setHoveredMessageId(null);
+                    }
+                  }}
+                  data-testid={`message-container-${message.id}`}
+                >
+                  <Card className={`${message.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-card'}`}>
                   <CardContent className="p-3">
                     {editingMessageId === message.id ? (
                       // Edit mode UI
@@ -1337,12 +1329,12 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
                       <>
                         <div className="text-sm whitespace-pre-wrap">
                           <MentionParser 
-                            text={message.content} 
+                            text={message.content.text || ''} 
                             isAIResponse={message.role === 'assistant'} 
                           />
                           {message.isStreaming && (
                             <>
-                              {!message.content && (
+                              {!message.content.text && (
                                 <div className="flex items-center gap-1 text-muted-foreground">
                                   <div className="flex space-x-1">
                                     <div className="w-2 h-2 bg-current rounded-full animate-bounce [animation-delay:-0.3s]"></div>
@@ -1352,7 +1344,7 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
                                   <span className="text-xs ml-2">思考中...</span>
                                 </div>
                               )}
-                              {message.content && (
+                              {message.content.text && (
                                 <span className="inline-block w-0.5 h-4 bg-current animate-pulse ml-1"></span>
                               )}
                             </>
@@ -1434,14 +1426,7 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
                     </DropdownMenu>
                   </div>
                 )}
-              </div>
-
-              {/* Auto-retrieved context for user messages - shown after user prompt bubble */}
-              {message.role === 'user' && message.contextMetadata?.autoRetrieved && (
-                <AutoRetrievalDisplay 
-                  autoRetrieved={message.contextMetadata.autoRetrieved} 
-                  className="mt-2" 
-                />
+                </div>
               )}
             </div>
             

@@ -259,8 +259,8 @@ export class MemStorage implements IStorage {
     await this.createMessage({
       conversationId: conv.id,
       role: "user",
-      content: "請介紹一下@[person:習近平|習主席]的背景",
-      contextObjects: []
+      type: "prompt",
+      content: { text: "請介紹一下@[person:習近平|習主席]的背景" }
     });
   }
 
@@ -557,17 +557,10 @@ export class MemStorage implements IStorage {
     const message: Message = {
       id,
       conversationId: insertMessage.conversationId,
+      conversationGroupId: insertMessage.conversationGroupId || null,
       role: insertMessage.role,
       content: insertMessage.content,
-      contextObjects: (insertMessage.contextObjects as string[]) || [],
-      thinking: insertMessage.thinking || null,
-      functionCalls: insertMessage.functionCalls ? insertMessage.functionCalls as Array<{name: string; arguments: any; result?: any}> : null,
-      status: insertMessage.status || "completed",
-      contextMetadata: insertMessage.contextMetadata ? insertMessage.contextMetadata as {
-        mentionedPersons?: Array<{ id: string; name: string; alias?: string }>;
-        mentionedObjects?: Array<{ id: string; name: string; alias?: string }>;
-        originalPrompt?: string;
-      } : null,
+      type: insertMessage.type,
       createdAt: now,
       updatedAt: now
     };
@@ -592,15 +585,6 @@ export class MemStorage implements IStorage {
     const updated: Message = {
       ...existing,
       ...updates,
-      // Ensure contextObjects is properly typed as string[]
-      contextObjects: updates.contextObjects ? (updates.contextObjects as string[]) : existing.contextObjects,
-      // Ensure other JSON fields are properly typed
-      functionCalls: updates.functionCalls ? (updates.functionCalls as Array<{name: string; arguments: any; result?: any}>) : existing.functionCalls,
-      contextMetadata: updates.contextMetadata ? (updates.contextMetadata as {
-        mentionedPersons?: Array<{ id: string; name: string; alias?: string }>;
-        mentionedObjects?: Array<{ id: string; name: string; alias?: string }>;
-        originalPrompt?: string;
-      }) : existing.contextMetadata,
       id, // Ensure ID cannot be changed
       createdAt: existing.createdAt, // Preserve original creation time
       updatedAt: new Date()
@@ -1525,7 +1509,7 @@ export class DatabaseStorage implements IStorage {
     return query.limit(filters.limit || 50);
   }
 
-  async getRelationshipsWithDocuments(filters: RelationshipFilters): Promise<Array<Relationship & { sourceDocument: Object; targetDocument: Object }>> {
+  async getRelationshipsWithObjects(filters: RelationshipFilters): Promise<Array<Relationship & { sourceObject: Object; targetObject: Object }>> {
     return [];
   }
 

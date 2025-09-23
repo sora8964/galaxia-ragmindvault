@@ -256,6 +256,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const mentions = await storage.parseMentions(content);
       const contextObjects = await storage.resolveMentionObjects(mentions);
       
+      // Generate conversation group ID for this prompt-response cycle
+      const conversationGroupId = `group-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      
       // Import retrieval service for auto-context on user messages
       const { retrievalService } = await import('./retrieval-service');
       
@@ -291,42 +294,68 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ...autoContext.usedDocs.map(d => d.id)
       ]));
       
-      // Create context metadata for persistence
-      const contextMetadata = {
-        mentionedPersons: mentions.filter(m => m.type === 'person').map(m => ({ 
-          id: m.objectId, 
-          name: m.name, 
-          alias: m.alias 
-        })),
-        mentionedObjects: mentions.filter(m => m.type === 'document').map(m => ({ 
-          id: m.objectId, 
-          name: m.name, 
-          alias: m.alias 
-        })),
-        originalPrompt: content,
-        // Add auto-retrieved context information for transparency
-        autoRetrieved: autoContext.usedDocs.length > 0 ? {
+      // Create the main prompt message
+      const promptMessage = await storage.createMessage({
+        conversationId: req.params.id,
+        conversationGroupId,
+        role: 'user',
+        type: 'prompt',
+        content: {
+          text: content
+        }
+      });
+      
+      // Create auto-retrieval context message if there are retrieved docs
+      let autoRetrievalMessage = null;
+      if (autoContext.usedDocs.length > 0) {
+        autoRetrievalMessage = await storage.createMessage({
+          conversationId: req.params.id,
+          conversationGroupId,
+          role: 'user',
+          type: 'auto_retrieval_context_object',
+          content: {
+            objects: allContextObjects,
+            metadata: {
           usedDocs: autoContext.usedDocs,
           retrievalMetadata: autoContext.retrievalMetadata,
           citations: autoContext.citations
-        } : undefined
-      };
+            }
+          }
+        });
+      }
       
-      const validatedData = insertMessageSchema.parse({
-        ...req.body,
+      // Create mention context message if there are explicit mentions
+      let mentionMessage = null;
+      if (mentions.length > 0) {
+        mentionMessage = await storage.createMessage({
         conversationId: req.params.id,
-        contextObjects: allContextObjects,
-        contextMetadata
-      });
+          conversationGroupId,
+          role: 'user',
+          type: 'mention_context_object',
+          content: {
+            objects: contextObjects.map(obj => obj.id),
+            mentions: mentions.map(m => ({
+              id: m.objectId,
+              name: m.name,
+              alias: m.alias,
+              type: m.type
+            }))
+          }
+        });
+      }
       
-      const message = await storage.createMessage(validatedData);
       res.status(201).json({
-        message,
+        message: promptMessage,
+        conversationGroupId,
         parsedMentions: mentions,
         autoContext: {
           usedDocs: autoContext.usedDocs,
           retrievalMetadata: autoContext.retrievalMetadata,
           citations: autoContext.citations
+        },
+        contextMessages: {
+          autoRetrieval: autoRetrievalMessage,
+          mention: mentionMessage
         }
       });
     } catch (error) {
@@ -517,11 +546,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Chat routes
   app.post("/api/chat", async (req, res) => {
     try {
-      const { messages, contextDocumentIds = [] } = req.body;
+      const { messages, contextObjectIds = [] } = req.body;
       
       // Fetch context objects if provided
       const contextObjects = [];
-      for (const objId of contextDocumentIds) {
+      for (const objId of contextObjectIds) {
         const obj = await storage.getObject(objId);
         if (obj) contextObjects.push(obj);
       }
@@ -541,7 +570,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Enhanced chat with function calling
   app.post("/api/chat/functions", async (req, res) => {
     try {
-      const { messages, contextDocumentIds = [], conversationId } = req.body;
+      const { messages, contextObjectIds = [], conversationId } = req.body;
       
       // Import retrieval service
       const { retrievalService } = await import('./retrieval-service');
@@ -562,7 +591,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Fetch explicit context objects
       const explicitContextObjects = [];
-      for (const objId of contextDocumentIds) {
+      for (const objId of contextObjectIds) {
         const obj = await storage.getObject(objId);
         if (obj) explicitContextObjects.push(obj);
       }
@@ -571,7 +600,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const autoContext = await retrievalService.buildAutoContext({
         conversationId,
         userText,
-        explicitContextIds: contextDocumentIds,
+        explicitContextIds: contextObjectIds,
         mentions: mentionIds
       });
       
@@ -603,7 +632,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       console.log('Function calling chat request:', { 
         messageCount: messages?.length, 
-        contextObjectIds: contextDocumentIds.length,
+        contextObjectIds: contextObjectIds.length,
         autoRetrievedDocs: autoContext.usedDocs.length,
         retrievalStrategy: autoContext.retrievalMetadata.strategy
       });
@@ -628,7 +657,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Streaming chat with function calling
   app.post("/api/chat/stream", async (req, res) => {
     try {
-      const { messages, contextDocumentIds = [], conversationId, autoRetrievalEnabled = true } = req.body;
+      const { messages, contextObjectIds = [], conversationId, autoRetrievalEnabled = true } = req.body;
       
       // Import retrieval service
       const { retrievalService } = await import('./retrieval-service');
@@ -649,7 +678,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Fetch explicit context objects
       const explicitContextObjects = [];
-      for (const objId of contextDocumentIds) {
+      for (const objId of contextObjectIds) {
         const obj = await storage.getObject(objId);
         if (obj) explicitContextObjects.push(obj);
       }
@@ -661,7 +690,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         autoContext = await retrievalService.buildAutoContext({
           conversationId,
           userText,
-          explicitContextIds: contextDocumentIds,
+          explicitContextIds: contextObjectIds,
           mentions: mentionIds
         });
       } else {
@@ -756,14 +785,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         // Save complete message if conversationId provided
         if (conversationId) {
+          // Generate conversation group ID for this response
+          const conversationGroupId = `group-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+          
+          // Save thinking message if present
+          if (thinking) {
           await storage.createMessage({
             conversationId,
+              conversationGroupId,
             role: "assistant",
-            content: fullResponse,
-            contextObjects: [...contextObjects, ...autoContext.usedDocs.map(d => d.id)],
-            thinking: thinking || null,
-            functionCalls: functionCalls.length > 0 ? functionCalls : null,
-            status: "completed"
+              type: "thinking",
+              content: {
+                text: thinking
+              }
+            });
+          }
+          
+          // Save function call messages if present
+          for (const functionCall of functionCalls) {
+            await storage.createMessage({
+              conversationId,
+              conversationGroupId,
+              role: "assistant",
+              type: "function_call",
+              content: {
+                name: functionCall.name,
+                arguments: functionCall.arguments,
+                result: functionCall.result
+              }
+            });
+          }
+          
+          // Save the main response message
+          await storage.createMessage({
+            conversationId,
+            conversationGroupId,
+            role: "assistant",
+            type: "response",
+            content: {
+              text: fullResponse
+            }
           });
         }
 
@@ -1053,10 +1114,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`🔍 [DEBUG] Generated embedding length: ${queryEmbedding.length}`);
       
       // Search for similar objects
-      const similarDocuments = await storage.searchObjectsByVector(queryEmbedding, searchLimit);
+      const similarObjects = await storage.searchObjectsByVector(queryEmbedding, searchLimit);
       
-      console.log(`🔍 [DEBUG] Semantic search test returned ${similarDocuments.length} results:`,
-        similarDocuments.map(doc => ({
+      console.log(`🔍 [DEBUG] Semantic search test returned ${similarObjects.length} results:`,
+        similarObjects.map(doc => ({
           id: doc.id.substring(0, 8),
           name: doc.name,
           similarity: doc.similarity,
@@ -1066,8 +1127,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.json({
         query,
-        results: similarDocuments,
-        total: similarDocuments.length
+        results: similarObjects,
+        total: similarObjects.length
       });
     } catch (error) {
       console.error('Vector search error:', error);
@@ -1128,12 +1189,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       );
       
       // Search for similar objects
-      const similarDocuments = await storage.searchObjectsByVector(queryEmbedding, searchLimit);
+      const similarObjects = await storage.searchObjectsByVector(queryEmbedding, searchLimit);
       
       res.json({
         query,
-        results: similarDocuments,
-        total: similarDocuments.length
+        results: similarObjects,
+        total: similarObjects.length
       });
     } catch (error) {
       console.error('Vector search error:', error);
