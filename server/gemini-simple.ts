@@ -20,18 +20,20 @@ export async function chatWithGemini(options: GeminiChatOptions): Promise<string
     const { messages, contextDocuments = [] } = options;
     
     // Build system instruction with context
-    let systemInstruction = `You are an AI assistant specializing in document and knowledge management. You help users organize, search, and understand their documents and information about people.
+    let systemInstruction = `You are an AI assistant specializing in object and knowledge management. You help users organize, search, and understand their objects and information about people.
+
+Objects refer to all types of data entries including but not limited to persons, entities, issues, logs, meetings, letters, and documents.
 
 You can help users with:
-- Understanding and analyzing documents
-- Finding information about people and documents
+- Understanding and analyzing objects
+- Finding information about people and objects
 - Organizing knowledge and information
 - Answering questions based on provided context
 
-When users mention documents or people using @mentions (like @[person:習近平|習主席]), you should understand they are referring to specific entities in their knowledge base and respond accordingly.`;
+When users mention objects or people using @mentions (like @[person:習近平|習主席]), you should understand they are referring to specific entities in their knowledge base and respond accordingly.`;
 
     if (contextDocuments.length > 0) {
-      systemInstruction += `\n\nContext Documents (Available for reference):`;
+      systemInstruction += `\n\nContext Objects (Available for reference):`;
       contextDocuments.forEach((doc, index) => {
         systemInstruction += `\n${index + 1}. ${doc.type === 'person' ? '👤' : '📄'} ${doc.name}`;
         if (doc.aliases.length > 0) {
@@ -40,7 +42,7 @@ When users mention documents or people using @mentions (like @[person:習近平|
         systemInstruction += `\n   📝 ${doc.content.substring(0, 300)}${doc.content.length > 300 ? '...' : ''}`;
       });
       
-      systemInstruction += `\n\nPlease reference these documents in your responses when relevant.`;
+      systemInstruction += `\n\nPlease reference these objects in your responses when relevant.`;
     }
 
     // Convert messages to Gemini format - map "assistant" to "model" for Gemini API

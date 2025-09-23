@@ -155,7 +155,7 @@ export function Settings() {
         topP: 0.94,
         topK: 32,
         maxOutputTokens: 1000,
-        systemInstructions: 'You are a helpful AI assistant for document and context management.',
+        systemInstructions: 'You are a helpful AI assistant for object and context management. Objects refer to all types of data entries including but not limited to persons, entities, issues, logs, meetings, letters, and documents.',
         safetySettings: {
           harassment: 'BLOCK_MEDIUM_AND_ABOVE',
           hateSpeech: 'BLOCK_MEDIUM_AND_ABOVE',
@@ -487,7 +487,7 @@ export function Settings() {
               <CardHeader>
                 <CardTitle>Text Embedding Configuration</CardTitle>
                 <CardDescription>
-                  Configure text embedding settings for document similarity and context matching
+                  Configure text embedding settings for object similarity and context matching
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -529,7 +529,7 @@ export function Settings() {
                           <SelectContent>
                             <SelectItem value="TASK_TYPE_UNSPECIFIED">Unspecified</SelectItem>
                             <SelectItem value="RETRIEVAL_QUERY">Retrieval Query</SelectItem>
-                            <SelectItem value="RETRIEVAL_DOCUMENT">Retrieval Document</SelectItem>
+                            <SelectItem value="RETRIEVAL_DOCUMENT">Retrieval Object</SelectItem>
                             <SelectItem value="SEMANTIC_SIMILARITY">Semantic Similarity</SelectItem>
                             <SelectItem value="CLASSIFICATION">Classification</SelectItem>
                             <SelectItem value="CLUSTERING">Clustering</SelectItem>
@@ -600,7 +600,7 @@ export function Settings() {
                         <div className="space-y-0.5">
                           <FormLabel className="text-base">Auto Embedding</FormLabel>
                           <FormDescription>
-                            Automatically generate embeddings for new documents
+                            Automatically generate embeddings for new objects
                           </FormDescription>
                         </div>
                         <FormControl>

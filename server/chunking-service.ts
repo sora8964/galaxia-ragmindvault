@@ -18,7 +18,7 @@ export class ChunkingService {
     });
   }
 
-  // Create chunks from document content using pure character count (no boundary detection)
+  // Create chunks from object content using pure character count (no boundary detection)
   private async createChunks(originalContent: string): Promise<Array<{
     content: string;
     chunkIndex: number;
@@ -98,10 +98,10 @@ export class ChunkingService {
     return chunks;
   }
 
-  // Process document chunking and embedding
-  async processDocumentChunking(document: Document): Promise<void> {
+  // Process object chunking and embedding
+  async processObjectChunking(object: Document): Promise<void> {
     try {
-      console.log(`Processing chunks for document: ${document.name}`);
+      console.log(`Processing chunks for object - ${object.type}:${object.name}(${object.id})`);
       
       // Step 1: Check if chunking is enabled
       let appConfig;
@@ -112,39 +112,39 @@ export class ChunkingService {
         appConfig = { chunking: { enabled: true } };
       }
       
-      // Step 2: Delete all existing chunks for this document
-      await storage.deleteChunksByObjectId(document.id);
+      // Step 2: Delete all existing chunks for this object
+      await storage.deleteChunksByObjectId(object.id);
       
       // Step 3: Create embedding content (name + aliases + date + content)
       const embeddingText = [
-        document.name,
-        ...document.aliases,
-        document.date, // 包含日期信息以支持時間搜索
-        document.content
+        object.name,
+        ...object.aliases,
+        object.date, // 包含日期信息以支持時間搜索
+        object.content
       ].filter(Boolean).join(' ');
 
-      // Step 3: Generate main document embedding
-      const documentEmbedding = await generateTextEmbedding(
+      // Step 3: Generate main object embedding
+      const objectEmbedding = await generateTextEmbedding(
         embeddingText,
         appConfig.textEmbedding?.outputDimensionality || 3072,
         appConfig.textEmbedding?.autoTruncate !== false
       );
-      await storage.updateObjectEmbedding(document.id, documentEmbedding);
+      await storage.updateObjectEmbedding(object.id, objectEmbedding);
       
       // Step 4: Check if chunking is enabled for chunk creation
       if (appConfig.chunking?.enabled === false) {
-        console.log(`Chunking disabled for document: ${document.name}, skipping chunk creation`);
-        return; // Skip chunk creation but document embedding is already done
+        console.log(`Chunking disabled for object - ${object.type}:${object.name}(${object.id}), skipping chunk creation`);
+        return; // Skip chunk creation but object embedding is already done
       }
 
       // Step 5: Create chunks (pure character-based chunking)
-      const chunks = await this.createChunks(document.content);
-      console.log(`Created ${chunks.length} chunks for document: ${document.name}`);
+      const chunks = await this.createChunks(object.content);
+      console.log(`Created ${chunks.length} chunks for object - ${object.type}:${object.name}(${object.id})`);
 
       // Step 6: Save chunks and generate embeddings
       for (const chunkData of chunks) {
         const chunk = await storage.createChunk({
-          objectId: document.id,
+          objectId: object.id,
           content: chunkData.content,
           chunkIndex: chunkData.chunkIndex,
           startPosition: chunkData.startPosition,
@@ -162,12 +162,12 @@ export class ChunkingService {
         );
         await storage.updateChunkEmbedding(chunk.id, chunkEmbedding);
         
-        console.log(`Generated embedding for chunk ${chunkData.chunkIndex} of document: ${document.name}`);
+        console.log(`Generated embedding for chunk ${chunkData.chunkIndex} of object - ${object.type}:${object.name}`);
       }
       
-      console.log(`Completed chunking and embedding for document: ${document.name}`);
+      console.log(`Completed chunking and embedding for object: ${object.type}:${object.name}`);
     } catch (error) {
-      console.error(`Error processing chunks for document ${document.id}:`, error);
+      console.error(`Error processing chunks for object - ${object.type}:${object.name}(${object.id}):`, error);
       throw error;
     }
   }

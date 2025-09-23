@@ -12,37 +12,37 @@ export class EmbeddingService {
     this.startBackgroundProcessing();
   }
 
-  // Add document to embedding queue
+  // Add object to embedding queue
   async queueDocumentForEmbedding(documentId: string): Promise<void> {
     if (!this.processingQueue.includes(documentId)) {
       this.processingQueue.push(documentId);
-      console.log(`Queued document ${documentId} for embedding`);
+      console.log(`Queued object ${documentId} for embedding`);
     }
   }
 
-  // Process a single document embedding with chunking
+  // Process a single object embedding with chunking
   async processDocumentEmbedding(documentId: string): Promise<boolean> {
     try {
-      const document = await storage.getObject(documentId);
-      if (!document) {
-        console.error(`Document ${documentId} not found`);
+      const object = await storage.getObject(documentId);
+      if (!object) {
+        console.error(`Object ${documentId} not found`);
         return false;
       }
 
-      if (document.hasEmbedding && !document.needsEmbedding) {
-        console.log(`Document ${documentId} already has embedding and doesn't need re-embedding, skipping...`);
+      if (object.hasEmbedding && !object.needsEmbedding) {
+        console.log(`Object ${documentId} already has embedding and doesn't need re-embedding, skipping...`);
         return true;
       }
 
-      console.log(`Processing document with chunking: ${document.name}`);
+      console.log(`Processing object with chunking: ${object.name}`);
       
       // Use chunking service to handle embedding and chunking
-      await chunkingService.processDocumentChunking(document);
+      await chunkingService.processObjectChunking(object);
       
-      console.log(`Successfully processed document with chunking: ${document.name}`);
+      console.log(`Successfully processed object with chunking: ${object.name}`);
       return true;
     } catch (error) {
-      console.error(`Error processing embedding for document ${documentId}:`, error);
+      console.error(`Error processing embedding for object ${documentId}:`, error);
       return false;
     }
   }
@@ -57,7 +57,7 @@ export class EmbeddingService {
       this.isProcessing = true;
       
       try {
-        // Process documents needing embedding
+        // Process objects needing embedding
         const documentsNeedingEmbedding = await storage.getObjectsNeedingEmbedding();
         
         for (const doc of documentsNeedingEmbedding) {
@@ -82,11 +82,11 @@ export class EmbeddingService {
     }, 5000); // Check every 5 seconds
   }
 
-  // Trigger immediate embedding for mention-created documents
+  // Trigger immediate embedding for mention-created objects
   async triggerImmediateEmbedding(documentId: string): Promise<void> {
     await this.queueDocumentForEmbedding(documentId);
     
-    // Process immediately for mention-created documents
+    // Process immediately for mention-created objects
     if (!this.isProcessing) {
       this.isProcessing = true;
       try {
@@ -97,7 +97,7 @@ export class EmbeddingService {
     }
   }
 
-  // Mark OCR document as ready for embedding after editing
+  // Mark OCR object as ready for embedding after editing
   async markOCRDocumentAsEdited(documentId: string): Promise<void> {
     const doc = await storage.getObject(documentId);
     if (doc && doc.isFromOCR) {

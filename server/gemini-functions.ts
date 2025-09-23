@@ -3,7 +3,8 @@ import { GoogleGenAI } from "@google/genai";
 import { storage } from "./storage";
 import { embeddingService } from "./embedding-service";
 import { generateTextEmbedding } from "./gemini-simple";
-import type { Document, MentionItem, SearchResult } from "@shared/schema";
+import type { Document, MentionItem, SearchResult, ObjectType } from "@shared/schema";
+import { OBJECT_TYPES } from "@shared/schema";
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
 
@@ -33,6 +34,16 @@ const functions = {
         }
       },
       required: ["query"]
+    }
+  },
+
+  getObjectTypes: {
+    name: "getObjectTypes",
+    description: "Get all available object types in the system. This helps you understand what types of objects can be created, searched, and managed.",
+    parameters: {
+      type: "object",
+      properties: {},
+      required: []
     }
   },
 
@@ -161,7 +172,7 @@ const functions = {
         },
         type: {
           type: "string",
-          enum: ["person", "document", "letter", "entity", "issue", "log", "meeting"],
+          enum: [...OBJECT_TYPES],
           description: "Optional: Filter by document type"
         },
         maxExcerpts: {
@@ -504,7 +515,7 @@ async function parseMentions(args: any): Promise<string> {
       const [fullMatch, type, name, alias] = match;
       
       // Try to find the document
-      const searchResult = await storage.searchObjects(name, type as "person" | "document" | "entity" | "issue" | "log");
+      const searchResult = await storage.searchObjects(name, type as ObjectType);
       const foundDoc = searchResult.objects.find(doc => 
         doc.name.toLowerCase() === name.toLowerCase() ||
         doc.aliases.some(a => a.toLowerCase() === name.toLowerCase())
@@ -628,7 +639,7 @@ async function findRelevantExcerpts(args: any): Promise<string> {
             documentId: doc.id,
             documentName: doc.name,
             documentType: doc.type,
-            content: doc.content.substring(0, appConfig.retrieval?.contentTruncateLength || 1000) + (doc.content.length > (appConfig.retrieval?.contentTruncateLength || 1000) ? '...' : ''),
+            content: doc.content.substring(0, 1000) + (doc.content.length > 1000 ? '...' : ''),
             relevanceScore: 0.5,
             chunkIndex: 0,
             isFullDocument: false
@@ -676,6 +687,73 @@ async function findRelevantExcerpts(args: any): Promise<string> {
   }
 }
 
+// Get all available object types
+async function getObjectTypes(args: any): Promise<string> {
+  try {
+    const objectTypes = [
+      {
+        type: "person",
+        name: "Person",
+        description: "Individual people with personal information, roles, and relationships",
+        icon: "👤"
+      },
+      {
+        type: "document",
+        name: "Document",
+        description: "Text documents, reports, articles, and written materials",
+        icon: "📄"
+      },
+      {
+        type: "letter",
+        name: "Letter",
+        description: "Correspondence, letters, and formal communications",
+        icon: "✉️"
+      },
+      {
+        type: "entity",
+        name: "Entity",
+        description: "Organizations, companies, institutions, and other entities",
+        icon: "🏢"
+      },
+      {
+        type: "issue",
+        name: "Issue",
+        description: "Problems, topics, or matters that need attention or resolution",
+        icon: "⚠️"
+      },
+      {
+        type: "log",
+        name: "Log",
+        description: "Records, logs, and chronological entries of events or activities",
+        icon: "📝"
+      },
+      {
+        type: "meeting",
+        name: "Meeting",
+        description: "Meeting records, minutes, and meeting-related information",
+        icon: "🤝"
+      }
+    ];
+
+    let result = "Available Object Types in the System:\n\n";
+    
+    objectTypes.forEach((objType, index) => {
+      result += `${index + 1}. ${objType.icon} **${objType.name}** (${objType.type})\n`;
+      result += `   ${objType.description}\n\n`;
+    });
+
+    result += "You can use these object types when:\n";
+    result += "- Searching with searchObjects (use the 'type' parameter)\n";
+    result += "- Creating new objects with createObject\n";
+    result += "- Using @mentions like @[person:Name], @[document:Title], etc.\n";
+    result += "- Filtering and organizing information";
+
+    return result;
+
+  } catch (error) {
+    return `Error getting object types: ${error}`;
+  }
+}
 
 // Helper function to calculate cosine similarity
 function cosineSimilarity(a: number[], b: number[]): number {
@@ -700,6 +778,8 @@ export async function callFunction(functionName: string, args: any): Promise<str
   switch (functionName) {
     case "searchObjects":
       return await searchObjects(args);
+    case "getObjectTypes":
+      return await getObjectTypes(args);
     case "getObjectDetails":
       return await getObjectDetails(args);
     case "createObject":
@@ -772,26 +852,29 @@ export async function chatWithGeminiFunctions(options: GeminiFunctionChatOptions
     const { messages, contextDocuments = [] } = options;
     
     // Build system instruction
-    let systemInstruction = `You are an AI assistant for an advanced document and knowledge management system. You help users organize, search, and understand their documents, people, entities, issues, logs, and meetings.
+    let systemInstruction = `You are an AI assistant for an advanced object and knowledge management system. You help users organize, search, and understand their objects, people, entities, issues, logs, and meetings.
+
+Objects refer to all types of data entries including but not limited to persons, entities, issues, logs, meetings, letters, and documents. You can use the getObjectTypes function to see all available object types.
 
 You have access to the following functions to help users:
 
 **SEARCH & EXPLORATION FUNCTIONS (Use iteratively for comprehensive analysis):**
 - searchObjects: **POWERFUL SEMANTIC SEARCH** with pagination - Returns lightweight summaries (titles, snippets, relevance scores) of unlimited results. Use this extensively to explore the knowledge base with different queries and then selectively read full content with getObjectDetails. Perfect for comprehensive research and discovery.
-- getObjectDetails: Get full content of specific documents - use AFTER finding relevant IDs with searchObjects
-- findRelevantExcerpts: Find specific excerpts from documents using intelligent retrieval
+- getObjectDetails: Get full content of specific objects - use AFTER finding relevant IDs with searchObjects
+- findRelevantExcerpts: Find specific excerpts from objects using intelligent retrieval
+- getObjectTypes: List all available object types in the system
 
 **CONTENT MANAGEMENT FUNCTIONS:**
-- createObject: Create new documents, person profiles, entities, issues, logs, or meetings
-- updateObject: Modify existing documents
-- findSimilarDocuments: Find semantically similar content
+- createObject: Create new objects, person profiles, entities, issues, logs, or meetings
+- updateObject: Modify existing objects
+- findSimilarObjects: Find semantically similar content
 - parseMentions: Analyze @mentions in text
 
 **ITERATIVE RESEARCH STRATEGY:**
-1. Start with searchObjects to get a comprehensive overview of relevant documents
+1. Start with searchObjects to get a comprehensive overview of relevant objects
 2. Review pagination results and explore multiple pages if needed
-3. Use getObjectDetails selectively to read full content of the most relevant documents
-4. Combine insights from multiple documents to provide comprehensive answers
+3. Use getObjectDetails selectively to read full content of the most relevant objects
+4. Combine insights from multiple objects to provide comprehensive answers
 
 **IMPORTANT PRINCIPLES:**
 - DON'T be afraid of the context window - Gemini 2.5 Pro can handle very large contexts
@@ -803,7 +886,7 @@ You have access to the following functions to help users:
 Use @mentions like @[person:習近平], @[document:項目計劃書], @[letter:感謝信], @[entity:公司名稱], @[issue:問題標題], @[log:日誌名稱], or @[meeting:會議名稱] when referring to specific entities.`;
 
     if (contextDocuments.length > 0) {
-      systemInstruction += `\n\nContext Documents (Currently available):`;
+      systemInstruction += `\n\nContext Objects (Currently available):`;
       const getIcon = (type: string) => {
         switch (type) {
           case 'person': return '👤';

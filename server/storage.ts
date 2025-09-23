@@ -8,6 +8,7 @@ import {
   type InsertConversation,
   type Message,
   type InsertMessage,
+  type ObjectType,
   type UpdateMessage,
   type Chunk,
   type InsertChunk,
@@ -44,8 +45,8 @@ export interface IStorage {
   // Object operations
   getObject(id: string): Promise<Document | undefined>;
   getAllObjects(): Promise<Document[]>;
-  getObjectsByType(type: "person" | "document" | "letter" | "entity" | "issue" | "log" | "meeting"): Promise<Document[]>;
-  searchObjects(query: string, type?: "person" | "document" | "letter" | "entity" | "issue" | "log" | "meeting"): Promise<SearchResult>;
+  getObjectsByType(type: ObjectType): Promise<Document[]>;
+  searchObjects(query: string, type?: ObjectType): Promise<SearchResult>;
   createObject(object: InsertObject): Promise<Document>;
   updateObject(id: string, updates: UpdateObject): Promise<Document | undefined>;
   deleteObject(id: string): Promise<boolean>;
@@ -63,7 +64,7 @@ export interface IStorage {
   updateChunkEmbedding(id: string, embedding: number[]): Promise<boolean>;
   deleteChunk(id: string): Promise<boolean>;
   deleteChunksByObjectId(objectId: string): Promise<boolean>;
-  searchChunksByVector(queryVector: number[], limit?: number): Promise<Array<Chunk & { document: Document }>>;
+  searchChunksByVector(queryVector: number[], limit?: number): Promise<Array<Chunk & { object: Document }>>;
   
   // Mention parsing operations
   parseMentions(text: string): Promise<ParsedMention[]>;
@@ -105,7 +106,7 @@ export interface IStorage {
 
 export class MemStorage implements IStorage {
   private users: Map<string, User>;
-  private documents: Map<string, Document>;
+  private objects: Map<string, Document>;
   private conversations: Map<string, Conversation>;
   private messages: Map<string, Message>;
   private chunks: Map<string, Chunk>;
@@ -114,7 +115,7 @@ export class MemStorage implements IStorage {
 
   constructor() {
     this.users = new Map();
-    this.documents = new Map();
+    this.objects = new Map();
     this.conversations = new Map();
     this.messages = new Map();
     this.chunks = new Map();
@@ -128,7 +129,7 @@ export class MemStorage implements IStorage {
         topP: 0.94,
         topK: 32,
         maxOutputTokens: 1000,
-        systemInstructions: "You are a helpful AI assistant for document and context management.",
+        systemInstructions: "You are a helpful AI assistant for object and context management. Objects refer to all types of data entries including but not limited to persons, entities, issues, logs, meetings, letters, and documents.",
         safetySettings: {
           harassment: "BLOCK_MEDIUM_AND_ABOVE",
           hateSpeech: "BLOCK_MEDIUM_AND_ABOVE",
@@ -170,7 +171,7 @@ export class MemStorage implements IStorage {
   }
 
   private async initializeSampleData() {
-    // Sample documents
+    // Sample objects
     const sampleDocs = [
       {
         name: "習近平",
@@ -284,29 +285,29 @@ export class MemStorage implements IStorage {
 
   // Object operations
   async getObject(id: string): Promise<Document | undefined> {
-    return this.documents.get(id);
+    return this.objects.get(id);
   }
 
   async getAllObjects(): Promise<Document[]> {
-    return Array.from(this.documents.values()).sort((a, b) => 
+    return Array.from(this.objects.values()).sort((a, b) => 
       new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
     );
   }
 
-  async getObjectsByType(type: "person" | "document" | "letter" | "entity" | "issue" | "log" | "meeting"): Promise<Document[]> {
-    return Array.from(this.documents.values())
+  async getObjectsByType(type: ObjectType): Promise<Document[]> {
+    return Array.from(this.objects.values())
       .filter(doc => doc.type === type)
       .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
   }
 
-  async searchObjects(query: string, type?: "person" | "document" | "letter" | "entity" | "issue" | "log" | "meeting"): Promise<SearchResult> {
+  async searchObjects(query: string, type?: ObjectType): Promise<SearchResult> {
     console.log(`[MemStorage] Search called with query: "${query}", type: ${type}`);
-    const allDocs = Array.from(this.documents.values());
-    console.log(`[MemStorage] Total documents: ${allDocs.length}`);
+    const allObjects = Array.from(this.objects.values());
+    console.log(`[MemStorage] Total objects: ${allObjects.length}`);
     const lowerQuery = query.toLowerCase();
     
     // Enhanced search with date pattern matching and flexible terms
-    const filtered = allDocs.filter(doc => {
+    const filtered = allObjects.filter(doc => {
       if (type && doc.type !== type) return false;
       
       // Basic text matching
@@ -419,7 +420,7 @@ export class MemStorage implements IStorage {
   async createObject(insertObject: InsertObject): Promise<Document> {
     const id = randomUUID();
     const now = new Date();
-    const document: Document = {
+    const object: Document = {
       name: insertObject.name,
       type: insertObject.type,
       content: insertObject.content || '',
@@ -435,12 +436,12 @@ export class MemStorage implements IStorage {
       createdAt: now,
       updatedAt: now
     };
-    this.documents.set(id, document);
-    return document;
+    this.objects.set(id, object);
+    return object;
   }
 
   async updateObject(id: string, updates: UpdateObject): Promise<Document | undefined> {
-    const existing = this.documents.get(id);
+    const existing = this.objects.get(id);
     if (!existing) return undefined;
     
     // Check if content-related fields have changed
@@ -467,20 +468,20 @@ export class MemStorage implements IStorage {
       updatedAt: new Date()
     };
     
-    this.documents.set(id, updated);
-    console.log(`Updated document ${id}${contentChanged ? ' (content changed - will re-embed)' : ' (metadata only)'}`);
+    this.objects.set(id, updated);
+    console.log(`Updated object - ${updated.type}:${updated.name}(${id})${contentChanged ? ' (content changed - will re-embed)' : ' (metadata only)'}`);
     return updated;
   }
 
   async deleteObject(id: string): Promise<boolean> {
-    return this.documents.delete(id);
+    return this.objects.delete(id);
   }
 
   async getMentionSuggestions(query: string): Promise<MentionItem[]> {
-    const allDocs = Array.from(this.documents.values());
+    const allObjects = Array.from(this.objects.values());
     const lowerQuery = query.toLowerCase();
     
-    const matches = allDocs.filter(doc => {
+    const matches = allObjects.filter(doc => {
       const matchesName = doc.name.toLowerCase().includes(lowerQuery);
       const matchesAliases = doc.aliases.some(alias => 
         alias.toLowerCase().includes(lowerQuery)
@@ -705,7 +706,7 @@ export class MemStorage implements IStorage {
         start: match.index,
         end: match.index + fullMatch.length,
         raw: fullMatch,
-        type: type as "person" | "document" | "entity" | "issue" | "log",
+        type: type as ObjectType,
         name: name.trim(),
         alias: alias?.trim(),
         objectId: undefined // Will be resolved separately
@@ -719,30 +720,30 @@ export class MemStorage implements IStorage {
     const documentIds: string[] = [];
     
     for (const mention of mentions) {
-      // Find document by name first
-      let document = Array.from(this.documents.values()).find(doc => 
+      // Find object by name first
+      let object = Array.from(this.objects.values()).find(doc => 
         doc.type === mention.type && doc.name === mention.name
       );
       
       // If not found by name, try alias
-      if (!document && mention.alias) {
-        document = Array.from(this.documents.values()).find(doc => 
+      if (!object && mention.alias) {
+        object = Array.from(this.objects.values()).find(doc => 
           doc.type === mention.type && doc.aliases.includes(mention.alias!)
         );
       }
       
       // If still not found, try searching by alias in the original name field
-      if (!document) {
-        document = Array.from(this.documents.values()).find(doc => 
+      if (!object) {
+        object = Array.from(this.objects.values()).find(doc => 
           doc.type === mention.type && 
           (doc.aliases.includes(mention.name) || doc.name === mention.alias)
         );
       }
       
-      if (document && !documentIds.includes(document.id)) {
-        documentIds.push(document.id);
+      if (object && !documentIds.includes(object.id)) {
+        documentIds.push(object.id);
         // Update the mention with resolved object ID
-        mention.objectId = document.id;
+        mention.objectId = object.id;
       }
     }
     
@@ -751,7 +752,7 @@ export class MemStorage implements IStorage {
 
   // Embedding operations
   async updateObjectEmbedding(id: string, embedding: number[]): Promise<boolean> {
-    const existing = this.documents.get(id);
+    const existing = this.objects.get(id);
     if (!existing) return false;
     
     const updated: Document = {
@@ -762,16 +763,16 @@ export class MemStorage implements IStorage {
       needsEmbedding: false,
       updatedAt: new Date()
     };
-    this.documents.set(id, updated);
+    this.objects.set(id, updated);
     return true;
   }
 
   async searchObjectsByVector(queryVector: number[], limit: number = 10): Promise<Document[]> {
     // Simple cosine similarity implementation for in-memory storage
-    const docsWithEmbeddings = Array.from(this.documents.values())
+    const objectsWithEmbeddings = Array.from(this.objects.values())
       .filter(doc => doc.hasEmbedding && doc.embedding);
     
-    const similarities = docsWithEmbeddings.map(doc => {
+    const similarities = objectsWithEmbeddings.map(doc => {
       const similarity = this.cosineSimilarity(queryVector, doc.embedding!);
       return { doc, similarity };
     });
@@ -783,13 +784,13 @@ export class MemStorage implements IStorage {
   }
 
   async getObjectsNeedingEmbedding(): Promise<Document[]> {
-    return Array.from(this.documents.values()).filter(doc => {
+    return Array.from(this.objects.values()).filter(doc => {
       if (!doc.needsEmbedding) return false;
       
-      // For OCR documents, wait until they've been edited
+      // For OCR objects, wait until they've been edited
       if (doc.isFromOCR && !doc.hasBeenEdited) return false;
       
-      // For mention-created documents, embed immediately
+      // For mention-created objects, embed immediately
       return true;
     });
   }
@@ -886,19 +887,19 @@ export class MemStorage implements IStorage {
     return deletedCount > 0;
   }
 
-  async searchChunksByVector(queryVector: number[], limit: number = 10): Promise<Array<Chunk & { document: Document }>> {
+  async searchChunksByVector(queryVector: number[], limit: number = 10): Promise<Array<Chunk & { object: Document }>> {
     const chunksWithEmbeddings = Array.from(this.chunks.values())
       .filter(chunk => chunk.hasEmbedding && chunk.embedding);
     
     const similarities = chunksWithEmbeddings.map(chunk => {
       const similarity = this.cosineSimilarity(queryVector, chunk.embedding!);
-      const document = this.documents.get(chunk.objectId);
+      const object = this.objects.get(chunk.objectId);
       return { 
         ...chunk, 
-        document: document!, 
+        object: object!, 
         similarity 
       };
-    }).filter(item => item.document); // Filter out chunks without documents
+    }).filter(item => item.object); // Filter out chunks without objects
     
     return similarities
       .sort((a, b) => b.similarity - a.similarity)
@@ -1005,7 +1006,7 @@ export class MemStorage implements IStorage {
     const id = randomUUID();
     const now = new Date();
     
-    // For backward compatibility, infer types from documents if not provided
+    // For backward compatibility, infer types from objects if not provided
     let sourceType = insertRelationship.sourceType;
     let targetType = insertRelationship.targetType;
     
@@ -1156,14 +1157,14 @@ export class DatabaseStorage implements IStorage {
     return result;
   }
 
-  async getObjectsByType(type: "person" | "document" | "letter" | "entity" | "issue" | "log" | "meeting"): Promise<Document[]> {
+  async getObjectsByType(type: ObjectType): Promise<Document[]> {
     const result = await db.select().from(objects)
       .where(eq(objects.type, type))
       .orderBy(desc(objects.updatedAt));
     return result;
   }
 
-  async searchObjects(query: string, type?: "person" | "document" | "letter" | "entity" | "issue" | "log" | "meeting"): Promise<SearchResult> {
+  async searchObjects(query: string, type?: ObjectType): Promise<SearchResult> {
     // Multi-term query support
     const queryTerms = query.trim().split(/\s+/).filter(term => term.length > 1);
     let whereCondition;
@@ -1344,10 +1345,10 @@ export class DatabaseStorage implements IStorage {
     return (result.rowCount || 0) > 0;
   }
 
-  async searchChunksByVector(queryVector: number[], limit: number = 10): Promise<Array<Chunk & { document: Document; similarity: number }>> {
+  async searchChunksByVector(queryVector: number[], limit: number = 10): Promise<Array<Chunk & { object: Document; similarity: number }>> {
     try {
       console.log(`🔍 [CHUNK-SEARCH] Query vector length: ${queryVector.length}`);
-      // Join chunks with their parent documents and search by vector similarity
+      // Join chunks with their parent objects and search by vector similarity
       const result = await db.execute(sql`
         SELECT 
           c.*,
@@ -1397,8 +1398,8 @@ export class DatabaseStorage implements IStorage {
         similarity: row.similarity as number,
         createdAt: new Date(row.created_at as string),
         updatedAt: new Date(row.updated_at as string),
-        // Document properties
-        document: {
+        // Object properties
+        object: {
           id: row.object_id as string,
           name: row.doc_name as string,
           type: row.doc_type as DocumentType,
@@ -1686,7 +1687,7 @@ export class DatabaseStorage implements IStorage {
         topP: 0.94,
         topK: 32,
         maxOutputTokens: 1000,
-        systemInstructions: "You are a helpful AI assistant for document and context management.",
+        systemInstructions: "You are a helpful AI assistant for object and context management. Objects refer to all types of data entries including but not limited to persons, entities, issues, logs, meetings, letters, and documents.",
         safetySettings: {
           harassment: "BLOCK_MEDIUM_AND_ABOVE",
           hateSpeech: "BLOCK_MEDIUM_AND_ABOVE",

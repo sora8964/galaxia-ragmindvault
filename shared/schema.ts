@@ -4,6 +4,10 @@ import { vector } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
+// Object types constants
+export const OBJECT_TYPES = ["person", "document", "letter", "entity", "issue", "log", "meeting"];
+export type ObjectType = typeof OBJECT_TYPES[number];
+
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   username: text("username").notNull().unique(),
@@ -13,7 +17,7 @@ export const users = pgTable("users", {
 export const objects = pgTable("objects", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull(),
-  type: text("type", { enum: ["person", "document", "letter", "entity", "issue", "log", "meeting"] }).notNull(),
+  type: text("type", { enum: OBJECT_TYPES }).notNull(),
   content: text("content").notNull().default(""),
   aliases: json("aliases").$type<string[]>().notNull().default([]),
   date: char("date", { length: 10 }), // YYYY-MM-DD format, nullable
@@ -104,8 +108,8 @@ export const relationships = pgTable("relationships", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   sourceId: varchar("source_id").notNull(),
   targetId: varchar("target_id").notNull(),
-  sourceType: text("source_type", { enum: ["person", "document", "letter", "entity", "issue", "log", "meeting"] }).notNull(),
-  targetType: text("target_type", { enum: ["person", "document", "letter", "entity", "issue", "log", "meeting"] }).notNull(),
+  sourceType: text("source_type", { enum: OBJECT_TYPES }).notNull(),
+  targetType: text("target_type", { enum: OBJECT_TYPES }).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (table) => ({
@@ -128,7 +132,7 @@ export const settings = pgTable("settings", {
 // Schema definitions
 
 // Define DocumentType enum for type safety
-export const DocumentType = z.enum(["person", "document", "letter", "entity", "issue", "log", "meeting"]);
+export const DocumentType = z.enum(OBJECT_TYPES);
 export type DocumentType = z.infer<typeof DocumentType>;
 
 export const insertUserSchema = createInsertSchema(users).pick({
@@ -175,7 +179,7 @@ export const insertObjectSchema = createInsertSchema(objects)
     date: dateValidation.optional()
   })
   .refine((data) => {
-    // Only documents, letters and logs can have a date field
+    // Only objects, letters and logs can have a date field
     if (data.date !== null && data.date !== undefined && data.type !== "document" && data.type !== "letter" && data.type !== "log") {
       return false;
     }
@@ -196,7 +200,7 @@ export const updateObjectSchema = createInsertSchema(objects)
   })
   .partial()
   .refine((data) => {
-    // Only documents, letters and logs can have a date field
+    // Only objects, letters and logs can have a date field
     if (data.date !== null && data.date !== undefined && data.type !== undefined && data.type !== "document" && data.type !== "letter" && data.type !== "log") {
       return false;
     }
@@ -290,7 +294,7 @@ export interface SearchResult {
 export interface MentionItem {
   id: string;
   name: string;
-  type: "person" | "document" | "letter" | "entity" | "issue" | "log" | "meeting";
+  type: ObjectType;
   aliases: string[];
 }
 
@@ -304,7 +308,7 @@ export interface ParsedMention {
   start: number;
   end: number;
   raw: string;
-  type: "person" | "document" | "entity" | "issue" | "log" | "meeting";
+  type: ObjectType;
   name: string;
   alias?: string;
   objectId?: string;
@@ -333,7 +337,7 @@ export const geminiApiConfigSchema = z.object({
   topP: z.number().min(0).max(1).default(0.94),
   topK: z.number().int().min(1).max(40).default(32),
   maxOutputTokens: z.number().int().min(1).max(8192).default(1000),
-  systemInstructions: z.string().default("You are a helpful AI assistant for document and context management."),
+  systemInstructions: z.string().default("You are a helpful AI assistant for object and context management. Objects refer to all types of data entries including but not limited to persons, entities, issues, logs, meetings, letters, and documents."),
   safetySettings: z.object({
     harassment: z.enum(["BLOCK_NONE", "BLOCK_LOW_AND_ABOVE", "BLOCK_MEDIUM_AND_ABOVE", "BLOCK_HIGH_AND_ABOVE"]).default("BLOCK_MEDIUM_AND_ABOVE"),
     hateSpeech: z.enum(["BLOCK_NONE", "BLOCK_LOW_AND_ABOVE", "BLOCK_MEDIUM_AND_ABOVE", "BLOCK_HIGH_AND_ABOVE"]).default("BLOCK_MEDIUM_AND_ABOVE"),

@@ -116,17 +116,17 @@ export class RetrievalService {
       );
       console.log(`🔍 [AUTO-RETRIEVAL] Query embedding generated, length: ${queryEmbedding.length}`);
       
-      // Stage 2: Document-level retrieval
-      console.log(`🔍 [AUTO-RETRIEVAL] Stage 2: Document-level retrieval...`);
+      // Stage 2: Object-level retrieval
+      console.log(`🔍 [AUTO-RETRIEVAL] Stage 2: Object-level retrieval...`);
       const candidateDocs = await this.performDocumentRetrieval(
         queryEmbedding, 
         retrievalConfig, 
         explicitContextIds.concat(mentions)
       );
-      console.log(`🔍 [AUTO-RETRIEVAL] Document retrieval returned ${candidateDocs.length} candidate docs`);
+      console.log(`🔍 [AUTO-RETRIEVAL] Object retrieval returned ${candidateDocs.length} candidate objects`);
 
       if (candidateDocs.length === 0) {
-        console.log(`🔍 [AUTO-RETRIEVAL] No candidate documents found, returning empty context`);
+        console.log(`🔍 [AUTO-RETRIEVAL] No candidate objects found, returning empty context`);
         return {
           contextText: "",
           citations: [],
@@ -207,7 +207,7 @@ export class RetrievalService {
         }))
       );
 
-      // Filter out excluded documents
+      // Filter out excluded objects
       const filtered = vectorCandidates.filter(doc => 
         !excludeIds.includes(doc.id)
       );
@@ -230,7 +230,7 @@ export class RetrievalService {
       return final;
 
     } catch (error) {
-      console.error('Error in document retrieval:', error);
+      console.error('Error in object retrieval:', error);
       return [];
     }
   }
@@ -272,9 +272,9 @@ export class RetrievalService {
       );
     }
     
-    // Filter chunks to only include those from our candidate documents
+    // Filter chunks to only include those from our candidate objects
     const candidateDocIds = new Set(docs.map(doc => doc.id));
-    console.log(`🔍 [CHUNK-RETRIEVAL] Candidate document IDs:`, Array.from(candidateDocIds).map(id => id.substring(0, 8)));
+    console.log(`🔍 [CHUNK-RETRIEVAL] Candidate object IDs:`, Array.from(candidateDocIds).map(id => id.substring(0, 8)));
     const filteredChunks = vectorChunks.filter(chunk => candidateDocIds.has(chunk.objectId));
     console.log(`🔍 [CHUNK-RETRIEVAL] After filtering to candidate docs: ${filteredChunks.length} chunks remain`);
 
@@ -311,15 +311,15 @@ export class RetrievalService {
       }
     }
 
-    // Fallback: handle documents without chunks
-    console.log(`🔍 [CHUNK-RETRIEVAL] Checking fallback for ${docs.length} documents...`);
+    // Fallback: handle objects without chunks
+    console.log(`🔍 [CHUNK-RETRIEVAL] Checking fallback for ${docs.length} objects...`);
     for (const doc of docs) {
       const chunks = await storage.getChunksByObjectId(doc.id);
       totalChunks += chunks.length;
 
       if (chunks.length === 0) {
-        console.log(`🔍 [CHUNK-RETRIEVAL] 📄 Fallback: Document ${doc.name} has no chunks, content length: ${doc.content.length}`);
-        // Fallback: use document content directly for short docs
+        console.log(`🔍 [CHUNK-RETRIEVAL] 📄 Fallback: Object ${doc.name} has no chunks, content length: ${doc.content.length}`);
+        // Fallback: use object content directly for short objects
         if (doc.content.length <= (appConfig.chunking?.chunkSize)) {
           console.log(`🔍 [CHUNK-RETRIEVAL] ✅ Using fallback for ${doc.name} (length <= ${appConfig.chunking?.chunkSize})`);
           allExcerpts.push({
@@ -335,7 +335,7 @@ export class RetrievalService {
           console.log(`🔍 [CHUNK-RETRIEVAL] ❌ Skipping fallback for ${doc.name} (length > ${appConfig.chunking?.chunkSize}: ${doc.content.length})`);
         }
       } else {
-        console.log(`🔍 [CHUNK-RETRIEVAL] Document ${doc.name} has ${chunks.length} chunks, skipping fallback`);
+        console.log(`🔍 [CHUNK-RETRIEVAL] Object ${doc.name} has ${chunks.length} chunks, skipping fallback`);
       }
     }
 

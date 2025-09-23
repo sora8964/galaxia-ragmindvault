@@ -1,60 +1,61 @@
 // Reference: javascript_gemini blueprint integration  
 import { GoogleGenAI, FunctionDeclaration, Type } from "@google/genai";
 import { storage } from "./storage";
-import type { Document } from "@shared/schema";
+import type { Document, ObjectType } from "@shared/schema";
+import { OBJECT_TYPES } from "@shared/schema";
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
 
 // Function calling tools for Gemini
-const searchDocumentsTool: FunctionDeclaration = {
-  name: "search_documents",
-  description: "Search for documents, people, entities, issues, logs, and meetings by name, content, or aliases",
+const searchObjectsTool: FunctionDeclaration = {
+  name: "search_objects",
+  description: "Search for objects by name, content, or aliases",
   parameters: {
     type: Type.OBJECT,
     properties: {
       query: {
         type: Type.STRING,
-        description: "Search query to find documents, people, entities, issues, logs, or meetings"
+        description: "Search query to find objects"
       },
       type: {
         type: Type.STRING,
-        enum: ["person", "document", "entity", "issue", "log", "meeting"],
-        description: "Filter by document type (optional)"
+        enum: [...OBJECT_TYPES],
+        description: "Filter by object type (optional)"
       }
     },
     required: ["query"]
   }
 };
 
-const getDocumentTool: FunctionDeclaration = {
-  name: "get_document",
-  description: "Get detailed information about a specific document, person, entity, issue, log, or meeting by ID. For issues, automatically includes associated logs.",
+const getObjectTool: FunctionDeclaration = {
+  name: "get_object",
+  description: "Get detailed information about a specific object by ID. For issues, automatically includes associated logs.",
   parameters: {
     type: Type.OBJECT,
     properties: {
       id: {
         type: Type.STRING,
-        description: "The document ID to retrieve"
+        description: "The object ID to retrieve"
       }
     },
     required: ["id"]
   }
 };
 
-const createDocumentTool: FunctionDeclaration = {
-  name: "create_document",
-  description: "Create a new document, person profile, entity, issue, log, or meeting entry",
+const createObjectTool: FunctionDeclaration = {
+  name: "create_object",
+  description: "Create a new object entry",
   parameters: {
     type: Type.OBJECT,
     properties: {
       name: {
         type: Type.STRING,
-        description: "Name of the document, person, entity, issue, log, or meeting"
+        description: "Name of the object"
       },
       type: {
         type: Type.STRING,
-        enum: ["person", "document", "entity", "issue", "log", "meeting"],
-        description: "Type of entry to create"
+        enum: [...OBJECT_TYPES],
+        description: "Type of object to create"
       },
       content: {
         type: Type.STRING,
@@ -70,15 +71,15 @@ const createDocumentTool: FunctionDeclaration = {
   }
 };
 
-const updateDocumentTool: FunctionDeclaration = {
-  name: "update_document",
-  description: "Update an existing document, person profile, entity, issue, log, or meeting entry",
+const updateObjectTool: FunctionDeclaration = {
+  name: "update_object",
+  description: "Update an existing object entry",
   parameters: {
     type: Type.OBJECT,
     properties: {
       id: {
         type: Type.STRING,
-        description: "The document ID to update"
+        description: "The object ID to update"
       },
       name: {
         type: Type.STRING,
@@ -98,28 +99,38 @@ const updateDocumentTool: FunctionDeclaration = {
   }
 };
 
+const getObjectTypesTool: FunctionDeclaration = {
+  name: "get_object_types",
+  description: "Get all available object types in the system. This helps you understand what types of objects can be created, searched, and managed.",
+  parameters: {
+    type: Type.OBJECT,
+    properties: {},
+    required: []
+  }
+};
+
 // Function handlers
-async function handleSearchDocuments(args: any) {
+async function handleSearchObjects(args: any) {
   const { query, type } = args;
-  const results = await storage.searchDocuments(query, type);
+  const results = await storage.searchObjects(query, type);
   return {
-    documents: results.documents,
+    objects: results.objects,
     total: results.total,
     message: `Found ${results.total} ${type ? type + 's' : 'items'} matching "${query}"`
   };
 }
 
-async function handleGetDocument(args: any) {
+async function handleGetObject(args: any) {
   const { id } = args;
-  const document = await storage.getDocument(id);
-  if (!document) {
-    return { error: "Document not found", id };
+  const object = await storage.getObject(id);
+  if (!object) {
+    return { error: "Object not found", id };
   }
   
   let additionalInfo = "";
   
   // If this is an issue, find all associated logs
-  if (document.type === "issue") {
+  if (object.type === "issue") {
     try {
       const relationshipResults = await storage.findRelationships({
         sourceId: id,
@@ -127,12 +138,12 @@ async function handleGetDocument(args: any) {
       });
       
       if (relationshipResults.relationships.length > 0) {
-        // Get the actual log documents
+        // Get the actual log objects
         const logIds = relationshipResults.relationships.map(r => r.targetId);
         const logs = [];
         
         for (const logId of logIds) {
-          const log = await storage.getDocument(logId);
+          const log = await storage.getObject(logId);
           if (log) logs.push(log);
         }
         
@@ -161,42 +172,60 @@ async function handleGetDocument(args: any) {
   }
   
   return {
-    document,
-    message: `Retrieved ${document.type}: ${document.name}${additionalInfo}`
+    object,
+    message: `Retrieved ${object.type}: ${object.name}${additionalInfo}`
   };
 }
 
-async function handleCreateDocument(args: any) {
+async function handleCreateObject(args: any) {
   const { name, type, content, aliases = [] } = args;
-  const document = await storage.createDocument({
+  const object = await storage.createObject({
     name,
     type,
     content,
     aliases
   });
   return {
-    document,
+    object,
     message: `Created new ${type}: ${name}`
   };
 }
 
-async function handleUpdateDocument(args: any) {
+async function handleUpdateObject(args: any) {
   const { id, ...updates } = args;
-  const document = await storage.updateDocument(id, updates);
-  if (!document) {
-    return { error: "Document not found", id };
+  const object = await storage.updateObject(id, updates);
+  if (!object) {
+    return { error: "Object not found", id };
   }
   return {
-    document,
-    message: `Updated ${document.type}: ${document.name}`
+    object,
+    message: `Updated ${object.type}: ${object.name}`
+  };
+}
+
+async function handleGetObjectTypes(args: any) {
+  const objectTypes = [
+    { type: "person", name: "Person", description: "Individual people with personal information and relationships", icon: "👤" },
+    { type: "document", name: "Document", description: "Text documents, reports, and written materials", icon: "📄" },
+    { type: "letter", name: "Letter", description: "Correspondence and written communications", icon: "✉️" },
+    { type: "entity", name: "Entity", description: "Organizations, companies, and institutional entities", icon: "🏢" },
+    { type: "issue", name: "Issue", description: "Problems, challenges, and matters requiring attention", icon: "⚠️" },
+    { type: "log", name: "Log", description: "Records of events, activities, and chronological entries", icon: "📝" },
+    { type: "meeting", name: "Meeting", description: "Meeting records, minutes, and discussion summaries", icon: "🤝" }
+  ];
+  
+  return {
+    objectTypes,
+    message: `Available object types: ${objectTypes.map(t => `${t.icon} ${t.name}`).join(', ')}`
   };
 }
 
 const functionHandlers = {
-  search_documents: handleSearchDocuments,
-  get_document: handleGetDocument,
-  create_document: handleCreateDocument,
-  update_document: handleUpdateDocument
+  search_objects: handleSearchObjects,
+  get_object: handleGetObject,
+  create_object: handleCreateObject,
+  update_object: handleUpdateObject,
+  get_object_types: handleGetObjectTypes
 };
 
 export interface ChatMessage {
@@ -216,19 +245,22 @@ export async function chatWithGemini(options: GeminiChatOptions): Promise<string
     const { messages, contextDocuments = [], enableFunctionCalling = true } = options;
     
     // Build system instruction with context
-    let systemInstruction = `You are an AI assistant specializing in document and knowledge management. You help users organize, search, and understand their documents, people, entities, issues, and logs.
+    let systemInstruction = `You are an AI assistant specializing in object and knowledge management. You help users organize, search, and understand their objects.
+
+Objects refer to all types of data entries including but not limited to persons, entities, issues, logs, meetings, letters, and documents. You can use the getObjectTypes function to see all available object types.
 
 Key capabilities:
-- Search through documents, people, entities, issues, and logs
-- Retrieve detailed information about specific items (issues automatically include associated logs)
-- Create new entries of any type
-- Update existing entries
-- Access relationships between entities
+- Search through objects
+- Retrieve detailed information about specific objects (issues automatically include associated logs)
+- Create new objects of any type
+- Update existing objects
+- Access relationships between objects
+- Get information about available object types
 
-You have access to function calling tools to search, retrieve, create, and modify all types of documents and entities.`;
+You have access to function calling tools to search, retrieve, create, and modify all types of objects. Use getObjectTypes to understand what types of objects are available in the system.`;
 
     if (contextDocuments.length > 0) {
-      systemInstruction += `\n\nContext Documents:`;
+      systemInstruction += `\n\nContext Objects:`;
       contextDocuments.forEach((doc, index) => {
         systemInstruction += `\n${index + 1}. ${doc.type}: ${doc.name}`;
         if (doc.aliases.length > 0) {
@@ -245,7 +277,7 @@ You have access to function calling tools to search, retrieve, create, and modif
     }));
 
     const tools = enableFunctionCalling ? [
-      { functionDeclarations: [searchDocumentsTool, getDocumentTool, createDocumentTool, updateDocumentTool] }
+      { functionDeclarations: [searchObjectsTool, getObjectTool, createObjectTool, updateObjectTool, getObjectTypesTool] }
     ] : undefined;
 
     const response = await ai.models.generateContent({

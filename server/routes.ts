@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage, type RelationshipFilters } from "./storage";
-import { insertObjectSchema, updateObjectSchema, insertConversationSchema, insertMessageSchema, updateMessageSchema, parseMentionsSchema, updateAppConfigSchema, insertRelationshipSchema, updateRelationshipSchema, DocumentType } from "@shared/schema";
+import { insertObjectSchema, updateObjectSchema, insertConversationSchema, insertMessageSchema, updateMessageSchema, parseMentionsSchema, updateAppConfigSchema, insertRelationshipSchema, updateRelationshipSchema, DocumentType, ObjectType } from "@shared/schema";
 import { chatWithGemini, extractTextFromPDF, extractTextFromWord, generateTextEmbedding } from "./gemini-simple";
 import { chatWithGeminiFunctions } from "./gemini-functions";
 import { embeddingService } from "./embedding-service";
@@ -20,7 +20,7 @@ const relationshipQuerySchema = z.object({
   offset: z.coerce.number().min(0).optional()
 });
 
-const documentRelationshipQuerySchema = z.object({
+const objectRelationshipQuerySchema = z.object({
   targetType: DocumentType.optional(),
   limit: z.coerce.number().min(1).max(1000).optional(),
   offset: z.coerce.number().min(0).optional()
@@ -36,7 +36,7 @@ function preprocessDocumentData(data: any) {
 
 export async function registerRoutes(app: Express): Promise<Server> {
   
-  // Document routes
+  // Object routes
   app.get("/api/objects", async (req, res) => {
     try {
       const { type, search } = req.query;
@@ -44,32 +44,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (search) {
         const result = await storage.searchObjects(
           search as string, 
-          type as "person" | "document" | "letter" | "entity" | "issue" | "log" | "meeting" | undefined
+          type as ObjectType | undefined
         );
         res.json(result);
       } else if (type) {
-        const documents = await storage.getObjectsByType(type as "person" | "document" | "letter" | "entity" | "issue" | "log" | "meeting");
-        res.json({ objects: documents, total: documents.length });
+        const objects = await storage.getObjectsByType(type as ObjectType);
+        res.json({ objects: objects, total: objects.length });
       } else {
-        const documents = await storage.getAllObjects();
-        res.json({ objects: documents, total: documents.length });
+        const objects = await storage.getAllObjects();
+        res.json({ objects: objects, total: objects.length });
       }
     } catch (error) {
-      console.error('Error fetching documents:', error);
-      res.status(500).json({ error: "Failed to fetch documents" });
+      console.error('Error fetching objects:', error);
+      res.status(500).json({ error: "Failed to fetch objects" });
     }
   });
 
   app.get("/api/objects/:id", async (req, res) => {
     try {
-      const document = await storage.getObject(req.params.id);
-      if (!document) {
-        return res.status(404).json({ error: "Document not found" });
+      const object = await storage.getObject(req.params.id);
+      if (!object) {
+        return res.status(404).json({ error: "Object not found" });
       }
-      res.json(document);
+      res.json(object);
     } catch (error) {
-      console.error('Error fetching document:', error);
-      res.status(500).json({ error: "Failed to fetch document" });
+      console.error('Error fetching object:', error);
+      res.status(500).json({ error: "Failed to fetch object" });
     }
   });
 
@@ -79,20 +79,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const preprocessedData = preprocessDocumentData(req.body);
       const validatedData = insertObjectSchema.parse(preprocessedData);
       
-      const document = await storage.createObject(validatedData);
+      const object = await storage.createObject(validatedData);
       
-      // Trigger immediate embedding for mention-created documents
+      // Trigger immediate embedding for mention-created objects
       if (!validatedData.isFromOCR) {
-        await embeddingService.triggerImmediateEmbedding(document.id);
+        await embeddingService.triggerImmediateEmbedding(object.id);
       }
       
-      res.status(201).json(document);
+      res.status(201).json(object);
     } catch (error) {
-      console.error('Error creating document:', error);
+      console.error('Error creating object:', error);
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: "Invalid document data", details: error.errors });
+        return res.status(400).json({ error: "Invalid object data", details: error.errors });
       }
-      res.status(500).json({ error: "Failed to create document" });
+      res.status(500).json({ error: "Failed to create object" });
     }
   });
 
@@ -102,23 +102,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const preprocessedData = preprocessDocumentData(req.body);
       const validatedData = updateObjectSchema.parse(preprocessedData);
       
-      const document = await storage.updateObject(req.params.id, validatedData);
-      if (!document) {
-        return res.status(404).json({ error: "Document not found" });
+      const object = await storage.updateObject(req.params.id, validatedData);
+      if (!object) {
+        return res.status(404).json({ error: "Object not found" });
       }
       
-      // Trigger immediate chunking and embedding after document update if needed
-      if (document.needsEmbedding) {
-        await embeddingService.triggerImmediateEmbedding(document.id);
+      // Trigger immediate chunking and embedding after object update if needed
+      if (object.needsEmbedding) {
+        await embeddingService.triggerImmediateEmbedding(object.id);
       }
       
-      res.json(document);
+      res.json(object);
     } catch (error) {
-      console.error('Error updating document:', error);
+      console.error('Error updating object:', error);
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: "Invalid document data", details: error.errors });
+        return res.status(400).json({ error: "Invalid object data", details: error.errors });
       }
-      res.status(500).json({ error: "Failed to update document" });
+      res.status(500).json({ error: "Failed to update object" });
     }
   });
 
@@ -126,33 +126,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
       
-      // Get document first to check if it has a file
-      const document = await storage.getObject(id);
-      if (!document) {
-        return res.status(404).json({ error: "Document not found" });
+      // Get object first to check if it has a file
+      const object = await storage.getObject(id);
+      if (!object) {
+        return res.status(404).json({ error: "Object not found" });
       }
       
-      // Delete the document from database
+      // Delete the object from database
       const success = await storage.deleteObject(id);
       if (!success) {
-        return res.status(404).json({ error: "Failed to delete document" });
+        return res.status(404).json({ error: "Failed to delete object" });
       }
       
-      // If document had a file, delete it from GCP Storage
-      if (document.hasFile && document.filePath) {
+      // If object had a file, delete it from GCP Storage
+      if (object.hasFile && object.filePath) {
         try {
-          await gcpStorageService.deleteFile(document.filePath);
-          console.log(`Deleted file from GCP Storage: ${document.filePath}`);
+          await gcpStorageService.deleteFile(object.filePath);
+          console.log(`Deleted file from GCP Storage: ${object.filePath}`);
         } catch (storageError) {
-          console.warn(`Failed to delete file from GCP Storage: ${document.filePath}`, storageError);
+          console.warn(`Failed to delete file from GCP Storage: ${object.filePath}`, storageError);
           // Don't fail the entire delete operation if file deletion fails
         }
       }
       
       res.status(204).send();
     } catch (error) {
-      console.error('Error deleting document:', error);
-      res.status(500).json({ error: "Failed to delete document" });
+      console.error('Error deleting object:', error);
+      res.status(500).json({ error: "Failed to delete object" });
     }
   });
 
@@ -250,7 +250,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/conversations/:id/messages", async (req, res) => {
     try {
-      // Parse mentions from content and auto-populate contextDocuments
+      // Parse mentions from content and auto-populate contextObjects
       const content = req.body.content || '';
       const autoRetrievalEnabled = req.body.autoRetrievalEnabled !== false; // Default to true for backward compatibility
       const mentions = await storage.parseMentions(content);
@@ -284,7 +284,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         };
       }
       
-      // Combine all context documents including auto-retrieved ones (deduplicated)
+      // Combine all context objects including auto-retrieved ones (deduplicated)
       const allContextDocuments = Array.from(new Set([
         ...(req.body.contextDocuments || []), 
         ...contextDocuments,
@@ -298,7 +298,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           name: m.name, 
           alias: m.alias 
         })),
-        mentionedDocuments: mentions.filter(m => m.type === 'document').map(m => ({ 
+        mentionedObjects: mentions.filter(m => m.type === 'document').map(m => ({ 
           id: m.objectId, 
           name: m.name, 
           alias: m.alias 
@@ -519,7 +519,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { messages, contextDocumentIds = [] } = req.body;
       
-      // Fetch context documents if provided
+      // Fetch context objects if provided
       const contextDocuments = [];
       for (const docId of contextDocumentIds) {
         const doc = await storage.getObject(docId);
@@ -546,21 +546,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Import retrieval service
       const { retrievalService } = await import('./retrieval-service');
       
-      // Parse explicit mentions and get their documents
+      // Parse explicit mentions and get their objects
       const lastUserMessage = messages[messages.length - 1];
       const userText = lastUserMessage?.content || '';
       
       const mentions = await storage.parseMentions(userText);
       const mentionIds = await storage.resolveMentionObjects(mentions);
       
-      // Fetch actual mention document objects
+      // Fetch actual mention objects
       const mentionDocuments = [];
       for (const docId of mentionIds) {
         const doc = await storage.getObject(docId);
         if (doc) mentionDocuments.push(doc);
       }
       
-      // Fetch explicit context documents
+      // Fetch explicit context objects
       const explicitContextDocuments = [];
       for (const docId of contextDocumentIds) {
         const doc = await storage.getObject(docId);
@@ -575,13 +575,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         mentions: mentionIds
       });
       
-      // Combine all context documents  
+      // Combine all context objects  
       const allContextDocuments = [
         ...explicitContextDocuments,
         ...mentionDocuments
       ];
       
-      // Add full document objects for auto-retrieved context
+      // Add full objects for auto-retrieved context
       for (const contextDoc of autoContext.usedDocs) {
         const fullDoc = await storage.getObject(contextDoc.id);
         if (fullDoc && !allContextDocuments.find(d => d.id === fullDoc.id)) {
@@ -633,21 +633,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Import retrieval service
       const { retrievalService } = await import('./retrieval-service');
       
-      // Parse explicit mentions and get their documents
+      // Parse explicit mentions and get their objects
       const lastUserMessage = messages[messages.length - 1];
       const userText = lastUserMessage?.content || '';
       
       const mentions = await storage.parseMentions(userText);
       const mentionIds = await storage.resolveMentionObjects(mentions);
       
-      // Fetch actual mention document objects
+      // Fetch actual mention objects
       const mentionDocuments = [];
       for (const docId of mentionIds) {
         const doc = await storage.getObject(docId);
         if (doc) mentionDocuments.push(doc);
       }
       
-      // Fetch explicit context documents
+      // Fetch explicit context objects
       const explicitContextDocuments = [];
       for (const docId of contextDocumentIds) {
         const doc = await storage.getObject(docId);
@@ -680,13 +680,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         };
       }
       
-      // Combine all context documents  
+      // Combine all context objects  
       const allContextDocuments = [
         ...explicitContextDocuments,
         ...mentionDocuments
       ];
       
-      // Add full document objects for auto-retrieved context
+      // Add full objects for auto-retrieved context
       for (const contextDoc of autoContext.usedDocs) {
         const fullDoc = await storage.getObject(contextDoc.id);
         if (fullDoc && !allContextDocuments.find(d => d.id === fullDoc.id)) {
@@ -801,7 +801,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Word document extraction endpoint
+  // Word object extraction endpoint
   app.post("/api/word/extract", async (req, res) => {
     try {
       const { wordBase64, filename } = req.body;
@@ -822,7 +822,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Create document from Word upload
+  // Create object from Word upload
   app.post("/api/objects/word-upload", async (req, res) => {
     try {
       const { wordBase64, filename, name, objectType = "document" } = req.body;
@@ -836,11 +836,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Invalid objectType. Must be 'document', 'letter', or 'meeting'" });
       }
       
-      // Extract text from Word document
+      // Extract text from Word object
       const extractedText = await extractTextFromWord(wordBase64);
       
-      // Create document entry
-      const documentData = {
+      // Create object entry
+      const objectData = {
         name: name || filename?.replace(/\.[^/.]+$/, "") || "Untitled Document",
         type: objectType as "document" | "letter" | "meeting",
         content: extractedText,
@@ -850,19 +850,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         needsEmbedding: true
       };
       
-      const document = await storage.createObject(documentData);
+      const object = await storage.createObject(objectData);
       
-      // Trigger immediate embedding since Word documents are clean
-      await embeddingService.triggerImmediateEmbedding(document.id);
+      // Trigger immediate embedding since Word objects are clean
+      await embeddingService.triggerImmediateEmbedding(object.id);
       
-      res.status(201).json(document);
+      res.status(201).json(object);
     } catch (error) {
       console.error('Word upload error:', error);
       res.status(500).json({ error: "Failed to process Word document upload" });
     }
   });
 
-  // Create document from PDF upload  
+  // Create object from PDF upload  
   app.post("/api/objects/pdf-upload", async (req, res) => {
     try {
       const { pdfBase64, filename, name, objectType = "document" } = req.body;
@@ -885,8 +885,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const fileSize = fileBuffer.length;
       const mimeType = "application/pdf";
       
-      // Create document entry with file info
-      const documentData = {
+      // Create object entry with file info
+      const objectData = {
         name: name || filename?.replace(/\.[^/.]+$/, "") || "Untitled Document",
         type: objectType as "document" | "letter" | "meeting",
         content: extractedText,
@@ -900,28 +900,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
         hasFile: true
       };
       
-      const document = await storage.createObject(documentData);
+      const object = await storage.createObject(objectData);
       
-      // Upload file to GCP Storage after document creation
+      // Upload file to GCP Storage after object creation
       try {
         const filePath = await gcpStorageService.uploadFile(
-          document.id,
+          object.id,
           objectType,
           fileBuffer,
           originalFileName,
           mimeType
         );
         
-        // Update document with file path
-        await storage.updateObject(document.id, { filePath });
+        // Update object with file path
+        await storage.updateObject(object.id, { filePath });
         
-        // Return document with updated file info
-        const updatedDocument = await storage.getObject(document.id);
-        res.status(201).json(updatedDocument);
+        // Return object with updated file info
+        const updatedObject = await storage.getObject(object.id);
+        res.status(201).json(updatedObject);
       } catch (storageError) {
-        console.warn('File upload to GCP Storage failed, but document was created:', storageError);
-        // Return document even if file upload failed
-        res.status(201).json(document);
+        console.warn('File upload to GCP Storage failed, but object was created:', storageError);
+        // Return object even if file upload failed
+        res.status(201).json(object);
       }
     } catch (error) {
       console.error('PDF upload error:', error);
@@ -934,23 +934,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
       
-      // Get document from database
-      const document = await storage.getObject(id);
-      if (!document) {
-        return res.status(404).json({ error: "Document not found" });
+      // Get object from database
+      const object = await storage.getObject(id);
+      if (!object) {
+        return res.status(404).json({ error: "Object not found" });
       }
       
-      // Check if document has a file
-      if (!document.hasFile || !document.filePath) {
-        return res.status(404).json({ error: "No file associated with this document" });
+      // Check if object has a file
+      if (!object.hasFile || !object.filePath) {
+        return res.status(404).json({ error: "No file associated with this object" });
       }
       
       // Download file from GCP Storage
-      const { buffer, metadata } = await gcpStorageService.downloadFile(document.filePath);
+      const { buffer, metadata } = await gcpStorageService.downloadFile(object.filePath);
       
       // Set response headers for file download
-      const fileName = document.originalFileName || `${document.name}.pdf`;
-      const mimeType = document.mimeType || "application/octet-stream";
+      const fileName = object.originalFileName || `${object.name}.pdf`;
+      const mimeType = object.mimeType || "application/octet-stream";
       
       // Properly encode filename for Content-Disposition header to handle Chinese characters
       const encodedFileName = encodeURIComponent(fileName);
@@ -973,27 +973,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       const { expires = 60 } = req.query; // Default 60 minutes
       
-      // Get document from database
-      const document = await storage.getObject(id);
-      if (!document) {
-        return res.status(404).json({ error: "Document not found" });
+      // Get object from database
+      const object = await storage.getObject(id);
+      if (!object) {
+        return res.status(404).json({ error: "Object not found" });
       }
       
-      // Check if document has a file
-      if (!document.hasFile || !document.filePath) {
-        return res.status(404).json({ error: "No file associated with this document" });
+      // Check if object has a file
+      if (!object.hasFile || !object.filePath) {
+        return res.status(404).json({ error: "No file associated with this object" });
       }
       
       // Generate signed URL
       const signedUrl = await gcpStorageService.generateSignedUrl(
-        document.filePath, 
+        object.filePath, 
         parseInt(expires as string)
       );
       
       res.json({
         downloadUrl: signedUrl,
-        fileName: document.originalFileName || `${document.name}.pdf`,
-        mimeType: document.mimeType || "application/pdf",
+        fileName: object.originalFileName || `${object.name}.pdf`,
+        mimeType: object.mimeType || "application/pdf",
         expiresInMinutes: parseInt(expires as string)
       });
     } catch (error) {
@@ -1052,7 +1052,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       );
       console.log(`🔍 [DEBUG] Generated embedding length: ${queryEmbedding.length}`);
       
-      // Search for similar documents
+      // Search for similar objects
       const similarDocuments = await storage.searchObjectsByVector(queryEmbedding, searchLimit);
       
       console.log(`🔍 [DEBUG] Semantic search test returned ${similarDocuments.length} results:`,
@@ -1071,7 +1071,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error) {
       console.error('Vector search error:', error);
-      res.status(500).json({ error: "Failed to search documents by similarity" });
+      res.status(500).json({ error: "Failed to search objects by similarity" });
     }
   });
 
@@ -1127,7 +1127,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         appConfig.textEmbedding?.autoTruncate !== false
       );
       
-      // Search for similar documents
+      // Search for similar objects
       const similarDocuments = await storage.searchObjectsByVector(queryEmbedding, searchLimit);
       
       res.json({
@@ -1137,21 +1137,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error) {
       console.error('Vector search error:', error);
-      res.status(500).json({ error: "Failed to search documents by similarity" });
+      res.status(500).json({ error: "Failed to search objects by similarity" });
     }
   });
 
   app.get("/api/embeddings/status", async (req, res) => {
     try {
-      const documentsNeedingEmbedding = await storage.getObjectsNeedingEmbedding();
-      const allDocuments = await storage.getAllObjects();
-      const documentsWithEmbedding = allDocuments.filter(doc => doc.hasEmbedding);
+      const objectsNeedingEmbedding = await storage.getObjectsNeedingEmbedding();
+      const allObjects = await storage.getAllObjects();
+      const objectsWithEmbedding = allObjects.filter(obj => obj.hasEmbedding);
       
       res.json({
-        totalDocuments: allDocuments.length,
-        documentsWithEmbedding: documentsWithEmbedding.length,
-        documentsNeedingEmbedding: documentsNeedingEmbedding.length,
-        embeddingProgress: allDocuments.length > 0 ? (documentsWithEmbedding.length / allDocuments.length) * 100 : 0
+        totalObjects: allObjects.length,
+        objectsWithEmbedding: objectsWithEmbedding.length,
+        objectsNeedingEmbedding: objectsNeedingEmbedding.length,
+        embeddingProgress: allObjects.length > 0 ? (objectsWithEmbedding.length / allObjects.length) * 100 : 0
       });
     } catch (error) {
       console.error('Embedding status error:', error);
@@ -1183,19 +1183,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Simplified document relationships endpoint - outgoing only
+  // Simplified object relationships endpoint - outgoing only
   app.get("/api/objects/:id/relationships", async (req, res) => {
     try {
       const { id } = req.params;
-      const validatedQuery = documentRelationshipQuerySchema.parse(req.query);
+      const validatedQuery = objectRelationshipQuerySchema.parse(req.query);
       
-      // Verify document exists
-      const document = await storage.getObject(id);
-      if (!document) {
-        return res.status(404).json({ error: "Document not found" });
+      // Verify object exists
+      const object = await storage.getObject(id);
+      if (!object) {
+        return res.status(404).json({ error: "Object not found" });
       }
 
-      // Simplified: Only get outgoing relationships (current document as source)
+      // Simplified: Only get outgoing relationships (current object as source)
       const filters: RelationshipFilters = {
         sourceId: id,
         limit: validatedQuery.limit || 50,
@@ -1212,18 +1212,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Transform relationships - only outgoing relationships, no direction needed
       const transformedRelationships = await Promise.all(
         result.relationships.map(async (rel) => {
-          const targetDoc = await storage.getObject(rel.targetId);
+          const targetObject = await storage.getObject(rel.targetId);
           
-          const relatedDocument = targetDoc ? { 
-            id: targetDoc.id, 
-            name: targetDoc.name, 
-            type: targetDoc.type,
-            date: targetDoc.date
+          const relatedObject = targetObject ? { 
+            id: targetObject.id, 
+            name: targetObject.name, 
+            type: targetObject.type,
+            date: targetObject.date
           } : null;
           
           return {
             relationship: rel,
-            relatedDocument
+            relatedObject
           };
         })
       );
@@ -1231,18 +1231,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({
         relationships: transformedRelationships,
         total: result.total,
-        document: {
-          id: document.id,
-          name: document.name,
-          type: document.type
+        object: {
+          id: object.id,
+          name: object.name,
+          type: object.type
         }
       });
     } catch (error) {
-      console.error('Error fetching document relationships:', error);
+      console.error('Error fetching object relationships:', error);
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: "Invalid query parameters", details: error.errors });
       }
-      res.status(500).json({ error: "Failed to fetch document relationships" });
+      res.status(500).json({ error: "Failed to fetch object relationships" });
     }
   });
 
@@ -1304,21 +1304,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Document-issue relationship endpoints
+  // Object-issue relationship endpoints
   app.get("/api/objects/:id/related-issues", async (req, res) => {
     try {
       const { id } = req.params;
       
-      // Verify document exists
-      const document = await storage.getObject(id);
-      if (!document) {
-        return res.status(404).json({ error: "Document not found" });
+      // Verify object exists
+      const object = await storage.getObject(id);
+      if (!object) {
+        return res.status(404).json({ error: "Object not found" });
       }
       
-      // Get relationships where this document is the source and target is an issue
+      // Get relationships where this object is the source and target is an issue
       const relationships = await storage.getRelationshipsBySource(id);
       
-      // Get the related issue documents
+      // Get the related issue objects
       const relatedIssues = [];
       for (const rel of relationships) {
         const issue = await storage.getObject(rel.targetId);
@@ -1331,7 +1331,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       res.json({
-        document,
+        object,
         relatedIssues,
         total: relatedIssues.length
       });
@@ -1350,24 +1350,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Issue ID is required" });
       }
       
-      // Verify both documents exist
-      const document = await storage.getObject(id);
-      if (!document) {
-        return res.status(404).json({ error: "Document not found" });
+      // Verify both objects exist
+      const sourceObject = await storage.getObject(id);
+      if (!sourceObject) {
+        return res.status(404).json({ error: "Source object not found" });
       }
       
-      const issue = await storage.getObject(issueId);
-      if (!issue) {
-        return res.status(404).json({ error: "Issue not found" });
-      }
-      
-      if (issue.type !== "issue") {
-        return res.status(400).json({ error: "Target document must be of type 'issue'" });
-      }
-      
-      // Only documents and logs can be related to issues
-      if (document.type !== "document" && document.type !== "log") {
-        return res.status(400).json({ error: "Only documents and logs can be related to issues" });
+      const targetObject = await storage.getObject(issueId);
+      if (!targetObject) {
+        return res.status(404).json({ error: "Target object not found" });
       }
       
       // Check if relationship already exists
@@ -1382,17 +1373,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const relationship = await storage.createRelationship({
         sourceId: id,
         targetId: issueId,
-        sourceType: document.type,
-        targetType: issue.type,
+        sourceType: sourceObject.type,
+        targetType: targetObject.type,
       });
       
       res.status(201).json({
         relationship,
-        source: document,
-        target: issue
+        source: sourceObject,
+        target: targetObject
       });
     } catch (error) {
-      console.error('Error creating document-issue relationship:', error);
+      console.error('Error creating object relationship:', error);
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: "Invalid relationship data", details: error.errors });
       }
@@ -1404,15 +1395,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { objectId, issueId } = req.params;
       
-      // Verify both documents exist
-      const document = await storage.getObject(objectId);
-      if (!document) {
-        return res.status(404).json({ error: "Document not found" });
+      // Verify both objects exist
+      const sourceObject = await storage.getObject(objectId);
+      if (!sourceObject) {
+        return res.status(404).json({ error: "Source object not found" });
       }
       
-      const issue = await storage.getObject(issueId);
-      if (!issue) {
-        return res.status(404).json({ error: "Issue not found" });
+      const targetObject = await storage.getObject(issueId);
+      if (!targetObject) {
+        return res.status(404).json({ error: "Target object not found" });
       }
       
       // Find and delete the relationship
@@ -1430,7 +1421,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.status(204).send();
     } catch (error) {
-      console.error('Error deleting document-issue relationship:', error);
+      console.error('Error deleting object relationship:', error);
       res.status(500).json({ error: "Failed to delete relationship" });
     }
   });
@@ -1468,28 +1459,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { type } = req.body;
       
-      // Get all documents or filter by type
-      let documents;
+      // Get all objects or filter by type
+      let objects;
       if (type && DocumentType.safeParse(type).success) {
-        documents = await storage.getObjectsByType(type);
+        objects = await storage.getObjectsByType(type);
       } else {
-        documents = await storage.getAllObjects();
+        objects = await storage.getAllObjects();
       }
       
-      console.log(`Starting rechunk process for ${documents.length} documents`);
+      console.log(`Starting rechunk process for ${objects.length} objects`);
       
       let processed = 0;
       let errors = 0;
       
-      // Process documents one by one to avoid overwhelming the system
-      for (const document of documents) {
+      // Process objects one by one to avoid overwhelming the system
+      for (const object of objects) {
         try {
-          await chunkingService.processDocumentChunking(document);
+          await chunkingService.processObjectChunking(object);
           processed++;
-          console.log(`Rechunked document ${document.name} (${processed}/${documents.length})`);
+          console.log(`Rechunked object ${object.name} (${processed}/${objects.length})`);
         } catch (error) {
           errors++;
-          console.error(`Failed to rechunk document ${document.name}:`, error);
+          console.error(`Failed to rechunk object ${object.name}:`, error);
         }
       }
       
@@ -1497,7 +1488,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         message: "Rechunk process completed",
         processed,
         errors,
-        total: documents.length
+        total: objects.length
       });
       
     } catch (error) {

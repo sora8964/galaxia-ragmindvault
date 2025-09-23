@@ -125,12 +125,12 @@ function FunctionCallDisplay({ functionCall }: { functionCall: { name: string; a
             {(() => {
               try {
                 // Extract count from result string using regex
-                const countMatch = functionCall.result.match(/Found (\d+) documents?/);
+                const countMatch = functionCall.result.match(/Found (\d+) objects?/);
                 if (countMatch) {
                   return `找到 ${countMatch[1]} 個結果`;
                 }
-                // Fallback: check if result contains "No documents found"
-                if (functionCall.result.includes('No documents found')) {
+                // Fallback: check if result contains "No objects found"
+                if (functionCall.result.includes('No objects found')) {
                   return '找到 0 個結果';
                 }
                 return '搜索完成';
@@ -476,14 +476,14 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
         // Slice history up to and including the edited message
         const historySlice = latestStreamMessages.slice(0, editedIndex + 1);
         
-        // Extract context documents from the edited message (if available)
+        // Extract context objects from the edited message (if available)
         const contextDocumentIds: string[] = [];
         const originalMessage = latestMessages.find(m => m.id === editedMessageId);
         if (originalMessage && originalMessage.contextDocuments) {
           contextDocumentIds.push(...originalMessage.contextDocuments);
         }
         
-        // Auto-regenerate AI response
+        // Auto-regenerate AI response after user message edit - apply dual control mechanism
         console.log('Starting automatic regeneration after edit...');
         const success = await startAssistantStream({
           historyMessages: historySlice,
@@ -624,7 +624,7 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
     setInput(newInput);
     setMentionPosition(null);
     
-    // Add document ID to context
+    // Add object ID to context
     if (!contextDocumentIds.includes(mention.id)) {
       setContextDocumentIds(prev => [...prev, mention.id]);
     }
@@ -993,7 +993,7 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
         historyMessages: historyForRegeneration,
         contextDocumentIds,
         conversationId: currentConversationId,
-        enableAutoRetrieval: true // 重新生成時總是啟用自動檢索
+        enableAutoRetrieval: autoRetrievalEnabled && (appConfig?.retrieval?.autoRag === true) // 手動重新生成時套用雙重控制機制
       });
       
       if (!success) {
@@ -1127,16 +1127,16 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
         isStreaming: false,
       }));
       
-      // Extract context documents from the user message
+      // Extract context objects from the user message
       const originalMessage = conversationMessages.find(m => m.id === messageId);
       const contextDocumentIds = originalMessage?.contextDocuments || [];
       
-      // Regenerate AI response
+      // Regenerate AI response - apply dual control mechanism
       const success = await startAssistantStream({
         historyMessages: formattedMessages,
         contextDocumentIds,
         conversationId: currentConversationId,
-        enableAutoRetrieval: true // 重新生成時總是啟用自動檢索
+        enableAutoRetrieval: autoRetrievalEnabled && (appConfig?.retrieval?.autoRag === true) // 從用戶消息重新生成時套用雙重控制機制
       });
       
       if (success) {
@@ -1215,16 +1215,16 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
       const historyForRegeneration = formattedMessages.slice(0, lastUserMessageIndex + 1);
       const lastUserMessage = historyForRegeneration[lastUserMessageIndex];
       
-      // Extract context documents from the last user message
+      // Extract context objects from the last user message
       const originalMessage = conversationMessages.find(m => m.id === lastUserMessage.id);
       const contextDocumentIds = originalMessage?.contextDocuments || [];
       
-      // Regenerate AI response
+      // Regenerate AI response - no auto retrieval needed for AI response regeneration
       const success = await startAssistantStream({
         historyMessages: historyForRegeneration,
         contextDocumentIds,
         conversationId: currentConversationId,
-        enableAutoRetrieval: true // 重新生成時總是啟用自動檢索
+        enableAutoRetrieval: false // AI Response 重新生成時不需要自動檢索
       });
       
       if (success) {
@@ -1535,7 +1535,7 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
         {/* Context indicators */}
         {contextDocumentIds.length > 0 && (
           <div className="mb-3">
-            <div className="text-xs text-muted-foreground mb-2">Context documents:</div>
+            <div className="text-xs text-muted-foreground mb-2">Context objects:</div>
             <div className="flex flex-wrap gap-2">
               {contextDocumentIds.map((docId) => (
                 <Badge 
