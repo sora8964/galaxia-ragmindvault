@@ -241,7 +241,7 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
   const [localMessages, setLocalMessages] = useState<StreamMessage[]>([]);
   const [databaseMessages, setDatabaseMessages] = useState<StreamMessage[]>([]);
   const [input, setInput] = useState('');
-  const [contextDocumentIds, setContextDocumentIds] = useState<string[]>([]);
+  const [contextObjectIds, setContextObjectIds] = useState<string[]>([]);
   const [mentionPosition, setMentionPosition] = useState<{ x: number; y: number } | null>(null);
   const [streamingMessageId, setStreamingMessageId] = useState<string | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
@@ -477,17 +477,17 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
         const historySlice = latestStreamMessages.slice(0, editedIndex + 1);
         
         // Extract context objects from the edited message (if available)
-        const contextDocumentIds: string[] = [];
+        const contextObjectIds: string[] = [];
         const originalMessage = latestMessages.find(m => m.id === editedMessageId);
         if (originalMessage && originalMessage.contextDocuments) {
-          contextDocumentIds.push(...originalMessage.contextDocuments);
+          contextObjectIds.push(...originalMessage.contextDocuments);
         }
         
         // Auto-regenerate AI response after user message edit - apply dual control mechanism
         console.log('Starting automatic regeneration after edit...');
         const success = await startAssistantStream({
           historyMessages: historySlice,
-          contextDocumentIds,
+          contextObjectIds,
           conversationId: currentConversationId!,
           enableAutoRetrieval: autoRetrievalEnabled && (appConfig?.retrieval?.autoRag === true)
         });
@@ -625,8 +625,8 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
     setMentionPosition(null);
     
     // Add object ID to context
-    if (!contextDocumentIds.includes(mention.id)) {
-      setContextDocumentIds(prev => [...prev, mention.id]);
+    if (!contextObjectIds.includes(mention.id)) {
+      setContextObjectIds(prev => [...prev, mention.id]);
     }
     
     textareaRef.current?.focus();
@@ -663,16 +663,16 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
     // Immediately add user message to local messages for instant display
     setLocalMessages(prev => [...prev, userMessage]);
     const messageContent = input;
-    const currentContextIds = [...contextDocumentIds];
+    const currentContextIds = [...contextObjectIds];
     setInput('');
-    setContextDocumentIds([]);
+    setContextObjectIds([]);
 
     try {
       // Save user message to backend
       await apiRequest("POST", `/api/conversations/${activeConversationId}/messages`, {
         role: 'user',
         content: messageContent,
-        contextDocuments: currentContextIds,
+        contextObjects: currentContextIds,
         autoRetrievalEnabled: autoRetrievalEnabled && (appConfig?.retrieval?.autoRag === true)
       });
 
@@ -717,7 +717,7 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
     enableAutoRetrieval = true
   }: {
     historyMessages: StreamMessage[];
-    contextDocumentIds: string[];
+    contextObjectIds: string[];
     conversationId: string;
     enableAutoRetrieval?: boolean;
   }) => {
@@ -760,7 +760,7 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
         },
         body: JSON.stringify({
           messages: chatMessages,
-          contextDocumentIds,
+          contextObjectIds,
           conversationId,
           autoRetrievalEnabled: enableAutoRetrieval
         }),
@@ -964,14 +964,14 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
       
       // Find the last user message and extract context
       let lastUserMessageIndex = -1;
-      let contextDocumentIds: string[] = [];
+      let contextObjectIds: string[] = [];
       
       for (let i = streamMessages.length - 1; i >= 0; i--) {
         if (streamMessages[i].role === 'user') {
           lastUserMessageIndex = i;
           const originalMessage = latestMessages[i];
           if (originalMessage && originalMessage.contextDocuments) {
-            contextDocumentIds = [...originalMessage.contextDocuments];
+            contextObjectIds = [...originalMessage.contextDocuments];
           }
           break;
         }
@@ -991,7 +991,7 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
       
       const success = await startAssistantStream({
         historyMessages: historyForRegeneration,
-        contextDocumentIds,
+        contextObjectIds,
         conversationId: currentConversationId,
         enableAutoRetrieval: autoRetrievalEnabled && (appConfig?.retrieval?.autoRag === true) // 手動重新生成時套用雙重控制機制
       });
@@ -1129,12 +1129,12 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
       
       // Extract context objects from the user message
       const originalMessage = conversationMessages.find(m => m.id === messageId);
-      const contextDocumentIds = originalMessage?.contextDocuments || [];
+      const contextObjectIds = originalMessage?.contextDocuments || [];
       
       // Regenerate AI response - apply dual control mechanism
       const success = await startAssistantStream({
         historyMessages: formattedMessages,
-        contextDocumentIds,
+        contextObjectIds,
         conversationId: currentConversationId,
         enableAutoRetrieval: autoRetrievalEnabled && (appConfig?.retrieval?.autoRag === true) // 從用戶消息重新生成時套用雙重控制機制
       });
@@ -1217,12 +1217,12 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
       
       // Extract context objects from the last user message
       const originalMessage = conversationMessages.find(m => m.id === lastUserMessage.id);
-      const contextDocumentIds = originalMessage?.contextDocuments || [];
+      const contextObjectIds = originalMessage?.contextDocuments || [];
       
       // Regenerate AI response - no auto retrieval needed for AI response regeneration
       const success = await startAssistantStream({
         historyMessages: historyForRegeneration,
-        contextDocumentIds,
+        contextObjectIds,
         conversationId: currentConversationId,
         enableAutoRetrieval: false // AI Response 重新生成時不需要自動檢索
       });
@@ -1533,19 +1533,19 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
         )}
         
         {/* Context indicators */}
-        {contextDocumentIds.length > 0 && (
+        {contextObjectIds.length > 0 && (
           <div className="mb-3">
             <div className="text-xs text-muted-foreground mb-2">Context objects:</div>
             <div className="flex flex-wrap gap-2">
-              {contextDocumentIds.map((docId) => (
+              {contextObjectIds.map((objId) => (
                 <Badge 
-                  key={docId} 
+                  key={objId} 
                   variant="secondary" 
                   className="text-xs"
                 >
-                  Document #{docId.slice(-4)}
+                  Object #{objId.slice(-4)}
                   <button
-                    onClick={() => setContextDocumentIds(prev => prev.filter(id => id !== docId))}
+                    onClick={() => setContextObjectIds(prev => prev.filter(id => id !== objId))}
                     className="ml-1 hover:text-destructive"
                   >
                     ×

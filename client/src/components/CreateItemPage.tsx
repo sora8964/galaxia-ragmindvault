@@ -11,7 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { MentionSearch } from "@/components/MentionSearch";
 import { X, Plus, ArrowLeft } from "lucide-react";
 import { queryClient } from "@/lib/queryClient";
-import type { DocumentType, MentionItem } from "@shared/schema";
+import type { ObjectType, MentionItem } from "@shared/schema";
 
 interface CreateItemForm {
   name: string;
@@ -21,7 +21,7 @@ interface CreateItemForm {
 }
 
 interface CreateItemPageProps {
-  itemType: DocumentType;
+  itemType: ObjectType;
   title: string;
   description: string;
 }
@@ -222,10 +222,6 @@ export function CreateItemPage({ itemType, title, description }: CreateItemPageP
     }, 150);
   };
 
-  // Handle clicking outside to close mention dropdown
-  const handleDocumentClick = () => {
-    setMentionPosition(null);
-  };
 
   const handleBack = () => {
     setLocation(`/${itemType}s`);
@@ -379,7 +375,7 @@ export function CreateItemPage({ itemType, title, description }: CreateItemPageP
 }
 
 // 輔助函數
-function getItemTypeLabel(itemType: DocumentType): string {
+function getItemTypeLabel(itemType: ObjectType): string {
   const labels = {
     person: "人員",
     document: "文檔",
@@ -391,7 +387,7 @@ function getItemTypeLabel(itemType: DocumentType): string {
   return labels[itemType];
 }
 
-function getNameLabel(itemType: DocumentType): string {
+function getNameLabel(itemType: ObjectType): string {
   const labels = {
     person: "人員姓名",
     document: "文檔名稱", 
@@ -403,7 +399,7 @@ function getNameLabel(itemType: DocumentType): string {
   return labels[itemType];
 }
 
-function getNamePlaceholder(itemType: DocumentType): string {
+function getNamePlaceholder(itemType: ObjectType): string {
   const placeholders = {
     person: "輸入人員姓名",
     document: "輸入文檔名稱",
@@ -415,7 +411,7 @@ function getNamePlaceholder(itemType: DocumentType): string {
   return placeholders[itemType];
 }
 
-function getContentLabel(itemType: DocumentType): string {
+function getContentLabel(itemType: ObjectType): string {
   const labels = {
     person: "人員描述",
     document: "文檔內容",
@@ -427,7 +423,7 @@ function getContentLabel(itemType: DocumentType): string {
   return labels[itemType];
 }
 
-function getContentPlaceholder(itemType: DocumentType): string {
+function getContentPlaceholder(itemType: ObjectType): string {
   const placeholders = {
     person: "輸入人員描述，可以使用 @ 來引用其他文檔或人員",
     document: "輸入文檔內容，可以使用 @ 來引用其他文檔或人員",

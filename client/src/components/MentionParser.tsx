@@ -2,14 +2,14 @@ import { useState, useEffect } from 'react';
 import { Link } from 'wouter';
 import { useQuery } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
-import { DocumentType } from '@shared/schema';
+import { ObjectType } from '@shared/schema';
 
 // @mention 代碼的正則表達式
 // 匹配格式：@[type:name] 或 @[type:name|displayName]
 const MENTION_REGEX = /@\[(\w+):([^\]|]+)(?:\|([^\]]+))?\]/g;
 
 interface MentionData {
-  type: DocumentType;
+  type: ObjectType;
   name: string;
   displayName?: string;
   exists: boolean;
@@ -23,7 +23,7 @@ interface MentionLinkProps {
 }
 
 // 檢查物件是否存在的 hook
-function useObjectExists(type: DocumentType, name: string) {
+function useObjectExists(type: ObjectType, name: string) {
   return useQuery({
     queryKey: ['object-exists', type, name],
     queryFn: async () => {
@@ -96,8 +96,8 @@ function MentionLink({ mention, className, isAIResponse }: MentionLinkProps) {
 }
 
 // 獲取創建頁面的路徑
-function getCreatePath(type: DocumentType): string {
-  const typeMap: Record<DocumentType, string> = {
+function getCreatePath(type: ObjectType): string {
+  const typeMap: Record<ObjectType, string> = {
     person: '/person/new',
     document: '/document/new',
     letter: '/letter/new',
@@ -110,8 +110,8 @@ function getCreatePath(type: DocumentType): string {
 }
 
 // 獲取詳細頁面的路徑（複數形式）
-function getDetailPath(type: DocumentType): string {
-  const typeMap: Record<DocumentType, string> = {
+function getDetailPath(type: ObjectType): string {
+  const typeMap: Record<ObjectType, string> = {
     person: '/people',
     document: '/documents',
     letter: '/letters',
@@ -124,9 +124,9 @@ function getDetailPath(type: DocumentType): string {
 }
 
 // 驗證文檔類型
-function isValidDocumentType(type: string): type is DocumentType {
-  const validTypes: DocumentType[] = ['person', 'document', 'letter', 'entity', 'issue', 'log', 'meeting'];
-  return validTypes.includes(type as DocumentType);
+function isValidObjectType(type: string): type is ObjectType {
+  const validTypes: ObjectType[] = ['person', 'document', 'letter', 'entity', 'issue', 'log', 'meeting'];
+  return validTypes.includes(type as ObjectType);
 }
 
 // 解析文本中的 @mention 代碼
@@ -146,7 +146,7 @@ function parseMentions(text: string): (string | MentionData)[] {
     const [fullMatch, type, name, displayName] = match;
     
     // 驗證類型
-    if (isValidDocumentType(type)) {
+    if (isValidObjectType(type)) {
       parts.push({
         type,
         name: name.trim(),

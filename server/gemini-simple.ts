@@ -1,6 +1,6 @@
 // Reference: javascript_gemini blueprint integration  
 import { GoogleGenAI } from "@google/genai";
-import type { Document } from "@shared/schema";
+import type { Object } from "@shared/schema";
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
 
@@ -12,7 +12,7 @@ export interface ChatMessage {
 
 export interface GeminiChatOptions {
   messages: ChatMessage[];
-  contextDocuments?: Document[];
+  contextDocuments?: Object[];
 }
 
 export async function chatWithGemini(options: GeminiChatOptions): Promise<string> {

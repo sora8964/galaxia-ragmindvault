@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage, type RelationshipFilters } from "./storage";
-import { insertObjectSchema, updateObjectSchema, insertConversationSchema, insertMessageSchema, updateMessageSchema, parseMentionsSchema, updateAppConfigSchema, insertRelationshipSchema, updateRelationshipSchema, DocumentType, ObjectType } from "@shared/schema";
+import { insertObjectSchema, updateObjectSchema, insertConversationSchema, insertMessageSchema, updateMessageSchema, parseMentionsSchema, updateAppConfigSchema, insertRelationshipSchema, updateRelationshipSchema, ObjectType } from "@shared/schema";
 import { chatWithGemini, extractTextFromPDF, extractTextFromWord, generateTextEmbedding } from "./gemini-simple";
 import { chatWithGeminiFunctions } from "./gemini-functions";
 import { embeddingService } from "./embedding-service";
@@ -13,21 +13,21 @@ import { z } from "zod";
 const relationshipQuerySchema = z.object({
   sourceId: z.string().optional(),
   targetId: z.string().optional(),
-  sourceType: DocumentType.optional(),
-  targetType: DocumentType.optional(),
+  sourceType: ObjectType.optional(),
+  targetType: ObjectType.optional(),
 
   limit: z.coerce.number().min(1).max(1000).optional(),
   offset: z.coerce.number().min(0).optional()
 });
 
 const objectRelationshipQuerySchema = z.object({
-  targetType: DocumentType.optional(),
+  targetType: ObjectType.optional(),
   limit: z.coerce.number().min(1).max(1000).optional(),
   offset: z.coerce.number().min(0).optional()
 });
 
 // Preprocess request data to normalize empty strings to null for nullable fields
-function preprocessDocumentData(data: any) {
+function preprocessObjectData(data: any) {
   return {
     ...data,
     date: data.date === "" ? null : data.date
@@ -76,7 +76,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/objects", async (req, res) => {
     try {
       // Preprocess data to normalize empty strings
-      const preprocessedData = preprocessDocumentData(req.body);
+      const preprocessedData = preprocessObjectData(req.body);
       const validatedData = insertObjectSchema.parse(preprocessedData);
       
       const object = await storage.createObject(validatedData);
@@ -99,7 +99,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put("/api/objects/:id", async (req, res) => {
     try {
       // Preprocess data to normalize empty strings
-      const preprocessedData = preprocessDocumentData(req.body);
+      const preprocessedData = preprocessObjectData(req.body);
       const validatedData = updateObjectSchema.parse(preprocessedData);
       
       const object = await storage.updateObject(req.params.id, validatedData);
@@ -254,7 +254,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const content = req.body.content || '';
       const autoRetrievalEnabled = req.body.autoRetrievalEnabled !== false; // Default to true for backward compatibility
       const mentions = await storage.parseMentions(content);
-      const contextDocuments = await storage.resolveMentionObjects(mentions);
+      const contextObjects = await storage.resolveMentionObjects(mentions);
       
       // Import retrieval service for auto-context on user messages
       const { retrievalService } = await import('./retrieval-service');
@@ -265,8 +265,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         autoContext = await retrievalService.buildAutoContext({
           conversationId: req.params.id,
           userText: content,
-          explicitContextIds: req.body.contextDocuments || [],
-          mentions: contextDocuments
+          explicitContextIds: req.body.contextObjects || [],
+          mentions: contextObjects
         });
       } else {
         // Return empty context if auto-retrieval is disabled locally
@@ -285,9 +285,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Combine all context objects including auto-retrieved ones (deduplicated)
-      const allContextDocuments = Array.from(new Set([
-        ...(req.body.contextDocuments || []), 
-        ...contextDocuments,
+      const allContextObjects = Array.from(new Set([
+        ...(req.body.contextObjects || []), 
+        ...contextObjects,
         ...autoContext.usedDocs.map(d => d.id)
       ]));
       
@@ -315,7 +315,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const validatedData = insertMessageSchema.parse({
         ...req.body,
         conversationId: req.params.id,
-        contextDocuments: allContextDocuments,
+        contextDocuments: allContextObjects,
         contextMetadata
       });
       
@@ -363,16 +363,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Parse mentions from content if it's being updated
-      let contextDocuments = req.body.contextDocuments || [];
+      let contextObjects = req.body.contextObjects || [];
       if (req.body.content) {
         const mentions = await storage.parseMentions(req.body.content);
-        const resolvedDocuments = await storage.resolveMentionObjects(mentions);
-        contextDocuments = [...contextDocuments, ...resolvedDocuments];
+        const resolvedObjects = await storage.resolveMentionObjects(mentions);
+        contextObjects = [...contextObjects, ...resolvedObjects];
       }
       
       const validatedData = updateMessageSchema.parse({
         ...req.body,
-        contextDocuments
+        contextDocuments: contextObjects
       });
       
       const updatedMessage = await storage.updateMessage(req.params.messageId, validatedData);
@@ -455,11 +455,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const validatedData = parseMentionsSchema.parse(req.body);
       const mentions = await storage.parseMentions(validatedData.text);
-      const resolvedDocumentIds = await storage.resolveMentionObjects(mentions);
+      const resolvedObjectIds = await storage.resolveMentionObjects(mentions);
       
       res.json({
         mentions,
-        resolvedDocumentIds
+        resolvedDocumentIds: resolvedObjectIds
       });
     } catch (error) {
       console.error('Error parsing mentions:', error);
@@ -482,7 +482,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         'getObjectDetails', 
         'createObject',
         'updateObject',
-        'findSimilarDocuments',
+        'findSimilarObjects',
         'parseMentions',
         'findRelevantExcerpts'
       ];
@@ -520,15 +520,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { messages, contextDocumentIds = [] } = req.body;
       
       // Fetch context objects if provided
-      const contextDocuments = [];
-      for (const docId of contextDocumentIds) {
-        const doc = await storage.getObject(docId);
-        if (doc) contextDocuments.push(doc);
+      const contextObjects = [];
+      for (const objId of contextDocumentIds) {
+        const obj = await storage.getObject(objId);
+        if (obj) contextObjects.push(obj);
       }
       
       const response = await chatWithGemini({
         messages,
-        contextDocuments
+        contextDocuments: contextObjects
       });
       
       res.json({ response });
@@ -554,17 +554,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const mentionIds = await storage.resolveMentionObjects(mentions);
       
       // Fetch actual mention objects
-      const mentionDocuments = [];
-      for (const docId of mentionIds) {
-        const doc = await storage.getObject(docId);
-        if (doc) mentionDocuments.push(doc);
+      const mentionObjects = [];
+      for (const objId of mentionIds) {
+        const obj = await storage.getObject(objId);
+        if (obj) mentionObjects.push(obj);
       }
       
       // Fetch explicit context objects
-      const explicitContextDocuments = [];
-      for (const docId of contextDocumentIds) {
-        const doc = await storage.getObject(docId);
-        if (doc) explicitContextDocuments.push(doc);
+      const explicitContextObjects = [];
+      for (const objId of contextDocumentIds) {
+        const obj = await storage.getObject(objId);
+        if (obj) explicitContextObjects.push(obj);
       }
       
       // Auto-retrieve relevant context using RAG
@@ -576,9 +576,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       
       // Combine all context objects  
-      const allContextDocuments = [
-        ...explicitContextDocuments,
-        ...mentionDocuments
+      const allContextObjects = [
+        ...explicitContextObjects,
+        ...mentionObjects
       ];
       
       // Add full objects for auto-retrieved context
@@ -603,14 +603,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       console.log('Function calling chat request:', { 
         messageCount: messages?.length, 
-        contextDocumentIds: contextDocumentIds.length,
+        contextObjectIds: contextDocumentIds.length,
         autoRetrievedDocs: autoContext.usedDocs.length,
         retrievalStrategy: autoContext.retrievalMetadata.strategy
       });
       
       const response = await chatWithGeminiFunctions({
         messages: enrichedMessages,
-        contextDocuments
+        contextDocuments: contextObjects
       });
       
       res.json({ 
@@ -641,17 +641,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const mentionIds = await storage.resolveMentionObjects(mentions);
       
       // Fetch actual mention objects
-      const mentionDocuments = [];
-      for (const docId of mentionIds) {
-        const doc = await storage.getObject(docId);
-        if (doc) mentionDocuments.push(doc);
+      const mentionObjects = [];
+      for (const objId of mentionIds) {
+        const obj = await storage.getObject(objId);
+        if (obj) mentionObjects.push(obj);
       }
       
       // Fetch explicit context objects
-      const explicitContextDocuments = [];
-      for (const docId of contextDocumentIds) {
-        const doc = await storage.getObject(docId);
-        if (doc) explicitContextDocuments.push(doc);
+      const explicitContextObjects = [];
+      for (const objId of contextDocumentIds) {
+        const obj = await storage.getObject(objId);
+        if (obj) explicitContextObjects.push(obj);
       }
       
       // Auto-retrieve relevant context using RAG (only if local setting allows it)
@@ -681,20 +681,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Combine all context objects  
-      const allContextDocuments = [
-        ...explicitContextDocuments,
-        ...mentionDocuments
+      const allContextObjects = [
+        ...explicitContextObjects,
+        ...mentionObjects
       ];
       
       // Add full objects for auto-retrieved context
-      for (const contextDoc of autoContext.usedDocs) {
-        const fullDoc = await storage.getObject(contextDoc.id);
-        if (fullDoc && !allContextDocuments.find(d => d.id === fullDoc.id)) {
-          allContextDocuments.push(fullDoc);
+      for (const contextObj of autoContext.usedDocs) {
+        const fullObj = await storage.getObject(contextObj.id);
+        if (fullObj && !allContextObjects.find(d => d.id === fullObj.id)) {
+          allContextObjects.push(fullObj);
         }
       }
       
-      const contextDocuments = allContextDocuments;
+      const contextObjects = allContextObjects;
       
       // Set SSE headers
       res.writeHead(200, {
@@ -723,7 +723,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // For now, use the regular function calling and simulate streaming
         const response = await chatWithGeminiFunctions({
           messages: enrichedMessages,
-          contextDocuments
+          contextDocuments: contextObjects
         });
 
         // Extract content and function calls from the response
@@ -1461,7 +1461,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Get all objects or filter by type
       let objects;
-      if (type && DocumentType.safeParse(type).success) {
+      if (type && ObjectType.safeParse(type).success) {
         objects = await storage.getObjectsByType(type);
       } else {
         objects = await storage.getAllObjects();
@@ -1498,13 +1498,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Temporary aliases for migration compatibility (remove after frontend migration)
-  app.get("/api/documents", (req, res, next) => { req.url = "/api/objects"; next(); });
-  app.get("/api/documents/:id", (req, res, next) => { req.url = `/api/objects/${req.params.id}`; next(); });
-  app.put("/api/documents/:id", (req, res, next) => { req.url = `/api/objects/${req.params.id}`; next(); });
-  app.delete("/api/documents/:id", (req, res, next) => { req.url = `/api/objects/${req.params.id}`; next(); });
-  app.get("/api/documents/:id/relationships", (req, res, next) => { req.url = `/api/objects/${req.params.id}/relationships`; next(); });
-  app.post("/api/documents/:objectId/relationships/:issueId", (req, res, next) => { req.url = `/api/objects/${req.params.objectId}/relationships/${req.params.issueId}`; next(); });
-  app.delete("/api/documents/:objectId/relationships/:issueId", (req, res, next) => { req.url = `/api/objects/${req.params.objectId}/relationships/${req.params.issueId}`; next(); });
+  app.get("/api/objects", (req, res, next) => { req.url = "/api/objects"; next(); });
+  app.get("/api/objects/:id", (req, res, next) => { req.url = `/api/objects/${req.params.id}`; next(); });
+  app.put("/api/objects/:id", (req, res, next) => { req.url = `/api/objects/${req.params.id}`; next(); });
+  app.delete("/api/objects/:id", (req, res, next) => { req.url = `/api/objects/${req.params.id}`; next(); });
+  app.get("/api/objects/:id/relationships", (req, res, next) => { req.url = `/api/objects/${req.params.id}/relationships`; next(); });
+  app.post("/api/objects/:objectId/relationships/:issueId", (req, res, next) => { req.url = `/api/objects/${req.params.objectId}/relationships/${req.params.issueId}`; next(); });
+  app.delete("/api/objects/:objectId/relationships/:issueId", (req, res, next) => { req.url = `/api/objects/${req.params.objectId}/relationships/${req.params.issueId}`; next(); });
 
   // Health check
   app.get("/api/health", (req, res) => {

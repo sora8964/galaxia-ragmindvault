@@ -1,7 +1,7 @@
 import { 
   type User, 
   type InsertUser,
-  type Document,
+  type Object,
   type InsertObject,
   type UpdateObject,
   type Conversation,
@@ -21,8 +21,7 @@ import {
   type ParsedMention,
   type AppConfig,
   type InsertAppConfig,
-  type UpdateAppConfig,
-  type DocumentType
+  type UpdateAppConfig
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 
@@ -30,8 +29,8 @@ import { randomUUID } from "crypto";
 export interface RelationshipFilters {
   sourceId?: string;
   targetId?: string;
-  sourceType?: DocumentType;
-  targetType?: DocumentType;
+  sourceType?: ObjectType;
+  targetType?: ObjectType;
   limit?: number;
   offset?: number;
 }
@@ -43,19 +42,19 @@ export interface IStorage {
   createUser(user: InsertUser): Promise<User>;
   
   // Object operations
-  getObject(id: string): Promise<Document | undefined>;
-  getAllObjects(): Promise<Document[]>;
-  getObjectsByType(type: ObjectType): Promise<Document[]>;
+  getObject(id: string): Promise<Object | undefined>;
+  getAllObjects(): Promise<Object[]>;
+  getObjectsByType(type: ObjectType): Promise<Object[]>;
   searchObjects(query: string, type?: ObjectType): Promise<SearchResult>;
-  createObject(object: InsertObject): Promise<Document>;
-  updateObject(id: string, updates: UpdateObject): Promise<Document | undefined>;
+  createObject(object: InsertObject): Promise<Object>;
+  updateObject(id: string, updates: UpdateObject): Promise<Object | undefined>;
   deleteObject(id: string): Promise<boolean>;
   getMentionSuggestions(query: string): Promise<MentionItem[]>;
   
   // Embedding operations
   updateObjectEmbedding(id: string, embedding: number[]): Promise<boolean>;
-  searchObjectsByVector(queryVector: number[], limit?: number): Promise<Array<Document & { similarity: number }>>;
-  getObjectsNeedingEmbedding(): Promise<Document[]>;
+  searchObjectsByVector(queryVector: number[], limit?: number): Promise<Array<Object & { similarity: number }>>;
+  getObjectsNeedingEmbedding(): Promise<Object[]>;
   
   // Chunk operations
   getChunksByObjectId(objectId: string): Promise<Chunk[]>;
@@ -64,7 +63,7 @@ export interface IStorage {
   updateChunkEmbedding(id: string, embedding: number[]): Promise<boolean>;
   deleteChunk(id: string): Promise<boolean>;
   deleteChunksByObjectId(objectId: string): Promise<boolean>;
-  searchChunksByVector(queryVector: number[], limit?: number): Promise<Array<Chunk & { object: Document }>>;
+  searchChunksByVector(queryVector: number[], limit?: number): Promise<Array<Chunk & { object: Object }>>;
   
   // Mention parsing operations
   parseMentions(text: string): Promise<ParsedMention[]>;
@@ -106,7 +105,7 @@ export interface IStorage {
 
 export class MemStorage implements IStorage {
   private users: Map<string, User>;
-  private objects: Map<string, Document>;
+  private objects: Map<string, Object>;
   private conversations: Map<string, Conversation>;
   private messages: Map<string, Message>;
   private chunks: Map<string, Chunk>;
@@ -284,17 +283,17 @@ export class MemStorage implements IStorage {
   }
 
   // Object operations
-  async getObject(id: string): Promise<Document | undefined> {
+  async getObject(id: string): Promise<Object | undefined> {
     return this.objects.get(id);
   }
 
-  async getAllObjects(): Promise<Document[]> {
+  async getAllObjects(): Promise<Object[]> {
     return Array.from(this.objects.values()).sort((a, b) => 
       new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
     );
   }
 
-  async getObjectsByType(type: ObjectType): Promise<Document[]> {
+  async getObjectsByType(type: ObjectType): Promise<Object[]> {
     return Array.from(this.objects.values())
       .filter(doc => doc.type === type)
       .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
@@ -417,10 +416,10 @@ export class MemStorage implements IStorage {
     };
   }
 
-  async createObject(insertObject: InsertObject): Promise<Document> {
+  async createObject(insertObject: InsertObject): Promise<Object> {
     const id = randomUUID();
     const now = new Date();
-    const object: Document = {
+    const object: Object = {
       name: insertObject.name,
       type: insertObject.type,
       content: insertObject.content || '',
@@ -440,7 +439,7 @@ export class MemStorage implements IStorage {
     return object;
   }
 
-  async updateObject(id: string, updates: UpdateObject): Promise<Document | undefined> {
+  async updateObject(id: string, updates: UpdateObject): Promise<Object | undefined> {
     const existing = this.objects.get(id);
     if (!existing) return undefined;
     
@@ -451,7 +450,7 @@ export class MemStorage implements IStorage {
       (updates.aliases !== undefined && JSON.stringify(updates.aliases) !== JSON.stringify(existing.aliases)) ||
       (updates.date !== undefined && updates.date !== existing.date);
     
-    const updated: Document = {
+    const updated: Object = {
       id: existing.id,
       name: updates.name ?? existing.name,
       type: updates.type ?? existing.type,
@@ -755,7 +754,7 @@ export class MemStorage implements IStorage {
     const existing = this.objects.get(id);
     if (!existing) return false;
     
-    const updated: Document = {
+    const updated: Object = {
       ...existing,
       embedding,
       hasEmbedding: true,
@@ -767,7 +766,7 @@ export class MemStorage implements IStorage {
     return true;
   }
 
-  async searchObjectsByVector(queryVector: number[], limit: number = 10): Promise<Document[]> {
+  async searchObjectsByVector(queryVector: number[], limit: number = 10): Promise<Array<Object & { similarity: number }>> {
     // Simple cosine similarity implementation for in-memory storage
     const objectsWithEmbeddings = Array.from(this.objects.values())
       .filter(doc => doc.hasEmbedding && doc.embedding);
@@ -780,10 +779,10 @@ export class MemStorage implements IStorage {
     return similarities
       .sort((a, b) => b.similarity - a.similarity)
       .slice(0, limit)
-      .map(item => item.doc);
+      .map(item => ({ ...item.doc, similarity: item.similarity }));
   }
 
-  async getObjectsNeedingEmbedding(): Promise<Document[]> {
+  async getObjectsNeedingEmbedding(): Promise<Object[]> {
     return Array.from(this.objects.values()).filter(doc => {
       if (!doc.needsEmbedding) return false;
       
@@ -887,7 +886,7 @@ export class MemStorage implements IStorage {
     return deletedCount > 0;
   }
 
-  async searchChunksByVector(queryVector: number[], limit: number = 10): Promise<Array<Chunk & { object: Document }>> {
+  async searchChunksByVector(queryVector: number[], limit: number = 10): Promise<Array<Chunk & { object: Object }>> {
     const chunksWithEmbeddings = Array.from(this.chunks.values())
       .filter(chunk => chunk.hasEmbedding && chunk.embedding);
     
@@ -904,7 +903,7 @@ export class MemStorage implements IStorage {
     return similarities
       .sort((a, b) => b.similarity - a.similarity)
       .slice(0, limit)
-      .map(item => ({ ...item.doc, similarity: item.similarity })); // Include similarity in result
+      .map(item => ({ ...item, similarity: item.similarity })); // Include similarity in result
   }
 
   // Settings operations
@@ -1011,8 +1010,8 @@ export class MemStorage implements IStorage {
     let targetType = insertRelationship.targetType;
     
     if (!sourceType || !targetType) {
-      const sourceDoc = await this.getDocument(insertRelationship.sourceId);
-      const targetDoc = await this.getDocument(insertRelationship.targetId);
+      const sourceDoc = await this.getObject(insertRelationship.sourceId);
+      const targetDoc = await this.getObject(insertRelationship.targetId);
       
       if (sourceDoc) sourceType = sourceDoc.type;
       if (targetDoc) targetType = targetDoc.type;
@@ -1022,8 +1021,8 @@ export class MemStorage implements IStorage {
       id,
       sourceId: insertRelationship.sourceId,
       targetId: insertRelationship.targetId,
-      sourceType: sourceType || "document", // Default fallback
-      targetType: targetType || "document", // Default fallback
+      sourceType: sourceType,
+      targetType: targetType,
       createdAt: now,
       updatedAt: now
     };
@@ -1147,17 +1146,17 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Object operations  
-  async getObject(id: string): Promise<Document | undefined> {
+  async getObject(id: string): Promise<Object | undefined> {
     const result = await db.select().from(objects).where(eq(objects.id, id));
     return result[0];
   }
 
-  async getAllObjects(): Promise<Document[]> {
+  async getAllObjects(): Promise<Object[]> {
     const result = await db.select().from(objects).orderBy(desc(objects.updatedAt));
     return result;
   }
 
-  async getObjectsByType(type: ObjectType): Promise<Document[]> {
+  async getObjectsByType(type: ObjectType): Promise<Object[]> {
     const result = await db.select().from(objects)
       .where(eq(objects.type, type))
       .orderBy(desc(objects.updatedAt));
@@ -1201,12 +1200,12 @@ export class DatabaseStorage implements IStorage {
     };
   }
 
-  async createObject(insertObject: InsertObject): Promise<Document> {
+  async createObject(insertObject: InsertObject): Promise<Object> {
     const result = await db.insert(objects).values(insertObject).returning();
     return result[0];
   }
 
-  async updateObject(id: string, updates: UpdateObject): Promise<Document | undefined> {
+  async updateObject(id: string, updates: UpdateObject): Promise<Object | undefined> {
     const result = await db.update(objects)
       .set({ ...updates, updatedAt: new Date() })
       .where(eq(objects.id, id))
@@ -1240,7 +1239,7 @@ export class DatabaseStorage implements IStorage {
     return result.map(doc => ({
       id: doc.id,
       name: doc.name,
-      type: doc.type as DocumentType,
+      type: doc.type as ObjectType,
       aliases: doc.aliases || []
     }));
   }
@@ -1257,7 +1256,7 @@ export class DatabaseStorage implements IStorage {
     return (result.rowCount || 0) > 0;
   }
 
-  async searchObjectsByVector(queryVector: number[], limit: number = 10): Promise<Array<Document & { similarity: number }>> {
+  async searchObjectsByVector(queryVector: number[], limit: number = 10): Promise<Array<Object & { similarity: number }>> {
     try {
       // Use cosine distance for vector similarity search
       const result = await db.execute(sql`
@@ -1273,7 +1272,7 @@ export class DatabaseStorage implements IStorage {
       return result.rows.map(row => ({
         id: row.id as string,
         name: row.name as string,
-        type: row.type as DocumentType,
+        type: row.type as ObjectType,
         content: row.content as string,
         aliases: (row.aliases || []) as string[],
         date: row.date as string | null,
@@ -1293,12 +1292,12 @@ export class DatabaseStorage implements IStorage {
         similarity: row.similarity as number
       }));
     } catch (error) {
-      console.error('Error in searchDocumentsByVector:', error);
+      console.error('Error in searchObjectsByVector:', error);
       return [];
     }
   }
 
-  async getObjectsNeedingEmbedding(): Promise<Document[]> {
+  async getObjectsNeedingEmbedding(): Promise<Object[]> {
     const result = await db.select().from(objects)
       .where(eq(objects.needsEmbedding, true));
     return result;
@@ -1345,7 +1344,7 @@ export class DatabaseStorage implements IStorage {
     return (result.rowCount || 0) > 0;
   }
 
-  async searchChunksByVector(queryVector: number[], limit: number = 10): Promise<Array<Chunk & { object: Document; similarity: number }>> {
+  async searchChunksByVector(queryVector: number[], limit: number = 10): Promise<Array<Chunk & { object: Object; similarity: number }>> {
     try {
       console.log(`🔍 [CHUNK-SEARCH] Query vector length: ${queryVector.length}`);
       // Join chunks with their parent objects and search by vector similarity
@@ -1402,7 +1401,7 @@ export class DatabaseStorage implements IStorage {
         object: {
           id: row.object_id as string,
           name: row.doc_name as string,
-          type: row.doc_type as DocumentType,
+          type: row.doc_type as ObjectType,
           content: row.doc_content as string,
           aliases: (row.doc_aliases || []) as string[],
           date: row.doc_date as string | null,
@@ -1427,14 +1426,6 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  // Mention parsing operations (keep as stubs)
-  async parseMentions(text: string): Promise<ParsedMention[]> {
-    return [];
-  }
-
-  async resolveMentionObjects(mentions: ParsedMention[]): Promise<string[]> {
-    return [];
-  }
 
   // Conversation operations
   async getConversation(id: string): Promise<Conversation | undefined> {
@@ -1534,7 +1525,7 @@ export class DatabaseStorage implements IStorage {
     return query.limit(filters.limit || 50);
   }
 
-  async getRelationshipsWithDocuments(filters: RelationshipFilters): Promise<Array<Relationship & { sourceDocument: Document; targetDocument: Document }>> {
+  async getRelationshipsWithDocuments(filters: RelationshipFilters): Promise<Array<Relationship & { sourceDocument: Object; targetDocument: Object }>> {
     return [];
   }
 
@@ -1780,15 +1771,21 @@ export class DatabaseStorage implements IStorage {
   // Add missing mention parsing methods
   async parseMentions(text: string): Promise<ParsedMention[]> {
     const mentions: ParsedMention[] = [];
-    const mentionRegex = /@([^\s@]+)/g;
-    let match;
+    // Regex to match @[type:name] or @[type:name|alias]
+    const mentionRegex = /@\[(person|document|entity|issue|log):([^|\]]+)(?:\|([^\]]+))?\]/g;
     
+    let match;
     while ((match = mentionRegex.exec(text)) !== null) {
+      const [fullMatch, type, name, alias] = match;
+      
       mentions.push({
-        text: match[0],
-        name: match[1],
-        startIndex: match.index,
-        endIndex: match.index + match[0].length
+        start: match.index,
+        end: match.index + fullMatch.length,
+        raw: fullMatch,
+        type: type as ObjectType,
+        name: name.trim(),
+        alias: alias?.trim(),
+        objectId: undefined // Will be resolved separately
       });
     }
     

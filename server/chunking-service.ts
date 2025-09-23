@@ -1,7 +1,7 @@
 // Reference: javascript_gemini blueprint integration
 import { storage } from "./storage";
 import { generateTextEmbedding } from "./gemini-simple";
-import type { Document, Chunk, InsertChunk } from "@shared/schema";
+import type { Object, Chunk, InsertChunk } from "@shared/schema";
 
 export class ChunkingService {
   // Configuration will be loaded from app settings at runtime
@@ -99,7 +99,7 @@ export class ChunkingService {
   }
 
   // Process object chunking and embedding
-  async processObjectChunking(object: Document): Promise<void> {
+  async processObjectChunking(object: Object): Promise<void> {
     try {
       console.log(`Processing chunks for object - ${object.type}:${object.name}(${object.id})`);
       
@@ -173,7 +173,7 @@ export class ChunkingService {
   }
 
   // Search chunks by vector similarity
-  async searchChunksByVector(queryVector: number[], limit: number = 10): Promise<Array<Chunk & { document: Document }>> {
+  async searchChunksByVector(queryVector: number[], limit: number = 10): Promise<Array<Chunk & { document: Object }>> {
     return await storage.searchChunksByVector(queryVector, limit);
   }
 }

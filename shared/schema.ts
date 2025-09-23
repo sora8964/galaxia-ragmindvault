@@ -5,8 +5,7 @@ import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
 // Object types constants
-export const OBJECT_TYPES = ["person", "document", "letter", "entity", "issue", "log", "meeting"];
-export type ObjectType = typeof OBJECT_TYPES[number];
+export const OBJECT_TYPES = ["person", "document", "letter", "entity", "issue", "log", "meeting"] as const;
 
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -131,9 +130,9 @@ export const settings = pgTable("settings", {
 
 // Schema definitions
 
-// Define DocumentType enum for type safety
-export const DocumentType = z.enum(OBJECT_TYPES);
-export type DocumentType = z.infer<typeof DocumentType>;
+// Define ObjectType enum for type safety
+export const ObjectType = z.enum(OBJECT_TYPES);
+export type ObjectType = z.infer<typeof ObjectType>;
 
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
@@ -238,11 +237,6 @@ const baseInsertRelationshipSchema = createInsertSchema(relationships)
     id: true,
     createdAt: true,
     updatedAt: true,
-  })
-  .extend({
-    // Make type fields optional for backward compatibility
-    sourceType: DocumentType.optional(),
-    targetType: DocumentType.optional(), 
   });
 
 export const insertRelationshipSchema = baseInsertRelationshipSchema;
@@ -419,4 +413,4 @@ export type InsertAppConfig = z.infer<typeof insertAppConfigSchema>;
 export type UpdateAppConfig = z.infer<typeof updateAppConfigSchema>;
 
 // Temporary aliases for migration compatibility
-export type Document = AppObject;
+export type Object = AppObject;

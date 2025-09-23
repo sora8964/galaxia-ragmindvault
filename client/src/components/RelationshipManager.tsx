@@ -1,9 +1,9 @@
 import { RelationshipManagerGeneric } from "./RelationshipManagerGeneric";
-import type { DocumentType } from "@shared/schema";
+import type { ObjectType } from "@shared/schema";
 
 interface RelationshipManagerProps {
   sourceId: string;
-  sourceType: DocumentType;
+  sourceType: ObjectType;
   className?: string;
 }
 

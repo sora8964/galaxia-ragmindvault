@@ -3,7 +3,7 @@ import { GoogleGenAI } from "@google/genai";
 import { storage } from "./storage";
 import { embeddingService } from "./embedding-service";
 import { generateTextEmbedding } from "./gemini-simple";
-import type { Document, MentionItem, SearchResult, ObjectType } from "@shared/schema";
+import type { Object, MentionItem, SearchResult, ObjectType } from "@shared/schema";
 import { OBJECT_TYPES } from "@shared/schema";
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
@@ -806,7 +806,7 @@ export interface ChatMessage {
 
 export interface GeminiFunctionChatOptions {
   messages: ChatMessage[];
-  contextDocuments?: Document[];
+  contextDocuments?: Object[];
 }
 
 // Helper function to handle generateContent with retry logic

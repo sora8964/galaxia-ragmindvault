@@ -10,11 +10,11 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { useToast } from "@/hooks/use-toast";
 import { Search, Plus, Trash2, Link, FileText, Calendar, User, Users, Building, AlertTriangle, BookOpen } from "lucide-react";
 import { queryClient } from "@/lib/queryClient";
-import type { AppObject, Relationship, DocumentType } from "@shared/schema";
+import type { AppObject, Relationship, ObjectType } from "@shared/schema";
 
 interface RelationshipManagerGenericProps {
   sourceId: string;
-  sourceType: DocumentType;
+  sourceType: ObjectType;
   className?: string;
 }
 
@@ -47,7 +47,7 @@ const RELATION_KINDS = [
 export function RelationshipManagerGeneric({ sourceId, sourceType, className }: RelationshipManagerGenericProps) {
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedTargetType, setSelectedTargetType] = useState<DocumentType | "">("");
+  const [selectedTargetType, setSelectedTargetType] = useState<ObjectType | "">("");
   const [selectedRelationKind] = useState("related"); // Fixed to "related" only
 
   // Fetch existing relationships
@@ -80,7 +80,7 @@ export function RelationshipManagerGeneric({ sourceId, sourceType, className }: 
 
   // Create relationship mutation
   const createRelationshipMutation = useMutation({
-    mutationFn: async ({ targetId, targetType }: { targetId: string; targetType: DocumentType }) => {
+    mutationFn: async ({ targetId, targetType }: { targetId: string; targetType: ObjectType }) => {
       const response = await fetch("/api/relationships", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -148,7 +148,7 @@ export function RelationshipManagerGeneric({ sourceId, sourceType, className }: 
     }
   });
 
-  const handleCreateRelation = (targetId: string, targetType: DocumentType) => {
+  const handleCreateRelation = (targetId: string, targetType: ObjectType) => {
     // Check if already related between same nodes
     const isAlreadyRelated = relationshipData?.relationships.some(
       rel => {
@@ -171,12 +171,12 @@ export function RelationshipManagerGeneric({ sourceId, sourceType, className }: 
     createRelationshipMutation.mutate({ targetId, targetType });
   };
 
-  const getTypeIcon = (type: DocumentType) => {
+  const getTypeIcon = (type: ObjectType) => {
     const Icon = DOCUMENT_TYPE_CONFIG[type].icon;
     return <Icon className="w-4 h-4" />;
   };
 
-  const getTypeColor = (type: DocumentType) => {
+  const getTypeColor = (type: ObjectType) => {
     return DOCUMENT_TYPE_CONFIG[type].color;
   };
 
@@ -281,7 +281,7 @@ export function RelationshipManagerGeneric({ sourceId, sourceType, className }: 
             {/* Target type selector */}
             <div className="mb-4">
               <label className="block text-sm font-medium mb-2">關聯目標類型</label>
-              <Select value={selectedTargetType} onValueChange={(value: DocumentType | "") => {
+              <Select value={selectedTargetType} onValueChange={(value: ObjectType | "") => {
                 setSelectedTargetType(value);
                 setSearchQuery(""); // Clear search when type changes
               }}>
