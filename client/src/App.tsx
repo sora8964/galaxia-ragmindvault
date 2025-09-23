@@ -118,6 +118,8 @@ function Router() {
       <Route path="/meetings/:id" component={MeetingDetails} />
       <Route path="/people" component={PeoplePage} />
       <Route path="/people/:id" component={DocumentDetail} />
+      <Route path="/persons" component={PeoplePage} />
+      <Route path="/persons/:id" component={DocumentDetail} />
       <Route path="/entities" component={EntitiesPage} />
       <Route path="/entities/:id" component={DocumentDetail} />
       <Route path="/issues" component={IssuesPage} />

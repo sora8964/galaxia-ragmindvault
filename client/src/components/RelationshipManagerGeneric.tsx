@@ -11,6 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Search, Plus, Trash2, Link, FileText, Calendar, User, Users, Building, AlertTriangle, BookOpen } from "lucide-react";
 import { queryClient } from "@/lib/queryClient";
 import type { AppObject, Relationship, ObjectType } from "@shared/schema";
+import { getObjectTypeConfig } from "@shared/schema";
 
 interface RelationshipManagerGenericProps {
   sourceId: string;
@@ -28,16 +29,18 @@ interface RelationshipResponse {
   total: number;
 }
 
-// Document type labels and icons
-const DOCUMENT_TYPE_CONFIG = {
-  person: { label: "人員", icon: User, color: "bg-blue-500/10 text-blue-700 dark:text-blue-300" },
-  document: { label: "文件", icon: FileText, color: "bg-green-500/10 text-green-700 dark:text-green-300" },
-  letter: { label: "信件", icon: FileText, color: "bg-yellow-500/10 text-yellow-700 dark:text-yellow-300" },
-  entity: { label: "實體", icon: Building, color: "bg-purple-500/10 text-purple-700 dark:text-purple-300" },
-  issue: { label: "議題", icon: AlertTriangle, color: "bg-orange-500/10 text-orange-700 dark:text-orange-300" },
-  log: { label: "日誌", icon: BookOpen, color: "bg-indigo-500/10 text-indigo-700 dark:text-indigo-300" },
-  meeting: { label: "會議", icon: Users, color: "bg-teal-500/10 text-teal-700 dark:text-teal-300" },
+// Object type icons and colors (labels come from single source of truth)
+const OBJECT_TYPE_STYLE_CONFIG = {
+  person: { icon: User, color: "bg-blue-500/10 text-blue-700 dark:text-blue-300" },
+  document: { icon: FileText, color: "bg-green-500/10 text-green-700 dark:text-green-300" },
+  letter: { icon: FileText, color: "bg-yellow-500/10 text-yellow-700 dark:text-yellow-300" },
+  entity: { icon: Building, color: "bg-purple-500/10 text-purple-700 dark:text-purple-300" },
+  issue: { icon: AlertTriangle, color: "bg-orange-500/10 text-orange-700 dark:text-orange-300" },
+  log: { icon: BookOpen, color: "bg-indigo-500/10 text-indigo-700 dark:text-indigo-300" },
+  meeting: { icon: Users, color: "bg-teal-500/10 text-teal-700 dark:text-teal-300" },
 };
+
+const getTypeLabel = (type: ObjectType) => getObjectTypeConfig(type).chineseName;
 
 // Simplified relationship - only basic "related" type
 const RELATION_KINDS = [
@@ -172,12 +175,12 @@ export function RelationshipManagerGeneric({ sourceId, sourceType, className }: 
   };
 
   const getTypeIcon = (type: ObjectType) => {
-    const Icon = DOCUMENT_TYPE_CONFIG[type].icon;
+    const Icon = OBJECT_TYPE_STYLE_CONFIG[type].icon;
     return <Icon className="w-4 h-4" />;
   };
 
   const getTypeColor = (type: ObjectType) => {
-    return DOCUMENT_TYPE_CONFIG[type].color;
+    return OBJECT_TYPE_STYLE_CONFIG[type].color;
   };
 
 
@@ -233,7 +236,7 @@ export function RelationshipManagerGeneric({ sourceId, sourceType, className }: 
                           </div>
                         )}
                         <Badge variant="outline" className={`text-xs ${getTypeColor(relatedDocument.type)}`}>
-                          {DOCUMENT_TYPE_CONFIG[relatedDocument.type].label}
+                          {getTypeLabel(relatedDocument.type)}
                         </Badge>
                       </div>
                     </div>
@@ -289,11 +292,11 @@ export function RelationshipManagerGeneric({ sourceId, sourceType, className }: 
                   <SelectValue placeholder="選擇要關聯的項目類型" />
                 </SelectTrigger>
                 <SelectContent>
-                  {Object.entries(DOCUMENT_TYPE_CONFIG).map(([type, config]) => (
+                  {Object.entries(OBJECT_TYPE_STYLE_CONFIG).map(([type, config]) => (
                     <SelectItem key={type} value={type}>
                       <div className="flex items-center gap-2">
                         <config.icon className="w-4 h-4" />
-                        {config.label}
+                        {getTypeLabel(type as ObjectType)}
                       </div>
                     </SelectItem>
                   ))}
@@ -308,7 +311,7 @@ export function RelationshipManagerGeneric({ sourceId, sourceType, className }: 
                 <div className="relative">
                   <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground" />
                   <Input
-                    placeholder={`搜尋${DOCUMENT_TYPE_CONFIG[selectedTargetType].label}...`}
+                    placeholder={`搜尋${getTypeLabel(selectedTargetType)}...`}
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="pl-10"
@@ -351,7 +354,7 @@ export function RelationshipManagerGeneric({ sourceId, sourceType, className }: 
                                 </div>
                               )}
                               <Badge variant="outline" className={`text-xs ${getTypeColor(doc.type)}`}>
-                                {DOCUMENT_TYPE_CONFIG[doc.type].label}
+                                {getTypeLabel(doc.type)}
                               </Badge>
                             </div>
                           </div>
@@ -368,7 +371,7 @@ export function RelationshipManagerGeneric({ sourceId, sourceType, className }: 
                       ))
                     ) : (
                       <p className="text-sm text-muted-foreground text-center py-4">
-                        沒有找到符合條件的{DOCUMENT_TYPE_CONFIG[selectedTargetType].label}
+                        沒有找到符合條件的{getTypeLabel(selectedTargetType)}
                       </p>
                     )}
                   </div>

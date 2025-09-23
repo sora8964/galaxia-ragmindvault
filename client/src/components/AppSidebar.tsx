@@ -1,4 +1,5 @@
 import { FileText, Mail, MessageSquare, Settings, Plus, Trash2, MoreHorizontal, User, Building, AlertTriangle, Clock, Edit2, Users, TestTube, Search } from "lucide-react";
+import { OBJECT_TYPE_CONFIG, getObjectTypeNavigationName, getObjectTypeIcon } from "@shared/schema";
 import { Link, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -247,62 +248,35 @@ export function AppSidebar() {
           <SidebarGroupLabel>導航</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild data-testid="link-documents">
-                  <Link href="/documents" onClick={handleNavigation}>
-                    <FileText className="h-4 w-4" />
-                    <span>文件</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild data-testid="link-letters">
-                  <Link href="/letters" onClick={handleNavigation}>
-                    <Mail className="h-4 w-4" />
-                    <span>書信</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild data-testid="link-meetings">
-                  <Link href="/meetings" onClick={handleNavigation}>
-                    <Users className="h-4 w-4" />
-                    <span>會議</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild data-testid="link-people">
-                  <Link href="/people" onClick={handleNavigation}>
-                    <User className="h-4 w-4" />
-                    <span>人員</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild data-testid="link-entities">
-                  <Link href="/entities" onClick={handleNavigation}>
-                    <Building className="h-4 w-4" />
-                    <span>實體</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild data-testid="link-issues">
-                  <Link href="/issues" onClick={handleNavigation}>
-                    <AlertTriangle className="h-4 w-4" />
-                    <span>議題</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild data-testid="link-logs">
-                  <Link href="/logs" onClick={handleNavigation}>
-                    <Clock className="h-4 w-4" />
-                    <span>日誌</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
+              {Object.entries(OBJECT_TYPE_CONFIG).map(([type, config]) => {
+                const href = `/${config.englishPlural}`;
+                const testId = `link-${config.englishPlural}`;
+                
+                // 根據類型選擇對應的圖標組件
+                const getIcon = (type: string) => {
+                  switch (type) {
+                    case 'document': return <FileText className="h-4 w-4" />;
+                    case 'letter': return <Mail className="h-4 w-4" />;
+                    case 'meeting': return <Users className="h-4 w-4" />;
+                    case 'person': return <User className="h-4 w-4" />;
+                    case 'entity': return <Building className="h-4 w-4" />;
+                    case 'issue': return <AlertTriangle className="h-4 w-4" />;
+                    case 'log': return <Clock className="h-4 w-4" />;
+                    default: return <FileText className="h-4 w-4" />;
+                  }
+                };
+                
+                return (
+                  <SidebarMenuItem key={type}>
+                    <SidebarMenuButton asChild data-testid={testId}>
+                      <Link href={href} onClick={handleNavigation}>
+                        {getIcon(type)}
+                        <span>{config.navigationName}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
               <SidebarMenuItem>
                 <SidebarMenuButton asChild data-testid="link-settings">
                   <Link href="/settings" onClick={handleNavigation}>

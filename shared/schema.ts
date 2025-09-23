@@ -44,7 +44,7 @@ export const OBJECT_TYPE_CONFIG = {
     chineseName: "人員",
     navigationName: "人員",
     englishSingular: "person",
-    englishPlural: "people",
+    englishPlural: "persons",
     canUploadFile: false,
     hasDateField: false,
     icon: "👤",
