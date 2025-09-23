@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage, type RelationshipFilters } from "./storage";
-import { insertObjectSchema, updateObjectSchema, insertConversationSchema, insertMessageSchema, updateMessageSchema, parseMentionsSchema, updateAppConfigSchema, insertRelationshipSchema, updateRelationshipSchema, ObjectType } from "@shared/schema";
+import { insertObjectSchema, updateObjectSchema, insertConversationSchema, insertMessageSchema, updateMessageSchema, parseMentionsSchema, updateAppConfigSchema, insertRelationshipSchema, updateRelationshipSchema, ObjectType, OBJECT_TYPE_CONFIG, getObjectTypeConfig, hasObjectTypeDateField, canObjectTypeUploadFile } from "@shared/schema";
 import { chatWithGemini, extractTextFromPDF, extractTextFromWord, generateTextEmbedding } from "./gemini-simple";
 import { chatWithGeminiFunctions } from "./gemini-functions";
 import { embeddingService } from "./embedding-service";
@@ -1505,6 +1505,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/objects/:id/relationships", (req, res, next) => { req.url = `/api/objects/${req.params.id}/relationships`; next(); });
   app.post("/api/objects/:objectId/relationships/:issueId", (req, res, next) => { req.url = `/api/objects/${req.params.objectId}/relationships/${req.params.issueId}`; next(); });
   app.delete("/api/objects/:objectId/relationships/:issueId", (req, res, next) => { req.url = `/api/objects/${req.params.objectId}/relationships/${req.params.issueId}`; next(); });
+
+  /**
+   * 獲取 Object 類型配置
+   * GET /api/object-types
+   * 
+   * 返回所有 Object 類型的配置信息，包括：
+   * - chineseName: 中文名稱
+   * - navigationName: 主導航名稱
+   * - englishSingular/englishPlural: 英文單複數形式
+   * - canUploadFile: 是否可上傳檔案
+   * - hasDateField: 是否有日期欄位
+   * - icon: 圖標
+   * - description: 描述
+   * 
+   * 前端使用範例：
+   * ```typescript
+   * const response = await fetch('/api/object-types');
+   * const config = await response.json();
+   * console.log(config.meeting.chineseName); // "會議記錄"
+   * console.log(config.meeting.navigationName); // "會議"
+   * ```
+   */
+  app.get("/api/object-types", async (req, res) => {
+    try {
+      res.json(OBJECT_TYPE_CONFIG);
+    } catch (error) {
+      console.error("Error getting object type configuration:", error);
+      res.status(500).json({ error: "Failed to get object type configuration" });
+    }
+  });
 
   // Health check
   app.get("/api/health", (req, res) => {

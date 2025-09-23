@@ -12,6 +12,23 @@ import { MentionSearch } from "@/components/MentionSearch";
 import { X, Plus, ArrowLeft } from "lucide-react";
 import { queryClient } from "@/lib/queryClient";
 import type { ObjectType, MentionItem } from "@shared/schema";
+import { getObjectTypeConfig, hasObjectTypeDateField, canObjectTypeUploadFile } from "@shared/schema";
+
+/**
+ * CreateItemPage 組件使用 Object 類型配置的範例：
+ * 
+ * 1. 動態顯示日期欄位：
+ *    - 使用 hasObjectTypeDateField(itemType) 檢查是否需要顯示日期欄位
+ *    - 使用 getObjectTypeConfig(itemType).chineseName 生成標籤文字
+ * 
+ * 2. 動態生成內容標籤：
+ *    - 使用 getObjectTypeConfig(itemType).chineseName 生成 "XXX內容" 標籤
+ * 
+ * 3. 未來可擴展的功能：
+ *    - 使用 canObjectTypeUploadFile(itemType) 控制檔案上傳功能
+ *    - 使用 getObjectTypeConfig(itemType).icon 顯示類型圖標
+ *    - 使用 getObjectTypeConfig(itemType).description 顯示類型描述
+ */
 
 interface CreateItemForm {
   name: string;
@@ -269,10 +286,10 @@ export function CreateItemPage({ itemType, title, description }: CreateItemPageP
                 />
               </div>
 
-              {/* 日期欄位（僅文檔類型） */}
-              {itemType === "document" && (
+              {/* 日期欄位（根據類型配置） */}
+              {hasObjectTypeDateField(itemType) && (
                 <div>
-                  <Label htmlFor="item-date">文檔日期</Label>
+                  <Label htmlFor="item-date">{getObjectTypeConfig(itemType).chineseName}日期</Label>
                   <Input
                     id="item-date"
                     type="date"
@@ -376,63 +393,26 @@ export function CreateItemPage({ itemType, title, description }: CreateItemPageP
 
 // 輔助函數
 function getItemTypeLabel(itemType: ObjectType): string {
-  const labels = {
-    person: "人員",
-    document: "文檔",
-    entity: "組織",
-    issue: "議題",
-    log: "日誌",
-    meeting: "會議"
-  };
-  return labels[itemType];
+  return getObjectTypeConfig(itemType).chineseName;
 }
 
 function getNameLabel(itemType: ObjectType): string {
-  const labels = {
-    person: "人員姓名",
-    document: "文檔名稱", 
-    entity: "組織名稱",
-    issue: "議題名稱",
-    log: "日誌名稱",
-    meeting: "會議名稱"
-  };
-  return labels[itemType];
+  const config = getObjectTypeConfig(itemType);
+  return `${config.chineseName}名稱`;
 }
 
 function getNamePlaceholder(itemType: ObjectType): string {
-  const placeholders = {
-    person: "輸入人員姓名",
-    document: "輸入文檔名稱",
-    entity: "輸入組織名稱", 
-    issue: "輸入議題名稱",
-    log: "輸入日誌名稱",
-    meeting: "輸入會議名稱"
-  };
-  return placeholders[itemType];
+  const config = getObjectTypeConfig(itemType);
+  return `輸入${config.chineseName}名稱`;
 }
 
 function getContentLabel(itemType: ObjectType): string {
-  const labels = {
-    person: "人員描述",
-    document: "文檔內容",
-    entity: "組織描述", 
-    issue: "議題內容",
-    log: "日誌內容",
-    meeting: "會議內容"
-  };
-  return labels[itemType];
+  return `${getObjectTypeConfig(itemType).chineseName}內容`;
 }
 
 function getContentPlaceholder(itemType: ObjectType): string {
-  const placeholders = {
-    person: "輸入人員描述，可以使用 @ 來引用其他文檔或人員",
-    document: "輸入文檔內容，可以使用 @ 來引用其他文檔或人員",
-    entity: "輸入組織描述，可以使用 @ 來引用其他文檔或人員",
-    issue: "輸入議題內容，可以使用 @ 來引用其他文檔或人員", 
-    log: "輸入日誌內容，可以使用 @ 來引用其他文檔或人員",
-    meeting: "輸入會議內容，可以使用 @ 來引用其他文檔或人員"
-  };
-  return placeholders[itemType];
+  const config = getObjectTypeConfig(itemType);
+  return `輸入${config.chineseName}內容，可以使用 @ 來引用其他文檔或人員`;
 }
 
 export default CreateItemPage;

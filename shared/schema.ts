@@ -7,6 +7,227 @@ import { z } from "zod";
 // Object types constants
 export const OBJECT_TYPES = ["person", "document", "letter", "entity", "issue", "log", "meeting"] as const;
 
+/**
+ * Object type configuration - single source of truth
+ * 
+ * 這個配置是系統中所有 Object 類型信息的單一事實來源，包含：
+ * - chineseName: 中文名稱（用於顯示）
+ * - navigationName: 主導航名稱（用於導航選單）
+ * - englishSingular: 英文單數形式
+ * - englishPlural: 英文複數形式
+ * - canUploadFile: 是否可以上傳檔案（預設 false）
+ * - hasDateField: 是否有日期欄位（預設 false）
+ * - icon: 圖標 emoji
+ * - description: 類型描述
+ * 
+ * 使用範例：
+ * ```typescript
+ * import { getObjectTypeConfig, hasObjectTypeDateField, canObjectTypeUploadFile } from "./schema";
+ * 
+ * // 獲取特定類型的配置
+ * const config = getObjectTypeConfig("meeting");
+ * console.log(config.chineseName); // "會議記錄"
+ * console.log(config.navigationName); // "會議"
+ * 
+ * // 檢查功能
+ * if (hasObjectTypeDateField("meeting")) {
+ *   // 顯示日期欄位
+ * }
+ * 
+ * if (canObjectTypeUploadFile("document")) {
+ *   // 顯示檔案上傳功能
+ * }
+ * ```
+ */
+export const OBJECT_TYPE_CONFIG = {
+  person: {
+    chineseName: "人員",
+    navigationName: "人員",
+    englishSingular: "person",
+    englishPlural: "people",
+    canUploadFile: false,
+    hasDateField: false,
+    icon: "👤",
+    description: "個人或組織成員"
+  },
+  document: {
+    chineseName: "文件",
+    navigationName: "文件",
+    englishSingular: "document",
+    englishPlural: "documents",
+    canUploadFile: true,
+    hasDateField: true,
+    icon: "📄",
+    description: "各種類型的文件檔案"
+  },
+  letter: {
+    chineseName: "信件",
+    navigationName: "信件",
+    englishSingular: "letter",
+    englishPlural: "letters",
+    canUploadFile: true,
+    hasDateField: true,
+    icon: "✉️",
+    description: "書信往來記錄"
+  },
+  entity: {
+    chineseName: "實體",
+    navigationName: "實體",
+    englishSingular: "entity",
+    englishPlural: "entities",
+    canUploadFile: false,
+    hasDateField: false,
+    icon: "🏢",
+    description: "組織、公司、機構等實體"
+  },
+  issue: {
+    chineseName: "議題",
+    navigationName: "議題",
+    englishSingular: "issue",
+    englishPlural: "issues",
+    canUploadFile: false,
+    hasDateField: true,
+    icon: "📋",
+    description: "需要討論或解決的問題"
+  },
+  log: {
+    chineseName: "日誌",
+    navigationName: "日誌",
+    englishSingular: "log",
+    englishPlural: "logs",
+    canUploadFile: false,
+    hasDateField: true,
+    icon: "📝",
+    description: "活動記錄或日誌"
+  },
+  meeting: {
+    chineseName: "會議記錄",
+    navigationName: "會議",
+    englishSingular: "meeting",
+    englishPlural: "meetings",
+    canUploadFile: true,
+    hasDateField: true,
+    icon: "🤝",
+    description: "會議記錄和相關文件"
+  }
+} as const;
+
+// Type definitions for object type configuration
+export type ObjectTypeKey = keyof typeof OBJECT_TYPE_CONFIG;
+export type ObjectTypeConfig = typeof OBJECT_TYPE_CONFIG[ObjectTypeKey];
+
+/**
+ * Helper functions for object type configuration
+ * 這些函數提供了便捷的方式來訪問 Object 類型配置信息
+ */
+
+/**
+ * 獲取指定 Object 類型的完整配置
+ * @param type Object 類型鍵值
+ * @returns 完整的類型配置對象
+ */
+export function getObjectTypeConfig(type: ObjectTypeKey): ObjectTypeConfig {
+  return OBJECT_TYPE_CONFIG[type];
+}
+
+/**
+ * 獲取指定 Object 類型的中文名稱
+ * @param type Object 類型鍵值
+ * @returns 中文名稱
+ */
+export function getObjectTypeChineseName(type: ObjectTypeKey): string {
+  return OBJECT_TYPE_CONFIG[type].chineseName;
+}
+
+/**
+ * 獲取指定 Object 類型的主導航名稱
+ * @param type Object 類型鍵值
+ * @returns 主導航名稱（用於導航選單顯示）
+ */
+export function getObjectTypeNavigationName(type: ObjectTypeKey): string {
+  return OBJECT_TYPE_CONFIG[type].navigationName;
+}
+
+/**
+ * 獲取指定 Object 類型的英文單數形式
+ * @param type Object 類型鍵值
+ * @returns 英文單數形式
+ */
+export function getObjectTypeEnglishSingular(type: ObjectTypeKey): string {
+  return OBJECT_TYPE_CONFIG[type].englishSingular;
+}
+
+/**
+ * 獲取指定 Object 類型的英文複數形式
+ * @param type Object 類型鍵值
+ * @returns 英文複數形式
+ */
+export function getObjectTypeEnglishPlural(type: ObjectTypeKey): string {
+  return OBJECT_TYPE_CONFIG[type].englishPlural;
+}
+
+/**
+ * 檢查指定 Object 類型是否可以上傳檔案
+ * @param type Object 類型鍵值
+ * @returns 是否可以上傳檔案
+ */
+export function canObjectTypeUploadFile(type: ObjectTypeKey): boolean {
+  return OBJECT_TYPE_CONFIG[type].canUploadFile;
+}
+
+/**
+ * 檢查指定 Object 類型是否有日期欄位
+ * @param type Object 類型鍵值
+ * @returns 是否有日期欄位
+ */
+export function hasObjectTypeDateField(type: ObjectTypeKey): boolean {
+  return OBJECT_TYPE_CONFIG[type].hasDateField;
+}
+
+/**
+ * 獲取指定 Object 類型的圖標
+ * @param type Object 類型鍵值
+ * @returns 圖標 emoji
+ */
+export function getObjectTypeIcon(type: ObjectTypeKey): string {
+  return OBJECT_TYPE_CONFIG[type].icon;
+}
+
+/**
+ * 獲取指定 Object 類型的描述
+ * @param type Object 類型鍵值
+ * @returns 類型描述
+ */
+export function getObjectTypeDescription(type: ObjectTypeKey): string {
+  return OBJECT_TYPE_CONFIG[type].description;
+}
+
+/**
+ * 獲取所有可以上傳檔案的 Object 類型
+ * @returns 可以上傳檔案的類型鍵值數組
+ * @example
+ * const fileTypes = getObjectTypesWithFileUpload();
+ * // 返回: ["document", "letter", "meeting"]
+ */
+export function getObjectTypesWithFileUpload(): ObjectTypeKey[] {
+  return Object.keys(OBJECT_TYPE_CONFIG).filter(
+    type => OBJECT_TYPE_CONFIG[type as ObjectTypeKey].canUploadFile
+  ) as ObjectTypeKey[];
+}
+
+/**
+ * 獲取所有有日期欄位的 Object 類型
+ * @returns 有日期欄位的類型鍵值數組
+ * @example
+ * const dateTypes = getObjectTypesWithDateField();
+ * // 返回: ["letter", "issue", "log", "meeting"]
+ */
+export function getObjectTypesWithDateField(): ObjectTypeKey[] {
+  return Object.keys(OBJECT_TYPE_CONFIG).filter(
+    type => OBJECT_TYPE_CONFIG[type as ObjectTypeKey].hasDateField
+  ) as ObjectTypeKey[];
+}
+
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   username: text("username").notNull().unique(),
