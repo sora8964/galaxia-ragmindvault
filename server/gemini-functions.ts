@@ -999,15 +999,19 @@ Use @mentions like @[person:習近平], @[document:項目計劃書], @[letter:�
             if (followUpResponse.candidates?.[0]?.content?.parts) {
               const followUpParts = followUpResponse.candidates[0].content.parts;
               let followUpContent = '';
+              let followUpThinking = '';
               for (const followUpPart of followUpParts) {
                 if (followUpPart.text && followUpPart.thought) {
-                  thinkingSummary += followUpPart.text;
+                  followUpThinking += followUpPart.text;
                 } else if (followUpPart.text && !followUpPart.thought) {
                   followUpContent += followUpPart.text;
                 }
               }
               if (followUpContent) {
                 finalResponse = followUpContent;
+              }
+              if (followUpThinking) {
+                thinkingSummary += '\n\n--- After Function Call Analysis ---\n' + followUpThinking;
               }
             }
             

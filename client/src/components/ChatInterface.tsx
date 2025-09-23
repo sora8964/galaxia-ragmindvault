@@ -28,7 +28,156 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Link } from "wouter";
 import type { MentionItem, Message, Conversation, AppConfig } from "@shared/schema";
+
+// Search Objects Results Display Component
+function SearchObjectsResultsDisplay({ result }: { result: string }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  
+  try {
+    const parsedResult = JSON.parse(result);
+    const { results = [], pagination, message } = parsedResult;
+    const resultCount = results.length;
+    
+    if (resultCount === 0) {
+      return (
+        <div className="mt-1 text-xs text-muted-foreground">
+          找到 0 個結果
+        </div>
+      );
+    }
+    
+    const getTypeIcon = (type: string) => {
+      switch (type) {
+        case 'person': return UserIcon;
+        case 'document': return FileText;
+        case 'letter': return FileText;
+        case 'entity': return Building;
+        case 'issue': return AlertTriangle;
+        case 'log': return BookOpen;
+        case 'meeting': return Users;
+        default: return FileText;
+      }
+    };
+    
+    const getTypeName = (type: string) => {
+      switch (type) {
+        case 'person': return '人員';
+        case 'document': return '文件';
+        case 'letter': return '信件';
+        case 'entity': return '實體';
+        case 'issue': return '議題';
+        case 'log': return '日誌';
+        case 'meeting': return '會議';
+        default: return '項目';
+      }
+    };
+    
+    const getDetailPath = (type: string): string => {
+      const typeMap: Record<string, string> = {
+        'person': '/people',
+        'document': '/documents',
+        'letter': '/letters',
+        'entity': '/entities',
+        'issue': '/issues',
+        'log': '/logs',
+        'meeting': '/meetings'
+      };
+      return typeMap[type] || '/objects';
+    };
+    
+    return (
+      <div className="mt-2">
+        <div className="flex items-center gap-2 mb-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="p-0 h-auto text-xs font-medium text-muted-foreground hover:bg-transparent"
+            onClick={() => setIsExpanded(!isExpanded)}
+            data-testid="button-toggle-search-results"
+          >
+            搜尋結果 ({resultCount} 個)
+            {isExpanded ? 
+              <ChevronUp className="w-3 h-3 ml-1" /> : 
+              <ChevronDown className="w-3 h-3 ml-1" />
+            }
+          </Button>
+          
+          {pagination && (
+            <span className="text-xs text-muted-foreground">
+              第 {pagination.page} 頁，共 {pagination.totalPages} 頁
+            </span>
+          )}
+        </div>
+        
+        {isExpanded && (
+          <div className="flex flex-col gap-1 max-h-60 overflow-y-auto">
+            {results.map((item: any) => {
+              const IconComponent = getTypeIcon(item.type);
+              const similarity = item.similarity ? (item.similarity * 100).toFixed(0) : null;
+              
+              return (
+                <Link key={item.id} href={`${getDetailPath(item.type)}/${item.id}`}>
+                  <Badge 
+                    variant="secondary" 
+                    className="text-xs h-auto py-2 px-3 justify-start bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700 w-full hover-elevate cursor-pointer"
+                    data-testid={`search-result-${item.id}`}
+                  >
+                    <IconComponent className="w-3 h-3 mr-2 flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium truncate">{item.name}</div>
+                      {item.snippet && (
+                        <div className="text-xs text-blue-600 dark:text-blue-400 truncate mt-1">
+                          {item.snippet}
+                        </div>
+                      )}
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="text-xs text-blue-500">
+                          {getTypeName(item.type)}
+                        </span>
+                        {item.date && (
+                          <span className="text-xs text-blue-500">
+                            {item.date}
+                          </span>
+                        )}
+                        {similarity && (
+                          <span className="text-xs text-blue-500">
+                            相似度: {similarity}%
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </Badge>
+                </Link>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  } catch (error) {
+    // Fallback for non-JSON results
+    return (
+      <div className="mt-1 text-xs text-muted-foreground">
+        {(() => {
+          try {
+            const countMatch = result.match(/Found (\d+) objects?/);
+            if (countMatch) {
+              return `找到 ${countMatch[1]} 個結果`;
+            }
+            if (result.includes('No objects found')) {
+              return '找到 0 個結果';
+            }
+            return '搜索完成';
+          } catch (error) {
+            return '搜索完成';
+          }
+        })()}
+      </div>
+    );
+  }
+}
 
 // Function Call Display Component
 function FunctionCallDisplay({ functionCall }: { functionCall: { name: string; arguments: any; result?: any } }) {
@@ -121,32 +270,15 @@ function FunctionCallDisplay({ functionCall }: { functionCall: { name: string; a
           )}
         </div>
         {functionCall.name === 'searchObjects' && functionCall.result && (
-          <div className="mt-1 text-xs text-muted-foreground">
-            {(() => {
-              try {
-                // Extract count from result string using regex
-                const countMatch = functionCall.result.match(/Found (\d+) objects?/);
-                if (countMatch) {
-                  return `找到 ${countMatch[1]} 個結果`;
-                }
-                // Fallback: check if result contains "No objects found"
-                if (functionCall.result.includes('No objects found')) {
-                  return '找到 0 個結果';
-                }
-                return '搜索完成';
-              } catch (error) {
-                return '搜索完成';
-              }
-            })()}
-          </div>
+          <SearchObjectsResultsDisplay result={functionCall.result} />
         )}
       </CardContent>
     </Card>
   );
 }
 
-// Thinking Display Component
-function ThinkingDisplay({ thinking }: { thinking: string }) {
+// Thinking Display Component with interleaved function calls
+function ThinkingDisplay({ thinking, functionCalls }: { thinking: string; functionCalls?: Array<{name: string; arguments: any; result?: any}> }) {
   const [isExpanded, setIsExpanded] = useState(false);
   
   if (!thinking || thinking.trim() === '') {
@@ -154,7 +286,12 @@ function ThinkingDisplay({ thinking }: { thinking: string }) {
   }
 
   const isLong = thinking.length > 200;
-  const displayText = isLong && !isExpanded ? thinking.substring(0, 200) + '...' : thinking;
+  const hasFunctionCalls = functionCalls && functionCalls.length > 0;
+
+  // Parse thinking content to separate initial thinking from post-function-call thinking
+  const thinkingParts = thinking.split('\n\n--- After Function Call Analysis ---\n');
+  const initialThinking = thinkingParts[0] || '';
+  const postFunctionThinking = thinkingParts[1] || '';
 
   return (
     <Card className="bg-indigo-50 dark:bg-indigo-950/30 border-indigo-200 dark:border-indigo-800 mb-2">
@@ -165,30 +302,79 @@ function ThinkingDisplay({ thinking }: { thinking: string }) {
           <Badge variant="secondary" className="text-xs bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300">
             Thinking
           </Badge>
+          {hasFunctionCalls && (
+            <Badge variant="secondary" className="text-xs bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300">
+              {functionCalls.length} 個函數調用
+            </Badge>
+          )}
+          {(isLong || hasFunctionCalls) && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setIsExpanded(!isExpanded)}
+              className="h-6 px-2 text-xs text-indigo-600 dark:text-indigo-400 ml-auto"
+              data-testid="button-toggle-thinking"
+            >
+              {isExpanded ? (
+                <>
+                  <ChevronUp className="h-3 w-3 mr-1" />
+                  收起
+                </>
+              ) : (
+                <>
+                  <ChevronDown className="h-3 w-3 mr-1" />
+                  展開思考
+                </>
+              )}
+            </Button>
+          )}
         </div>
-        <div className="text-xs text-indigo-600 dark:text-indigo-300 whitespace-pre-wrap">
-          {displayText}
-        </div>
-        {isLong && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setIsExpanded(!isExpanded)}
-            className="mt-2 h-6 px-2 text-xs text-indigo-600 dark:text-indigo-400"
-            data-testid="button-toggle-thinking"
-          >
-            {isExpanded ? (
-              <>
-                <ChevronUp className="h-3 w-3 mr-1" />
-                收起
-              </>
-            ) : (
-              <>
-                <ChevronDown className="h-3 w-3 mr-1" />
-                展開思考
-              </>
+        {isExpanded && (
+          <div className="space-y-3">
+            {/* Initial thinking */}
+            {initialThinking && (
+              <div className="text-xs text-indigo-600 dark:text-indigo-300 whitespace-pre-wrap">
+                {initialThinking}
+              </div>
             )}
-          </Button>
+            
+            {/* Function calls */}
+            {hasFunctionCalls && (
+              <div className="space-y-2">
+                {functionCalls.map((functionCall, index) => (
+                  <div key={index} className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Settings className="h-3 w-3 text-blue-600 dark:text-blue-400" />
+                      <span className="font-medium text-xs text-blue-700 dark:text-blue-300">
+                        {functionCall.name}
+                      </span>
+                      <Badge variant="secondary" className="text-xs bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300">
+                        完成
+                      </Badge>
+                    </div>
+                    {functionCall.name === 'searchObjects' && functionCall.result && (
+                      <SearchObjectsResultsDisplay result={functionCall.result} />
+                    )}
+                    {functionCall.name !== 'searchObjects' && functionCall.result && (
+                      <div className="text-xs text-blue-600 dark:text-blue-300 mt-1">
+                        <div className="font-medium">結果:</div>
+                        <div className="whitespace-pre-wrap bg-white dark:bg-blue-950/50 rounded p-2 mt-1">
+                          {functionCall.result}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+            
+            {/* Post-function-call thinking */}
+            {postFunctionThinking && (
+              <div className="text-xs text-indigo-600 dark:text-indigo-300 whitespace-pre-wrap border-t border-indigo-200 dark:border-indigo-700 pt-3">
+                {postFunctionThinking}
+              </div>
+            )}
+          </div>
         )}
       </CardContent>
     </Card>
@@ -204,6 +390,7 @@ interface StreamMessage {
     name?: string;
     arguments?: any;
     result?: any;
+    functionCalls?: Array<{name: string; arguments: any; result?: any}>;
   };
   role: 'user' | 'assistant' | 'system';
   type: 'prompt' | 'auto_retrieval_context_object' | 'mention_context_object' | 'response' | 'thinking' | 'function_call';
@@ -222,7 +409,10 @@ const convertDbMessageToStreamMessage = (dbMessage: any): StreamMessage => {
     id: dbMessage.id,
     content: typeof dbMessage.content === 'string' 
       ? { text: dbMessage.content }
-      : dbMessage.content,
+      : {
+          ...dbMessage.content,
+          functionCalls: dbMessage.content?.functionCalls || undefined
+        },
     role: dbMessage.role,
     type: dbMessage.type || 'prompt',
     conversationGroupId: dbMessage.conversationGroupId,
@@ -317,10 +507,62 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
     });
   };
 
-  // Compute the final messages to display
+  // Compute the final messages to display with grouped thinking and function calls
   const messages = useMemo(() => {
     const convertedDbMessages = conversationMessages.map(convertDbMessageToStreamMessage);
-    return mergeMessages(convertedDbMessages, localMessages);
+    const allMessages = mergeMessages(convertedDbMessages, localMessages);
+    
+    // Group thinking and function calls by conversationGroupId
+    const groupedMessages: StreamMessage[] = [];
+    const processedGroupIds = new Set<string>();
+    
+    for (const message of allMessages) {
+      if (message.conversationGroupId && 
+          (message.type === 'thinking' || message.type === 'function_call') &&
+          !processedGroupIds.has(message.conversationGroupId)) {
+        
+        // Find all related thinking and function call messages in this group
+        const groupMessages = allMessages.filter(m => 
+          m.conversationGroupId === message.conversationGroupId &&
+          (m.type === 'thinking' || m.type === 'function_call')
+        );
+        
+        // Sort by creation time to maintain chronological order
+        groupMessages.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+        
+        // Create a combined message for display
+        const thinkingMessages = groupMessages.filter(m => m.type === 'thinking');
+        const functionCallMessages = groupMessages.filter(m => m.type === 'function_call');
+        
+        if (thinkingMessages.length > 0 || functionCallMessages.length > 0) {
+          const combinedMessage: StreamMessage = {
+            id: `grouped-${message.conversationGroupId}`,
+            content: {
+              text: thinkingMessages.map(m => m.content.text).join('\n\n--- After Function Call Analysis ---\n'),
+              functionCalls: functionCallMessages.map(m => ({
+                name: m.content.name || '',
+                arguments: m.content.arguments || {},
+                result: m.content.result
+              }))
+            },
+            role: 'assistant',
+            type: 'thinking',
+            conversationGroupId: message.conversationGroupId,
+            timestamp: message.timestamp,
+            isStreaming: false
+          };
+          
+          groupedMessages.push(combinedMessage);
+          processedGroupIds.add(message.conversationGroupId);
+        }
+      } else if (!message.conversationGroupId || 
+                 !(message.type === 'thinking' || message.type === 'function_call') ||
+                 !processedGroupIds.has(message.conversationGroupId || '')) {
+        groupedMessages.push(message);
+      }
+    }
+    
+    return groupedMessages;
   }, [conversationMessages, localMessages]);
 
   // Check if we should show the regenerate button
@@ -1240,7 +1482,10 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
             <div className={`max-w-2xl ${message.role === 'user' ? 'order-2' : ''}`}>
               {/* Thinking display */}
               {message.type === 'thinking' && (
-                <ThinkingDisplay thinking={message.content.text || ''} />
+                <ThinkingDisplay 
+                  thinking={message.content.text || ''} 
+                  functionCalls={message.content.functionCalls}
+                />
               )}
 
               {/* Function calls */}

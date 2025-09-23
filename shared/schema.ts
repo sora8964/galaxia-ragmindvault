@@ -267,45 +267,10 @@ export const conversations = pgTable("conversations", {
 export const messages = pgTable("messages", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   conversationId: varchar("conversation_id").notNull().references(() => conversations.id, { onDelete: "cascade" }),
+  conversationGroupId: varchar("conversation_group_id"),
   role: text("role", { enum: ["user", "assistant", "system"] }).notNull(),
-  content: text("content").notNull(),
-  contextObjects: json("context_objects").$type<string[]>().notNull().default([]),
-  // AI response metadata
-  thinking: text("thinking"),
-  functionCalls: json("function_calls").$type<Array<{
-    name: string;
-    arguments: any;
-    result?: any;
-  }>>(),
-  // Message status for streaming
-  status: text("status", { enum: ["pending", "streaming", "completed", "error"] }).notNull().default("completed"),
-  // Additional context information
-  contextMetadata: json("context_metadata").$type<{
-    mentionedPersons?: Array<{ id: string; name: string; alias?: string }>;
-    mentionedObjects?: Array<{ id: string; name: string; alias?: string }>;
-    originalPrompt?: string;
-    autoRetrieved?: {
-      usedDocs: Array<{
-        id: string;
-        name: string;
-        type: 'person' | 'document' | 'letter' | 'entity' | 'issue' | 'log' | 'meeting';
-      }>;
-      retrievalMetadata: {
-        totalDocs: number;
-        totalChunks: number;
-        strategy: string;
-        estimatedTokens: number;
-        processingTimeMs?: number;
-      };
-      citations?: Array<{
-        id: number;
-        docId: string;
-        docName: string;
-        docType: string;
-        relevanceScore: number;
-      }>;
-    };
-  }>(),
+  content: json("content").notNull().default({}),
+  type: text("type").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

@@ -251,7 +251,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/conversations/:id/messages", async (req, res) => {
     try {
       // Parse mentions from content and auto-populate contextObjects
-      const content = req.body.content || '';
+      const content = typeof req.body.content === 'string' 
+        ? req.body.content 
+        : req.body.content?.text || '';
       const autoRetrievalEnabled = req.body.autoRetrievalEnabled !== false; // Default to true for backward compatibility
       const mentions = await storage.parseMentions(content);
       const contextObjects = await storage.resolveMentionObjects(mentions);
@@ -300,9 +302,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         conversationGroupId,
         role: 'user',
         type: 'prompt',
-        content: {
-          text: content
-        }
+        content: req.body.content
       });
       
       // Create auto-retrieval context message if there are retrieved docs
@@ -333,7 +333,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           role: 'user',
           type: 'mention_context_object',
           content: {
-            objects: contextObjects.map(obj => obj.id),
+            objects: contextObjects,
             mentions: mentions.map(m => ({
               id: m.objectId,
               name: m.name,
@@ -399,10 +399,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         contextObjects = [...contextObjects, ...resolvedObjects];
       }
       
-      const validatedData = updateMessageSchema.parse({
-        ...req.body,
-        contextObjects: contextObjects
-      });
+      const validatedData = updateMessageSchema.parse(req.body);
       
       const updatedMessage = await storage.updateMessage(req.params.messageId, validatedData);
       if (!updatedMessage) {
@@ -788,12 +785,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Generate conversation group ID for this response
           const conversationGroupId = `group-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
           
-          // Save thinking message if present
+          // Save thinking and function calls as separate messages in chronological order
           if (thinking) {
-          await storage.createMessage({
-            conversationId,
+            await storage.createMessage({
+              conversationId,
               conversationGroupId,
-            role: "assistant",
+              role: "assistant",
               type: "thinking",
               content: {
                 text: thinking
