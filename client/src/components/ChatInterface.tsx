@@ -479,8 +479,8 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
         // Extract context objects from the edited message (if available)
         const contextObjectIds: string[] = [];
         const originalMessage = latestMessages.find(m => m.id === editedMessageId);
-        if (originalMessage && originalMessage.contextDocuments) {
-          contextObjectIds.push(...originalMessage.contextDocuments);
+        if (originalMessage && originalMessage.contextObjects) {
+          contextObjectIds.push(...originalMessage.contextObjects);
         }
         
         // Auto-regenerate AI response after user message edit - apply dual control mechanism
@@ -680,7 +680,7 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
       const allMessages = mergeMessages(databaseMessages, [...localMessages, userMessage]);
       const success = await startAssistantStream({
         historyMessages: allMessages,
-        contextDocumentIds: currentContextIds,
+        contextObjectIds: currentContextIds,
         conversationId: activeConversationId,
         enableAutoRetrieval: autoRetrievalEnabled && (appConfig?.retrieval?.autoRag === true)
       });
@@ -712,7 +712,7 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
   // Extract streaming logic into reusable function
   const startAssistantStream = useCallback(async ({ 
     historyMessages, 
-    contextDocumentIds = [], 
+    contextObjectIds = [], 
     conversationId,
     enableAutoRetrieval = true
   }: {
@@ -970,8 +970,8 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
         if (streamMessages[i].role === 'user') {
           lastUserMessageIndex = i;
           const originalMessage = latestMessages[i];
-          if (originalMessage && originalMessage.contextDocuments) {
-            contextObjectIds = [...originalMessage.contextDocuments];
+          if (originalMessage && originalMessage.contextObjects) {
+            contextObjectIds = [...originalMessage.contextObjects];
           }
           break;
         }
@@ -1129,7 +1129,7 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
       
       // Extract context objects from the user message
       const originalMessage = conversationMessages.find(m => m.id === messageId);
-      const contextObjectIds = originalMessage?.contextDocuments || [];
+      const contextObjectIds = originalMessage?.contextObjects || [];
       
       // Regenerate AI response - apply dual control mechanism
       const success = await startAssistantStream({
@@ -1217,7 +1217,7 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
       
       // Extract context objects from the last user message
       const originalMessage = conversationMessages.find(m => m.id === lastUserMessage.id);
-      const contextObjectIds = originalMessage?.contextDocuments || [];
+      const contextObjectIds = originalMessage?.contextObjects || [];
       
       // Regenerate AI response - no auto retrieval needed for AI response regeneration
       const success = await startAssistantStream({

@@ -48,7 +48,7 @@ export const messages = pgTable("messages", {
   conversationId: varchar("conversation_id").notNull().references(() => conversations.id, { onDelete: "cascade" }),
   role: text("role", { enum: ["user", "assistant", "system"] }).notNull(),
   content: text("content").notNull(),
-  contextDocuments: json("context_documents").$type<string[]>().notNull().default([]),
+  contextObjects: json("context_objects").$type<string[]>().notNull().default([]),
   // AI response metadata
   thinking: text("thinking"),
   functionCalls: json("function_calls").$type<Array<{
@@ -61,7 +61,7 @@ export const messages = pgTable("messages", {
   // Additional context information
   contextMetadata: json("context_metadata").$type<{
     mentionedPersons?: Array<{ id: string; name: string; alias?: string }>;
-    mentionedDocuments?: Array<{ id: string; name: string; alias?: string }>;
+    mentionedObjects?: Array<{ id: string; name: string; alias?: string }>;
     originalPrompt?: string;
     autoRetrieved?: {
       usedDocs: Array<{
@@ -314,7 +314,7 @@ export interface ParseMentionsRequest {
 
 export interface ParseMentionsResponse {
   mentions: ParsedMention[];
-  resolvedDocumentIds: string[];
+  resolvedObjectIds: string[];
 }
 
 export const parseMentionsSchema = z.object({

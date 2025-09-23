@@ -7,17 +7,17 @@ const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
 export interface ChatMessage {
   role: "user" | "assistant";
   content: string;
-  contextDocuments?: string[];
+  contextObjects?: string[];
 }
 
 export interface GeminiChatOptions {
   messages: ChatMessage[];
-  contextDocuments?: Object[];
+  contextObjects?: Object[];
 }
 
 export async function chatWithGemini(options: GeminiChatOptions): Promise<string> {
   try {
-    const { messages, contextDocuments = [] } = options;
+    const { messages, contextObjects = [] } = options;
     
     // Build system instruction with context
     let systemInstruction = `You are an AI assistant specializing in object and knowledge management. You help users organize, search, and understand their objects and information about people.
@@ -32,9 +32,9 @@ You can help users with:
 
 When users mention objects or people using @mentions (like @[person:習近平|習主席]), you should understand they are referring to specific entities in their knowledge base and respond accordingly.`;
 
-    if (contextDocuments.length > 0) {
+    if (contextObjects.length > 0) {
       systemInstruction += `\n\nContext Objects (Available for reference):`;
-      contextDocuments.forEach((doc, index) => {
+      contextObjects.forEach((doc, index) => {
         systemInstruction += `\n${index + 1}. ${doc.type === 'person' ? '👤' : '📄'} ${doc.name}`;
         if (doc.aliases.length > 0) {
           systemInstruction += ` (also known as: ${doc.aliases.join(', ')})`;

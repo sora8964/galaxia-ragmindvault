@@ -315,7 +315,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const validatedData = insertMessageSchema.parse({
         ...req.body,
         conversationId: req.params.id,
-        contextDocuments: allContextObjects,
+        contextObjects: allContextObjects,
         contextMetadata
       });
       
@@ -372,7 +372,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const validatedData = updateMessageSchema.parse({
         ...req.body,
-        contextDocuments: contextObjects
+        contextObjects: contextObjects
       });
       
       const updatedMessage = await storage.updateMessage(req.params.messageId, validatedData);
@@ -457,10 +457,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const mentions = await storage.parseMentions(validatedData.text);
       const resolvedObjectIds = await storage.resolveMentionObjects(mentions);
       
-      res.json({
-        mentions,
-        resolvedDocumentIds: resolvedObjectIds
-      });
+    res.json({
+      mentions,
+      resolvedObjectIds: resolvedObjectIds
+    });
     } catch (error) {
       console.error('Error parsing mentions:', error);
       if (error instanceof z.ZodError) {
@@ -528,7 +528,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const response = await chatWithGemini({
         messages,
-        contextDocuments: contextObjects
+        contextObjects: contextObjects
       });
       
       res.json({ response });
@@ -584,12 +584,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Add full objects for auto-retrieved context
       for (const contextDoc of autoContext.usedDocs) {
         const fullDoc = await storage.getObject(contextDoc.id);
-        if (fullDoc && !allContextDocuments.find(d => d.id === fullDoc.id)) {
-          allContextDocuments.push(fullDoc);
+        if (fullDoc && !allContextObjects.find(d => d.id === fullDoc.id)) {
+          allContextObjects.push(fullDoc);
         }
       }
       
-      const contextDocuments = allContextDocuments;
+      const contextObjects = allContextObjects;
       
       // Add retrieved context to system instruction (immutable)
       const enrichedMessages = [...messages];
@@ -610,7 +610,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const response = await chatWithGeminiFunctions({
         messages: enrichedMessages,
-        contextDocuments: contextObjects
+        contextObjects: contextObjects
       });
       
       res.json({ 
@@ -723,7 +723,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // For now, use the regular function calling and simulate streaming
         const response = await chatWithGeminiFunctions({
           messages: enrichedMessages,
-          contextDocuments: contextObjects
+          contextObjects: contextObjects
         });
 
         // Extract content and function calls from the response
@@ -760,7 +760,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             conversationId,
             role: "assistant",
             content: fullResponse,
-            contextDocuments: [...contextDocumentIds, ...autoContext.usedDocs.map(d => d.id)],
+            contextObjects: [...contextObjects, ...autoContext.usedDocs.map(d => d.id)],
             thinking: thinking || null,
             functionCalls: functionCalls.length > 0 ? functionCalls : null,
             status: "completed"

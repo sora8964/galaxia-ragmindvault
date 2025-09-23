@@ -801,12 +801,12 @@ export async function callFunction(functionName: string, args: any): Promise<str
 export interface ChatMessage {
   role: "user" | "assistant";
   content: string;
-  contextDocuments?: string[];
+  contextObjects?: string[];
 }
 
 export interface GeminiFunctionChatOptions {
   messages: ChatMessage[];
-  contextDocuments?: Object[];
+  contextObjects?: Object[];
 }
 
 // Helper function to handle generateContent with retry logic
@@ -849,7 +849,7 @@ export async function chatWithGeminiFunctions(options: GeminiFunctionChatOptions
   thinking?: string;
 }> {
   try {
-    const { messages, contextDocuments = [] } = options;
+    const { messages, contextObjects = [] } = options;
     
     // Build system instruction
     let systemInstruction = `You are an AI assistant for an advanced object and knowledge management system. You help users organize, search, and understand their objects, people, entities, issues, logs, and meetings.
@@ -885,7 +885,7 @@ You have access to the following functions to help users:
 
 Use @mentions like @[person:習近平], @[document:項目計劃書], @[letter:感謝信], @[entity:公司名稱], @[issue:問題標題], @[log:日誌名稱], or @[meeting:會議名稱] when referring to specific entities.`;
 
-    if (contextDocuments.length > 0) {
+    if (contextObjects.length > 0) {
       systemInstruction += `\n\nContext Objects (Currently available):`;
       const getIcon = (type: string) => {
         switch (type) {
@@ -898,7 +898,7 @@ Use @mentions like @[person:習近平], @[document:項目計劃書], @[letter:�
         }
       };
       
-      contextDocuments.forEach((doc, index) => {
+      contextObjects.forEach((doc, index) => {
         systemInstruction += `\n${index + 1}. ${getIcon(doc.type)} ${doc.name}`;
         if (doc.aliases.length > 0) {
           systemInstruction += ` (${doc.aliases.join(', ')})`;

@@ -260,7 +260,7 @@ export class MemStorage implements IStorage {
       conversationId: conv.id,
       role: "user",
       content: "請介紹一下@[person:習近平|習主席]的背景",
-      contextDocuments: []
+      contextObjects: []
     });
   }
 
@@ -559,13 +559,13 @@ export class MemStorage implements IStorage {
       conversationId: insertMessage.conversationId,
       role: insertMessage.role,
       content: insertMessage.content,
-      contextDocuments: (insertMessage.contextDocuments as string[]) || [],
+      contextObjects: (insertMessage.contextObjects as string[]) || [],
       thinking: insertMessage.thinking || null,
       functionCalls: insertMessage.functionCalls ? insertMessage.functionCalls as Array<{name: string; arguments: any; result?: any}> : null,
       status: insertMessage.status || "completed",
       contextMetadata: insertMessage.contextMetadata ? insertMessage.contextMetadata as {
         mentionedPersons?: Array<{ id: string; name: string; alias?: string }>;
-        mentionedDocuments?: Array<{ id: string; name: string; alias?: string }>;
+        mentionedObjects?: Array<{ id: string; name: string; alias?: string }>;
         originalPrompt?: string;
       } : null,
       createdAt: now,
@@ -592,13 +592,13 @@ export class MemStorage implements IStorage {
     const updated: Message = {
       ...existing,
       ...updates,
-      // Ensure contextDocuments is properly typed as string[]
-      contextDocuments: updates.contextDocuments ? (updates.contextDocuments as string[]) : existing.contextDocuments,
+      // Ensure contextObjects is properly typed as string[]
+      contextObjects: updates.contextObjects ? (updates.contextObjects as string[]) : existing.contextObjects,
       // Ensure other JSON fields are properly typed
       functionCalls: updates.functionCalls ? (updates.functionCalls as Array<{name: string; arguments: any; result?: any}>) : existing.functionCalls,
       contextMetadata: updates.contextMetadata ? (updates.contextMetadata as {
         mentionedPersons?: Array<{ id: string; name: string; alias?: string }>;
-        mentionedDocuments?: Array<{ id: string; name: string; alias?: string }>;
+        mentionedObjects?: Array<{ id: string; name: string; alias?: string }>;
         originalPrompt?: string;
       }) : existing.contextMetadata,
       id, // Ensure ID cannot be changed
@@ -716,7 +716,7 @@ export class MemStorage implements IStorage {
   }
 
   async resolveMentionObjects(mentions: ParsedMention[]): Promise<string[]> {
-    const documentIds: string[] = [];
+    const objectIds: string[] = [];
     
     for (const mention of mentions) {
       // Find object by name first
@@ -739,14 +739,14 @@ export class MemStorage implements IStorage {
         );
       }
       
-      if (object && !documentIds.includes(object.id)) {
-        documentIds.push(object.id);
+      if (object && !objectIds.includes(object.id)) {
+        objectIds.push(object.id);
         // Update the mention with resolved object ID
         mention.objectId = object.id;
       }
     }
     
-    return documentIds;
+    return objectIds;
   }
 
   // Embedding operations

@@ -231,18 +231,18 @@ const functionHandlers = {
 export interface ChatMessage {
   role: "user" | "assistant";
   content: string;
-  contextDocuments?: string[];
+  contextObjects?: string[];
 }
 
 export interface GeminiChatOptions {
   messages: ChatMessage[];
-  contextDocuments?: Object[];
+  contextObjects?: Object[];
   enableFunctionCalling?: boolean;
 }
 
 export async function chatWithGemini(options: GeminiChatOptions): Promise<string> {
   try {
-    const { messages, contextDocuments = [], enableFunctionCalling = true } = options;
+    const { messages, contextObjects = [], enableFunctionCalling = true } = options;
     
     // Build system instruction with context
     let systemInstruction = `You are an AI assistant specializing in object and knowledge management. You help users organize, search, and understand their objects.
@@ -259,9 +259,9 @@ Key capabilities:
 
 You have access to function calling tools to search, retrieve, create, and modify all types of objects. Use getObjectTypes to understand what types of objects are available in the system.`;
 
-    if (contextDocuments.length > 0) {
+    if (contextObjects.length > 0) {
       systemInstruction += `\n\nContext Objects:`;
-      contextDocuments.forEach((doc, index) => {
+      contextObjects.forEach((doc, index) => {
         systemInstruction += `\n${index + 1}. ${doc.type}: ${doc.name}`;
         if (doc.aliases.length > 0) {
           systemInstruction += ` (aliases: ${doc.aliases.join(', ')})`;
