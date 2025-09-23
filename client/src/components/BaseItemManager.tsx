@@ -14,6 +14,7 @@ import { SimpleMentionSearch } from "@/components/SimpleMentionSearch";
 import { Plus, Calendar, Search, FileText, User, Eye } from "lucide-react";
 import { queryClient } from "@/lib/queryClient";
 import type { AppObject } from "@shared/schema";
+import { hasObjectTypeDateField } from "@shared/schema";
 import { getItemTypeDisplayName, getNameFieldLabel, getNameFieldPlaceholder, getContentFieldLabel, getContentFieldPlaceholder } from "@/lib/typeDisplay";
 
 interface BaseItemForm {
@@ -201,7 +202,7 @@ export function BaseItemManager({
                       />
                     </div>
                   </div>
-                  {(itemType === "document" || itemType === "letter" || itemType === "log") && (
+                  {hasObjectTypeDateField(itemType) && (
                     <div>
                       <Label htmlFor="item-date">日期</Label>
                       <Input

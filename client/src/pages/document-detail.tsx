@@ -16,6 +16,7 @@ import { ArrowLeft, Save, Trash2, FileText, Calendar, Tag, File, Download } from
 import { queryClient } from "@/lib/queryClient";
 import { getItemTypeDisplayName, getNameFieldLabel, getContentFieldLabel, getContentFieldPlaceholder } from "@/lib/typeDisplay";
 import type { AppObject } from "@shared/schema";
+import { hasObjectTypeDateField } from "@shared/schema";
 
 export function DocumentDetail() {
   const { id } = useParams<{ id: string }>();
@@ -337,7 +338,7 @@ export function DocumentDetail() {
           
           <CardContent className="space-y-6">
             {/* Date field */}
-            {(document.type === "document" || document.type === "letter" || document.type === "log" || document.type === "meeting") && (
+            {hasObjectTypeDateField(document.type) && (
               <div>
                 <Label className="text-base font-medium">日期</Label>
                 {isEditing ? (

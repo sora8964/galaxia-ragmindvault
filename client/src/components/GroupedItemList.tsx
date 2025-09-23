@@ -16,6 +16,7 @@ import { Plus, Calendar, Search, Eye, Upload, FileText, CheckCircle, AlertCircle
 import { queryClient } from "@/lib/queryClient";
 import { getItemTypeDisplayName, getNameFieldLabel, getNameFieldPlaceholder, getContentFieldLabel, getContentFieldPlaceholder } from "@/lib/typeDisplay";
 import type { AppObject } from "@shared/schema";
+import { hasObjectTypeDateField } from "@shared/schema";
 
 interface ItemForm {
   name: string;
@@ -482,7 +483,7 @@ export function GroupedItemList({
                       />
                     </div>
                   </div>
-                  {(itemType === "document" || itemType === "letter" || itemType === "log") && (
+                  {hasObjectTypeDateField(itemType) && (
                     <div>
                       <Label htmlFor="item-date">日期</Label>
                       <Input

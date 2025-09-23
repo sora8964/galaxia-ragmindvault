@@ -399,13 +399,14 @@ export const insertObjectSchema = createInsertSchema(objects)
     date: dateValidation.optional()
   })
   .refine((data) => {
-    // Only objects, letters and logs can have a date field
-    if (data.date !== null && data.date !== undefined && data.type !== "document" && data.type !== "letter" && data.type !== "log") {
-      return false;
+    // Only object types with date fields can have a date value
+    if (data.date !== null && data.date !== undefined) {
+      const typesWithDateField = getObjectTypesWithDateField();
+      return typesWithDateField.includes(data.type);
     }
     return true;
   }, {
-    message: "Only documents, letters and logs can have a date field",
+    message: "Only object types with date fields can have a date value",
     path: ["date"]
   });
 
@@ -420,13 +421,14 @@ export const updateObjectSchema = createInsertSchema(objects)
   })
   .partial()
   .refine((data) => {
-    // Only objects, letters and logs can have a date field
-    if (data.date !== null && data.date !== undefined && data.type !== undefined && data.type !== "document" && data.type !== "letter" && data.type !== "log") {
-      return false;
+    // Only object types with date fields can have a date value
+    if (data.date !== null && data.date !== undefined && data.type !== undefined) {
+      const typesWithDateField = getObjectTypesWithDateField();
+      return typesWithDateField.includes(data.type);
     }
     return true;
   }, {
-    message: "Only documents, letters and logs can have a date field",
+    message: "Only object types with date fields can have a date value",
     path: ["date"]
   });
 
