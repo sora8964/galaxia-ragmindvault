@@ -939,6 +939,96 @@ async function generateContentWithRetry(ai: any, params: any, functionResult?: s
   }
 }
 
+// Helper function to merge consecutive response messages
+async function mergeConsecutiveResponseMessages(conversationId: string, conversationGroupId: string): Promise<void> {
+  try {
+    console.log('🔄 [MERGE RESPONSES] Starting merge for conversation group:', conversationGroupId);
+    
+    // Get all messages for this conversation group, ordered by created_at
+    const allMessages = await storage.getMessagesByConversation(conversationId);
+    const groupMessages = allMessages
+      .filter(msg => msg.conversationGroupId === conversationGroupId)
+      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    
+    console.log('📊 [MERGE RESPONSES] Found', groupMessages.length, 'messages in group');
+    
+    // Debug: Show all messages in the group
+    groupMessages.forEach((msg, index) => {
+      console.log(`  ${index + 1}. ${msg.role}/${msg.type}: ${msg.id} (${new Date(msg.createdAt).toISOString()})`);
+    });
+    
+    // Find consecutive response sequences
+    const sequences: Array<{start: number, end: number, messages: any[]}> = [];
+    let currentSequence: any[] = [];
+    
+    for (let i = 0; i < groupMessages.length; i++) {
+      const msg = groupMessages[i];
+      
+      if (msg.role === 'assistant' && msg.type === 'response') {
+        currentSequence.push({...msg, index: i});
+      } else {
+        // Non-response message, end current sequence if it exists
+        if (currentSequence.length > 1) {
+          sequences.push({
+            start: currentSequence[0].index,
+            end: currentSequence[currentSequence.length - 1].index,
+            messages: [...currentSequence]
+          });
+        }
+        currentSequence = [];
+      }
+    }
+    
+    // Check if there's a sequence at the end
+    if (currentSequence.length > 1) {
+      sequences.push({
+        start: currentSequence[0].index,
+        end: currentSequence[currentSequence.length - 1].index,
+        messages: [...currentSequence]
+      });
+    }
+    
+    console.log('🔍 [MERGE RESPONSES] Found', sequences.length, 'consecutive response sequences');
+    
+    // Merge each sequence (process in reverse order to maintain indices)
+    for (let seqIndex = sequences.length - 1; seqIndex >= 0; seqIndex--) {
+      const sequence = sequences[seqIndex];
+      
+      if (sequence.messages.length <= 1) continue;
+      
+      console.log('🔄 [MERGE RESPONSES] Merging sequence with', sequence.messages.length, 'messages');
+      console.log('📝 [MERGE RESPONSES] Message IDs:', sequence.messages.map(m => m.id));
+      
+      // Combine all response texts
+      const combinedText = sequence.messages
+        .map(msg => msg.content?.text || '')
+        .join('');
+      
+      console.log('📄 [MERGE RESPONSES] Combined text length:', combinedText.length);
+      console.log('📄 [MERGE RESPONSES] Text preview:', combinedText.substring(0, 100) + '...');
+      
+      // Use the timestamp of the last message in the sequence
+      const lastMessage = sequence.messages[sequence.messages.length - 1];
+      
+      // Update the last message with merged content
+      await storage.updateMessage(lastMessage.id, { content: { text: combinedText } });
+      console.log('✅ [MERGE RESPONSES] Updated message:', lastMessage.id, 'with merged content');
+      
+      // Delete all messages in the sequence except the last one
+      const messagesToDelete = sequence.messages.slice(0, -1);
+      for (const msg of messagesToDelete) {
+        await storage.deleteMessage(msg.id);
+        console.log('🗑️ [MERGE RESPONSES] Deleted message:', msg.id);
+      }
+    }
+    
+    console.log('✅ [MERGE RESPONSES] Merge completed successfully');
+    
+  } catch (error) {
+    console.error('❌ [MERGE RESPONSES] Error merging consecutive response messages:', error);
+  }
+}
+
 // New iterative function calling implementation
 export async function chatWithGeminiFunctionsIterative(options: GeminiFunctionChatOptions & {
   conversationId?: string;
@@ -956,6 +1046,16 @@ export async function chatWithGeminiFunctionsIterative(options: GeminiFunctionCh
       conversationId: conversationId ? 'provided' : 'none',
       conversationGroupId: conversationGroupId ? 'provided' : 'none'
     });
+    
+    if (contextObjects.length > 0) {
+      console.log('📦 [CONTEXT OBJECTS] Available context objects:');
+      contextObjects.forEach((obj, index) => {
+        console.log(`  ${index + 1}. ${obj.type}: ${obj.name} (ID: ${obj.id})`);
+        console.log(`     Content preview: ${obj.content.substring(0, 100)}...`);
+      });
+    } else {
+      console.log('📦 [CONTEXT OBJECTS] No context objects available');
+    }
 
     // Build system instruction (same as original)
     let systemInstruction = `You are an AI assistant for an advanced object and knowledge management system. You help users organize, search, and understand their objects, people, entities, issues, logs, and meetings.
@@ -1050,6 +1150,12 @@ Use @mentions like @[person:習近平], @[document:項目計劃書], @[letter:�
       console.log(`\n🔄 [ROUND ${roundCount}] Starting round`);
       
       // Call Gemini with current conversation history
+      console.log('\n🚀 [GEMINI API REQUEST] Raw request data:');
+      console.log('📋 Model:', "gemini-2.5-pro");
+      console.log('📝 System Instruction:', systemInstruction);
+      console.log('🔧 Function Declarations:', JSON.stringify(Object.values(functions), null, 2));
+      console.log('💬 Conversation History:', JSON.stringify(conversationHistory, null, 2));
+      
       const result = await ai.models.generateContentStream({
       model: "gemini-2.5-pro",
       config: {
@@ -1219,6 +1325,16 @@ Use @mentions like @[person:習近平], @[document:項目計劃書], @[letter:�
     console.log('💬 Total response length:', allResponseText.length);
     console.log('🔧 Total function calls:', allEvents.filter(e => e.type === 'function_call').length);
     console.log('🔄 Total rounds:', roundCount);
+    
+    // Merge consecutive response messages after completion
+    console.log('🔍 [MERGE CHECK] conversationId:', conversationId);
+    console.log('🔍 [MERGE CHECK] conversationGroupId:', conversationGroupId);
+    if (conversationId && conversationGroupId) {
+      console.log('🚀 [MERGE CHECK] Starting merge process...');
+      await mergeConsecutiveResponseMessages(conversationId, conversationGroupId);
+    } else {
+      console.log('❌ [MERGE CHECK] Missing conversationId or conversationGroupId, skipping merge');
+    }
     
     return {
       content: allResponseText,
@@ -1475,6 +1591,16 @@ Use @mentions like @[person:習近平], @[document:項目計劃書], @[letter:�
     console.log('💬 Final response length:', finalResponse.length);
     console.log('🔧 Function calls count:', events.filter(e => e.type === 'function_call').length);
     console.log('🧠 Thinking events count:', events.filter(e => e.type === 'thinking').length);
+
+    // Merge consecutive response messages after completion
+    console.log('🔍 [MERGE CHECK] conversationId:', conversationId);
+    console.log('🔍 [MERGE CHECK] conversationGroupId:', conversationGroupId);
+    if (conversationId && conversationGroupId) {
+      console.log('🚀 [MERGE CHECK] Starting merge process...');
+      await mergeConsecutiveResponseMessages(conversationId, conversationGroupId);
+    } else {
+      console.log('❌ [MERGE CHECK] Missing conversationId or conversationGroupId, skipping merge');
+    }
 
     return {
       content: finalResponse,

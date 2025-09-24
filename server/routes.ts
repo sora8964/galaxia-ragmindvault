@@ -675,6 +675,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const mentions = await storage.parseMentions(userText);
       const mentionIds = await storage.resolveMentionObjects(mentions);
       
+      // Also check for mention_context_object in the database for this conversation
+      const conversationMessages = await storage.getMessagesByConversation(conversationId);
+      const mentionContextMessage = conversationMessages.find((msg: any) => 
+        msg.type === 'mention_context_object' && 
+        msg.role === 'user' &&
+        new Date(msg.createdAt).getTime() > new Date().getTime() - 60000 // Within last minute
+      );
+      
+      // Extract object IDs from mention_context_object if found
+      if (mentionContextMessage && mentionContextMessage.content && 
+          typeof mentionContextMessage.content === 'object' && 
+          'objects' in mentionContextMessage.content) {
+        const content = mentionContextMessage.content as { objects: string[] };
+        console.log('🔍 [STREAMING] Found mention_context_object with objects:', content.objects);
+        mentionIds.push(...content.objects);
+      } else {
+        console.log('🔍 [STREAMING] No mention_context_object found or invalid format');
+      }
+      
       // Fetch actual mention objects
       const mentionObjects = [];
       for (const objId of mentionIds) {
