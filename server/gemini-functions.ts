@@ -49,7 +49,7 @@ const functions = {
 
   getObjectDetails: {
     name: "getObjectDetails",
-    description: "Get the full content and details of a specific document, person, letter, entity, issue, log, or meeting. For issues, automatically includes all associated logs. Supports two query methods: 1) By object ID, or 2) By object type and name.",
+    description: "Get the full content and details of a specific document, person, letter, entity, issue, log, or meeting. For issues, automatically includes all associated logs. Supports two query methods: 1) By object ID (UUID format like 'abc123-def456'), or 2) By object type and name (use separate 'type' and 'name' fields). IMPORTANT: Do NOT use 'type:name' format as objectId - use the separate type and name fields instead.",
     parameters: {
       anyOf: [
         {
@@ -57,7 +57,7 @@ const functions = {
           properties: {
             objectId: {
               type: "string",
-              description: "The ID of the object to retrieve (preferred method)"
+              description: "The UUID of the object to retrieve (preferred method). Must be a UUID format like 'abc123-def456-ghi789'. Do NOT use 'type:name' format here."
             }
           },
           required: ["objectId"]
@@ -304,6 +304,15 @@ async function searchObjects(args: any): Promise<string> {
 async function getObjectDetails(args: any): Promise<string> {
   try {
     const { objectId, type, name } = args;
+    
+    // Check if objectId is in "type:name" format (common mistake)
+    if (objectId && typeof objectId === 'string' && objectId.includes(':') && !objectId.includes('-')) {
+      const parts = objectId.split(':');
+      if (parts.length === 2) {
+        const [detectedType, detectedName] = parts;
+        return `Error: You used "${objectId}" as objectId, but this appears to be in "type:name" format. Please use separate "type" and "name" fields instead: {"type": "${detectedType}", "name": "${detectedName}"}`;
+      }
+    }
     
     let document;
     
@@ -957,7 +966,7 @@ You have access to the following functions to help users:
 
 **SEARCH & EXPLORATION FUNCTIONS (Use iteratively for comprehensive analysis):**
 - searchObjects: **POWERFUL SEMANTIC SEARCH** with pagination - Returns lightweight summaries (titles, snippets, relevance scores) of unlimited results. Use this extensively to explore the knowledge base with different queries and then selectively read full content with getObjectDetails. Perfect for comprehensive research and discovery.
-- getObjectDetails: Get full content of specific objects - supports two query methods: 1) By objectId (preferred), or 2) By type and name (e.g., {type: "meeting", name: "第18屆第2次業主委員會會議紀錄"})
+- getObjectDetails: Get full content of specific objects - supports two query methods: 1) By objectId (UUID format, preferred), or 2) By type and name (e.g., {type: "meeting", name: "第18屆第2次業主委員會會議紀錄"}). NEVER use "type:name" format as objectId.
 - findRelevantExcerpts: Find specific excerpts from objects using intelligent retrieval
 - getObjectTypes: List all available object types in the system
 
@@ -970,7 +979,7 @@ You have access to the following functions to help users:
 **ITERATIVE RESEARCH STRATEGY:**
 1. Start with searchObjects to get a comprehensive overview of relevant objects
 2. Review pagination results and explore multiple pages if needed
-3. Use getObjectDetails selectively to read full content - you can query by objectId or by {type, name} combination
+3. Use getObjectDetails selectively to read full content - you can query by objectId (UUID) or by {type, name} combination. NEVER use "type:name" format as objectId.
 4. Call additional functions as you think through the problem - don't limit yourself to one function per response
 5. Combine insights from multiple objects to provide comprehensive answers
 
@@ -989,7 +998,7 @@ You have access to the following functions to help users:
 - DON'T be afraid of the context window - Gemini 2.5 Pro can handle very large contexts
 - USE searchObjects extensively with different queries to explore the knowledge base thoroughly  
 - ITERATE through multiple pages of results when relevant
-- READ full documents with getObjectDetails when you need complete information
+- READ full documents with getObjectDetails when you need complete information (use UUID for objectId, or separate type/name fields)
 - COMBINE information from multiple sources for comprehensive responses
 - EXECUTE multiple function calls when requested by the user
 - INTEGRATE function calling into your thinking process - call functions as you analyze and reason
@@ -1241,7 +1250,7 @@ You have access to the following functions to help users:
 
 **SEARCH & EXPLORATION FUNCTIONS (Use iteratively for comprehensive analysis):**
 - searchObjects: **POWERFUL SEMANTIC SEARCH** with pagination - Returns lightweight summaries (titles, snippets, relevance scores) of unlimited results. Use this extensively to explore the knowledge base with different queries and then selectively read full content with getObjectDetails. Perfect for comprehensive research and discovery.
-- getObjectDetails: Get full content of specific objects - supports two query methods: 1) By objectId (preferred), or 2) By type and name (e.g., {type: "meeting", name: "第18屆第2次業主委員會會議紀錄"})
+- getObjectDetails: Get full content of specific objects - supports two query methods: 1) By objectId (UUID format, preferred), or 2) By type and name (e.g., {type: "meeting", name: "第18屆第2次業主委員會會議紀錄"}). NEVER use "type:name" format as objectId.
 - findRelevantExcerpts: Find specific excerpts from objects using intelligent retrieval
 - getObjectTypes: List all available object types in the system
 
@@ -1254,7 +1263,7 @@ You have access to the following functions to help users:
 **ITERATIVE RESEARCH STRATEGY:**
 1. Start with searchObjects to get a comprehensive overview of relevant objects
 2. Review pagination results and explore multiple pages if needed
-3. Use getObjectDetails selectively to read full content - you can query by objectId or by {type, name} combination
+3. Use getObjectDetails selectively to read full content - you can query by objectId (UUID) or by {type, name} combination. NEVER use "type:name" format as objectId.
 4. Call additional functions as you think through the problem - don't limit yourself to one function per response
 5. Combine insights from multiple objects to provide comprehensive answers
 
@@ -1273,7 +1282,7 @@ You have access to the following functions to help users:
 - DON'T be afraid of the context window - Gemini 2.5 Pro can handle very large contexts
 - USE searchObjects extensively with different queries to explore the knowledge base thoroughly  
 - ITERATE through multiple pages of results when relevant
-- READ full documents with getObjectDetails when you need complete information
+- READ full documents with getObjectDetails when you need complete information (use UUID for objectId, or separate type/name fields)
 - COMBINE information from multiple sources for comprehensive responses
 - EXECUTE multiple function calls when requested by the user
 - INTEGRATE function calling into your thinking process - call functions as you analyze and reason

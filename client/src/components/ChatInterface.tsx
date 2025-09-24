@@ -910,24 +910,13 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
       return;
     }
 
-    const messageId = `msg-${Date.now()}`;
-    const userMessage: StreamMessage = {
-      id: messageId,
-      content: { text: input },
-      role: 'user',
-      type: 'prompt',
-      timestamp: new Date().toISOString(),
-    };
-
-    // Immediately add user message to local messages for instant display
-    setLocalMessages(prev => [...prev, userMessage]);
     const messageContent = input;
     const currentContextIds = [...contextObjectIds];
     setInput('');
     setContextObjectIds([]);
 
     try {
-      // Save user message to backend
+      // Save user message to backend first
       await apiRequest("POST", `/api/conversations/${activeConversationId}/messages`, {
         role: 'user',
         type: 'prompt',
@@ -935,8 +924,18 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
         autoRetrievalEnabled: autoRetrievalEnabled && (appConfig?.retrieval?.autoRag === true)
       });
 
-      // Start streaming AI response using the extracted function
-      const allMessages = mergeMessages(conversationMessages.map(convertDbMessageToStreamMessage), [...localMessages, userMessage]);
+      // Wait for the database to be updated and query to refresh
+      await queryClient.invalidateQueries({ 
+        queryKey: ['/api/conversations', activeConversationId, 'messages'] 
+      });
+
+      // Get updated messages from database
+      const updatedMessages = await queryClient.fetchQuery({
+        queryKey: ['/api/conversations', activeConversationId, 'messages']
+      });
+
+      // Start streaming AI response using the updated messages
+      const allMessages = (updatedMessages as Message[]).map(convertDbMessageToStreamMessage);
       const success = await startAssistantStream({
         historyMessages: allMessages,
         contextObjectIds: currentContextIds,
@@ -945,14 +944,14 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
       });
       
       if (!success) {
-        // Clean up user message from local state on streaming failure
-        setLocalMessages(prev => prev.filter(msg => msg.id !== messageId));
+        toast({
+          title: '錯誤',
+          description: 'AI回應生成失敗，請再試一次',
+          variant: 'destructive'
+        });
       }
     } catch (error) {
       console.error('Error sending message:', error);
-      // Clean up user message from local state
-      setLocalMessages(prev => prev.filter(msg => msg.id !== messageId));
-      
       toast({
         title: '錯誤',
         description: '送出訊息失敗，請再試一次',
@@ -992,12 +991,17 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
       setStreamingMessageId(assistantMessageId);
 
       // Add empty assistant message for streaming
+      // Use a timestamp that ensures it appears after the last user message
+      const lastUserMessage = historyMessages.filter(msg => msg.role === 'user').pop();
+      const baseTimestamp = lastUserMessage ? lastUserMessage.timestamp : new Date().toISOString();
+      const assistantTimestamp = new Date(new Date(baseTimestamp).getTime() + 1).toISOString();
+      
       const assistantMessage: StreamMessage = {
         id: assistantMessageId,
         content: { text: '' },
         role: 'assistant',
         type: 'response',
-        timestamp: new Date().toISOString(),
+        timestamp: assistantTimestamp,
         isStreaming: true,
       };
       setLocalMessages(prev => [...prev, assistantMessage]);
@@ -1058,7 +1062,7 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
                 const data = JSON.parse(line.slice(6));
                 
                 if (data.type === 'token') {
-                  // Update streaming message content
+                  // Update streaming message content immediately for better UX
                   setLocalMessages(prev => prev.map(msg => 
                     msg.id === assistantMessageId 
                       ? { 
@@ -1071,7 +1075,7 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
                       : msg
                   ));
                 } else if (data.type === 'thinking') {
-                  // Update thinking content
+                  // Update thinking content immediately
                   setLocalMessages(prev => prev.map(msg => 
                     msg.id === assistantMessageId 
                       ? { 
@@ -1085,7 +1089,7 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
                       : msg
                   ));
                 } else if (data.type === 'function_call') {
-                  // Add function call
+                  // Update function call content immediately
                   setLocalMessages(prev => prev.map(msg => 
                     msg.id === assistantMessageId 
                       ? { 
