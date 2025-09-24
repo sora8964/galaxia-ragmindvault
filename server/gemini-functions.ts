@@ -824,6 +824,64 @@ function cosineSimilarity(a: number[], b: number[]): number {
   return magnitude === 0 ? 0 : dotProduct / magnitude;
 }
 
+// Helper function to check if response is complete based on finishReason and content
+function isResponseComplete(finishReason: string, responseText: string): boolean {
+  if (finishReason === 'STOP') {
+    return true;
+  }
+  
+  if (finishReason === 'MAX_TOKENS') {
+    // Check for incomplete sentences or obvious truncation
+    const hasIncompleteSentence = /[，。！？]$/.test(responseText.trim());
+    const hasContinuationIntent = /接下來|我將|繼續|下一步|然後|接著/.test(responseText);
+    
+    return !hasIncompleteSentence && !hasContinuationIntent;
+  }
+  
+  if (finishReason === 'SAFETY' || finishReason === 'RECITATION') {
+    // These are complete responses, just blocked
+    return true;
+  }
+  
+  // For unknown or other reasons, assume incomplete
+  return false;
+}
+
+// Helper function to check if conversation should continue
+function shouldContinueConversation(
+  finishReason: string, 
+  hasFunctionCalls: boolean, 
+  responseText: string, 
+  thinkingText: string
+): boolean {
+  // If there are function calls, always continue
+  if (hasFunctionCalls) {
+    return true;
+  }
+  
+  // Check finishReason
+  if (finishReason === 'STOP') {
+    // Completely trust Gemini's STOP output - no continuation intent checking
+    return false;
+  }
+  
+  if (finishReason === 'MAX_TOKENS') {
+    // Response was truncated, likely needs continuation
+    const hasIncompleteSentence = /[，。！？]$/.test(responseText.trim());
+    const hasContinuationIntent = /接下來|我將|繼續|下一步|然後|接著/.test(responseText);
+    
+    return hasIncompleteSentence || hasContinuationIntent;
+  }
+  
+  if (finishReason === 'SAFETY' || finishReason === 'RECITATION') {
+    // These are complete responses, just blocked
+    return false;
+  }
+  
+  // For unknown or other reasons, be conservative and continue
+  return true;
+}
+
 // Function call dispatcher
 export async function callFunction(functionName: string, args: any): Promise<string> {
   console.log(`\n🔧 [CALL FUNCTION] Executing: ${functionName}`);
@@ -1202,7 +1260,11 @@ Use @mentions like @[person:習近平], @[document:項目計劃書], @[letter:�
       let hasFunctionCalls = false;
       
       // Process stream chunks
+      let finalResponseObj: any = null;
       for await (const chunk of result) {
+        // Store the final response object for finishReason checking
+        finalResponseObj = chunk;
+        
         if (chunk.candidates?.[0]?.content?.parts) {
           const parts = chunk.candidates[0].content.parts;
           
@@ -1309,6 +1371,25 @@ Use @mentions like @[person:習近平], @[document:項目計劃書], @[letter:�
         }
       }
       
+      // Check finishReason after stream processing
+      const finishReason = finalResponseObj?.candidates?.[0]?.finishReason;
+      console.log(`🏁 [ROUND ${roundCount}] FINISH REASON:`, finishReason);
+      
+      // Log finish reason details
+      if (finishReason === 'STOP') {
+        console.log(`✅ [ROUND ${roundCount}] Response completed normally`);
+      } else if (finishReason === 'MAX_TOKENS') {
+        console.warn(`⚠️ [ROUND ${roundCount}] Response truncated due to max tokens limit`);
+      } else if (finishReason === 'SAFETY') {
+        console.warn(`⚠️ [ROUND ${roundCount}] Response blocked due to safety settings`);
+      } else if (finishReason === 'RECITATION') {
+        console.warn(`⚠️ [ROUND ${roundCount}] Response blocked due to recitation detection`);
+      } else if (finishReason === 'OTHER') {
+        console.warn(`⚠️ [ROUND ${roundCount}] Response ended for other reasons`);
+      } else {
+        console.warn(`⚠️ [ROUND ${roundCount}] Unknown finish reason:`, finishReason);
+      }
+      
       console.log(`🎯 [ROUND ${roundCount}] Round complete:`, {
         responseText: roundResponseText.length,
         thinking: roundThinking.length,
@@ -1325,7 +1406,14 @@ Use @mentions like @[person:習近平], @[document:項目計劃書], @[letter:�
         });
       }
       
-      // If we had function calls, add their results and continue conversation
+      // Check if we should continue based on finishReason and function calls
+      const shouldContinue = shouldContinueConversation(
+        finishReason, 
+        roundFunctionCalls.length > 0, 
+        roundResponseText, 
+        roundThinking
+      );
+      
       if (roundFunctionCalls.length > 0) {
         // Add function results as a user message containing the function results
         let functionResultsText = "Function call results:\n";
@@ -1344,8 +1432,14 @@ Use @mentions like @[person:習近平], @[document:項目計劃書], @[letter:�
         continue; // Continue to next round
       }
       
-      // No function calls, conversation is complete
-      console.log(`✅ [ROUND ${roundCount}] No function calls, conversation complete`);
+      // No function calls - check if we should continue based on finishReason
+      if (shouldContinue) {
+        console.log(`🔄 [ROUND ${roundCount}] No function calls but should continue based on finishReason: ${finishReason}`);
+        continue;
+      }
+      
+      // Conversation is complete
+      console.log(`✅ [ROUND ${roundCount}] No function calls and finishReason indicates completion: ${finishReason}`);
       break;
     }
     
@@ -1520,8 +1614,12 @@ Use @mentions like @[person:習近平], @[document:項目計劃書], @[letter:�
     let responseTextBuffer = '';
     
     // Process stream chunks in real-time
+    let finalResponseObj: any = null;
     for await (const chunk of result) {
       console.log('\n🌊 [CHUNK] Processing new chunk...');
+      
+      // Store the final response object for finishReason checking
+      finalResponseObj = chunk;
       
       if (chunk.candidates?.[0]?.content?.parts) {
         const parts = chunk.candidates[0].content.parts;
@@ -1642,6 +1740,25 @@ Use @mentions like @[person:習近平], @[document:項目計劃書], @[letter:�
           }
         }
       }
+    }
+    
+    // Check finishReason after stream processing
+    const finishReason = finalResponseObj?.candidates?.[0]?.finishReason;
+    console.log('🏁 [FINISH REASON]', finishReason);
+    
+    // Log finish reason details
+    if (finishReason === 'STOP') {
+      console.log('✅ [STREAMING] Response completed normally');
+    } else if (finishReason === 'MAX_TOKENS') {
+      console.warn('⚠️ [STREAMING] Response truncated due to max tokens limit');
+    } else if (finishReason === 'SAFETY') {
+      console.warn('⚠️ [STREAMING] Response blocked due to safety settings');
+    } else if (finishReason === 'RECITATION') {
+      console.warn('⚠️ [STREAMING] Response blocked due to recitation detection');
+    } else if (finishReason === 'OTHER') {
+      console.warn('⚠️ [STREAMING] Response ended for other reasons');
+    } else {
+      console.warn('⚠️ [STREAMING] Unknown finish reason:', finishReason);
     }
     
     console.log('\n🎯 [STREAMING COMPLETE] All chunks processed');
