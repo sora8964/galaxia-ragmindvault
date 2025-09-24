@@ -29,7 +29,32 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Link } from "wouter";
-import type { MentionItem, Message, Conversation, AppConfig } from "@shared/schema";
+import type { MentionItem, Message, Conversation, AppConfig, ObjectTypeKey } from "@shared/schema";
+import { getObjectTypeChineseName, getObjectTypeLucideIcon, getObjectTypeRoute } from "@shared/schema";
+
+// 圖標組件映射
+const iconComponents = {
+  User: UserIcon,
+  FileText: FileText,
+  Building: Building,
+  AlertTriangle: AlertTriangle,
+  BookOpen: BookOpen,
+  Users: Users
+} as const;
+
+// 共享的輔助函數 - 使用 schema 中的單一事實來源
+const getTypeIcon = (type: string) => {
+  const iconName = getObjectTypeLucideIcon(type as ObjectTypeKey);
+  return iconComponents[iconName as keyof typeof iconComponents] || FileText;
+};
+
+const getTypeName = (type: string) => {
+  return getObjectTypeChineseName(type as ObjectTypeKey);
+};
+
+const getDetailPath = (type: string): string => {
+  return getObjectTypeRoute(type as ObjectTypeKey);
+};
 
 // Search Objects Results Display Component
 function SearchObjectsResultsDisplay({ result }: { result: string }) {
@@ -48,44 +73,6 @@ function SearchObjectsResultsDisplay({ result }: { result: string }) {
       );
     }
     
-    const getTypeIcon = (type: string) => {
-      switch (type) {
-        case 'person': return UserIcon;
-        case 'document': return FileText;
-        case 'letter': return FileText;
-        case 'entity': return Building;
-        case 'issue': return AlertTriangle;
-        case 'log': return BookOpen;
-        case 'meeting': return Users;
-        default: return FileText;
-      }
-    };
-    
-    const getTypeName = (type: string) => {
-      switch (type) {
-        case 'person': return '人員';
-        case 'document': return '文件';
-        case 'letter': return '信件';
-        case 'entity': return '實體';
-        case 'issue': return '議題';
-        case 'log': return '日誌';
-        case 'meeting': return '會議';
-        default: return '項目';
-      }
-    };
-    
-    const getDetailPath = (type: string): string => {
-      const typeMap: Record<string, string> = {
-        'person': '/people',
-        'document': '/documents',
-        'letter': '/letters',
-        'entity': '/entities',
-        'issue': '/issues',
-        'log': '/logs',
-        'meeting': '/meetings'
-      };
-      return typeMap[type] || '/objects';
-    };
     
     return (
       <div className="mt-2">
@@ -233,31 +220,6 @@ function FunctionCallDisplay({ functionCall }: { functionCall: { name: string; a
     }
   };
 
-  const getTypeIcon = (type: string) => {
-    switch (type) {
-      case 'person': return UserIcon;
-      case 'document': return FileText;
-      case 'letter': return FileText;
-      case 'entity': return Building;
-      case 'issue': return AlertTriangle;
-      case 'log': return BookOpen;
-      case 'meeting': return Users;
-      default: return FileText;
-    }
-  };
-
-  const getTypeName = (type: string) => {
-    switch (type) {
-      case 'person': return '人員';
-      case 'document': return '文件';
-      case 'letter': return '信件';
-      case 'entity': return '實體';
-      case 'issue': return '議題';
-      case 'log': return '日誌';
-      case 'meeting': return '會議';
-      default: return '項目';
-    }
-  };
 
   const displayInfo = getDisplayInfo(functionCall);
   const IconComponent = displayInfo.icon;

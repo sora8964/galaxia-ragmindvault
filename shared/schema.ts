@@ -602,3 +602,50 @@ export type UpdateAppConfig = z.infer<typeof updateAppConfigSchema>;
 
 // Temporary aliases for migration compatibility
 export type Object = AppObject;
+
+/**
+ * 圖標映射配置 - 將 emoji 圖標映射到對應的 Lucide React 圖標組件名稱
+ * 這個映射確保前端組件能正確顯示對應的圖標
+ */
+export const LUCIDE_ICON_MAPPING = {
+  '👤': 'User',
+  '📄': 'FileText', 
+  '✉️': 'FileText',
+  '🏢': 'Building',
+  '📋': 'AlertTriangle',
+  '📝': 'BookOpen',
+  '🤝': 'Users'
+} as const;
+
+/**
+ * 獲取指定 Object 類型對應的 Lucide React 圖標組件名稱
+ * @param type Object 類型鍵值
+ * @returns Lucide React 圖標組件名稱
+ */
+export function getObjectTypeLucideIcon(type: ObjectTypeKey): string {
+  const emojiIcon = getObjectTypeIcon(type);
+  return LUCIDE_ICON_MAPPING[emojiIcon as keyof typeof LUCIDE_ICON_MAPPING] || 'FileText';
+}
+
+/**
+ * 路由路徑映射配置 - 將物件類型映射到對應的列表頁面路徑
+ * 這個映射確保導航連結的一致性
+ */
+export const OBJECT_TYPE_ROUTE_MAPPING = {
+  person: '/people',
+  document: '/documents',
+  letter: '/letters',
+  entity: '/entities',
+  issue: '/issues',
+  log: '/logs',
+  meeting: '/meetings'
+} as const;
+
+/**
+ * 獲取指定 Object 類型對應的列表頁面路徑
+ * @param type Object 類型鍵值
+ * @returns 列表頁面路徑
+ */
+export function getObjectTypeRoute(type: ObjectTypeKey): string {
+  return OBJECT_TYPE_ROUTE_MAPPING[type] || '/objects';
+}
