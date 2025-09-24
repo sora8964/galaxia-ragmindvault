@@ -775,27 +775,72 @@ function cosineSimilarity(a: number[], b: number[]): number {
 
 // Function call dispatcher
 export async function callFunction(functionName: string, args: any): Promise<string> {
+  console.log(`\n🔧 [CALL FUNCTION] Executing: ${functionName}`);
+  console.log('📋 Function arguments:', JSON.stringify(args, null, 2));
+  
+  const startTime = Date.now();
+  let result: string;
+  
+  try {
   switch (functionName) {
     case "searchObjects":
-      return await searchObjects(args);
+        result = await searchObjects(args);
+        break;
     case "getObjectTypes":
-      return await getObjectTypes(args);
+        result = await getObjectTypes(args);
+        break;
     case "getObjectDetails":
-      return await getObjectDetails(args);
+        result = await getObjectDetails(args);
+        break;
     case "createObject":
-      return await createObject(args);
+        result = await createObject(args);
+        break;
     case "updateObject":
-      return await updateObject(args);
+        result = await updateObject(args);
+        break;
     case "findSimilarDocuments":
-      return await findSimilarDocuments(args);
+        result = await findSimilarDocuments(args);
+        break;
     case "parseMentions":
-      return await parseMentions(args);
+        result = await parseMentions(args);
+        break;
     case "findRelevantExcerpts":
-      return await findRelevantExcerpts(args);
+        result = await findRelevantExcerpts(args);
+        break;
     default:
-      return `Unknown function: ${functionName}`;
+        result = `Unknown function: ${functionName}`;
+    }
+    
+    const duration = Date.now() - startTime;
+    console.log(`✅ [FUNCTION COMPLETED] ${functionName} executed in ${duration}ms`);
+    console.log('📊 Result length:', result.length);
+    //console.log('📄 Result preview:', result.substring(0, 300) + (result.length > 300 ? '...' : ''));
+    console.log('📄 Result:', result);
+    
+    return result;
+  } catch (error) {
+    const duration = Date.now() - startTime;
+    console.error(`❌ [FUNCTION ERROR] ${functionName} failed after ${duration}ms:`, error);
+    throw error;
   }
 }
+
+// Event types for multi-stage thinking
+export interface ThinkingEvent {
+  type: 'thinking';
+  content: string;
+  stage: 'initial' | 'post_function_call';
+  functionCallIndex?: number; // Which function call this thinking follows (for post_function_call)
+}
+
+export interface FunctionCallEvent {
+  type: 'function_call';
+  name: string;
+  arguments: any;
+  result: any;
+}
+
+export type AIEvent = ThinkingEvent | FunctionCallEvent;
 
 // Main chat interface with function calling
 export interface ChatMessage {
@@ -843,13 +888,307 @@ async function generateContentWithRetry(ai: any, params: any, functionResult?: s
   }
 }
 
-export async function chatWithGeminiFunctions(options: GeminiFunctionChatOptions): Promise<{
+// New iterative function calling implementation
+export async function chatWithGeminiFunctionsIterative(options: GeminiFunctionChatOptions & {
+  conversationId?: string;
+  conversationGroupId?: string;
+}): Promise<{
   content: string;
-  functionCalls: Array<{name: string; arguments: any; result?: any}>;
-  thinking?: string;
+  events: AIEvent[];
 }> {
   try {
-    const { messages, contextObjects = [] } = options;
+    const { messages, contextObjects = [], conversationId, conversationGroupId } = options;
+    
+    console.log('\n🚀 [ITERATIVE] Starting iterative function calling:', {
+      messageCount: messages.length,
+      contextObjectCount: contextObjects.length,
+      conversationId: conversationId ? 'provided' : 'none',
+      conversationGroupId: conversationGroupId ? 'provided' : 'none'
+    });
+
+    // Build system instruction (same as original)
+    let systemInstruction = `You are an AI assistant for an advanced object and knowledge management system. You help users organize, search, and understand their objects, people, entities, issues, logs, and meetings.
+
+Objects refer to all types of data entries including but not limited to persons, entities, issues, logs, meetings, letters, and documents. You can use the getObjectTypes function to see all available object types.
+
+You have access to the following functions to help users:
+
+**SEARCH & EXPLORATION FUNCTIONS (Use iteratively for comprehensive analysis):**
+- searchObjects: **POWERFUL SEMANTIC SEARCH** with pagination - Returns lightweight summaries (titles, snippets, relevance scores) of unlimited results. Use this extensively to explore the knowledge base with different queries and then selectively read full content with getObjectDetails. Perfect for comprehensive research and discovery.
+- getObjectDetails: Get full content of specific objects - use AFTER finding relevant IDs with searchObjects
+- findRelevantExcerpts: Find specific excerpts from objects using intelligent retrieval
+- getObjectTypes: List all available object types in the system
+
+**CONTENT MANAGEMENT FUNCTIONS:**
+- createObject: Create new objects, person profiles, entities, issues, logs, or meetings
+- updateObject: Modify existing objects
+- findSimilarObjects: Find semantically similar content
+- parseMentions: Analyze @mentions in text
+
+**ITERATIVE RESEARCH STRATEGY:**
+1. Start with searchObjects to get a comprehensive overview of relevant objects
+2. Review pagination results and explore multiple pages if needed
+3. Use getObjectDetails selectively to read full content of the most relevant objects
+4. Call additional functions as you think through the problem - don't limit yourself to one function per response
+5. Combine insights from multiple objects to provide comprehensive answers
+
+**FUNCTION CALLING PRINCIPLES:**
+- You can call multiple functions in sequence during a single response
+- You can call functions WHILE THINKING - thinking and function calling can be interleaved
+- When analyzing a complex question, use functions during your thinking process to gather information
+- After each function call, continue thinking about the results and call additional functions if needed
+- Think → Call Function → Analyze Results → Think More → Call Another Function (if needed)
+- When a user asks for multiple function calls, execute them step by step
+- Provide output text between function calls to explain what you're doing
+- Continue the conversation naturally after each function call
+- Use function calls iteratively based on results from previous calls
+
+**IMPORTANT PRINCIPLES:**
+- DON'T be afraid of the context window - Gemini 2.5 Pro can handle very large contexts
+- USE searchObjects extensively with different queries to explore the knowledge base thoroughly  
+- ITERATE through multiple pages of results when relevant
+- READ full documents with getObjectDetails when you need complete information
+- COMBINE information from multiple sources for comprehensive responses
+- EXECUTE multiple function calls when requested by the user
+- INTEGRATE function calling into your thinking process - call functions as you analyze and reason
+
+**EXAMPLE WORKFLOW:**
+Think about the question → Call a function to gather data → Analyze the results → Think more → Call another function if needed → Provide final answer
+
+Use @mentions like @[person:習近平], @[document:項目計劃書], @[letter:感謝信], @[entity:公司名稱], @[issue:問題標題], @[log:日誌名稱], or @[meeting:會議名稱] when referring to specific entities.`;
+
+    if (contextObjects.length > 0) {
+      systemInstruction += `\n\nContext Objects (Currently available):`;
+      const getIcon = (type: string) => {
+        switch (type) {
+          case 'person': return '👤';
+          case 'document': return '📄';
+          case 'entity': return '🏢';
+          case 'issue': return '📋';
+          case 'log': return '📝';
+          default: return '📄';
+        }
+      };
+      
+      contextObjects.forEach((doc, index) => {
+        systemInstruction += `\n${index + 1}. ${getIcon(doc.type)} ${doc.name}`;
+        if (doc.aliases.length > 0) {
+          systemInstruction += ` (${doc.aliases.join(', ')})`;
+        }
+        systemInstruction += `\n   📝 ${doc.content.substring(0, 200)}${doc.content.length > 200 ? '...' : ''}`;
+      });
+    }
+
+    // Initialize conversation history
+    const conversationHistory = messages.map(msg => ({
+      role: msg.role === 'assistant' ? 'model' : msg.role,
+      parts: [{ text: msg.content }]
+    }));
+
+    // Track all events and response content
+    const allEvents: AIEvent[] = [];
+    let allResponseText = '';
+    let roundCount = 0;
+    
+    console.log('\n🔄 [ITERATIVE] Starting conversation loop');
+    console.log('🔧 Available Functions:', Object.keys(functions));
+    
+    // Iterative conversation loop
+    while (roundCount < 10) { // Safety limit
+      roundCount++;
+      console.log(`\n🔄 [ROUND ${roundCount}] Starting round`);
+      
+      // Call Gemini with current conversation history
+      const result = await ai.models.generateContentStream({
+      model: "gemini-2.5-pro",
+      config: {
+        systemInstruction,
+        tools: [{
+          functionDeclarations: Object.values(functions) as any[]
+          }]
+        },
+        contents: conversationHistory
+      });
+      
+      let roundResponseText = '';
+      let roundThinking = '';
+      const roundFunctionCalls: Array<{name: string; arguments: any; result: any}> = [];
+      let hasFunctionCalls = false;
+      
+      // Process stream chunks
+      for await (const chunk of result) {
+        if (chunk.candidates?.[0]?.content?.parts) {
+          const parts = chunk.candidates[0].content.parts;
+          
+      for (const part of parts) {
+            // Handle thinking
+        if (part.text && part.thought) {
+              console.log(`💭 [ROUND ${roundCount}] THINKING:`, part.text);
+              roundThinking += part.text;
+              
+              if (conversationId && conversationGroupId) {
+                await storage.createMessage({
+                  conversationId,
+                  conversationGroupId,
+                  role: "assistant",
+                  type: "thinking",
+                  content: { text: part.text }
+                });
+              }
+              
+              allEvents.push({
+                type: 'thinking',
+                content: part.text,
+                stage: roundFunctionCalls.length === 0 ? 'initial' : 'post_function_call'
+              });
+            }
+            
+            // Handle response text
+            else if (part.text && !part.thought) {
+              console.log(`💬 [ROUND ${roundCount}] RESPONSE:`, part.text);
+              roundResponseText += part.text;
+              allResponseText += part.text;
+              
+              if (conversationId && conversationGroupId && part.text.trim()) {
+                await storage.createMessage({
+                  conversationId,
+                  conversationGroupId,
+                  role: "assistant",
+                  type: "response",
+                  content: { text: part.text }
+                });
+              }
+            }
+            
+            // Handle function calls
+            else if (part.functionCall) {
+          const { name: functionName, args } = part.functionCall;
+              console.log(`🔧 [ROUND ${roundCount}] FUNCTION CALL: ${functionName}`);
+              hasFunctionCalls = true;
+              
+              try {
+                const functionResult = await callFunction(functionName || "", args);
+                console.log(`✅ [ROUND ${roundCount}] Function completed`);
+                
+                if (conversationId && conversationGroupId) {
+                  await storage.createMessage({
+                    conversationId,
+                    conversationGroupId,
+                    role: "assistant",
+                    type: "function_call",
+                    content: { name: functionName || '', arguments: args || {}, result: functionResult }
+                  });
+                }
+
+                const functionCallData = {
+            name: functionName || '',
+            arguments: args || {},
+                  result: functionResult
+                };
+                
+                roundFunctionCalls.push(functionCallData);
+                allEvents.push({
+                  type: 'function_call',
+                  ...functionCallData
+                });
+                
+              } catch (error) {
+                console.error(`❌ [ROUND ${roundCount}] Function error:`, error);
+                const errorResult = `Error: ${error}`;
+                
+                if (conversationId && conversationGroupId) {
+                  await storage.createMessage({
+                    conversationId,
+                    conversationGroupId,
+                    role: "assistant",
+                    type: "function_call",
+                    content: { name: functionName || '', arguments: args || {}, result: errorResult }
+                  });
+                }
+
+                const functionCallData = {
+                  name: functionName || '',
+                  arguments: args || {},
+                  result: errorResult
+                };
+                
+                roundFunctionCalls.push(functionCallData);
+                allEvents.push({
+                  type: 'function_call',
+                  ...functionCallData
+                });
+              }
+            }
+          }
+        }
+      }
+      
+      console.log(`🎯 [ROUND ${roundCount}] Round complete:`, {
+        responseText: roundResponseText.length,
+        thinking: roundThinking.length,
+        functionCalls: roundFunctionCalls.length,
+        hasFunctionCalls
+      });
+      
+      // Add assistant's text response to conversation history
+      if (roundResponseText || roundThinking) {
+        const assistantContent = roundThinking ? `${roundThinking}\n\n${roundResponseText}` : roundResponseText;
+        conversationHistory.push({
+          role: 'model',
+          parts: [{ text: assistantContent }]
+        });
+      }
+      
+      // If we had function calls, add their results and continue conversation
+      if (roundFunctionCalls.length > 0) {
+        // Add function results as a user message containing the function results
+        let functionResultsText = "Function call results:\n";
+        for (const call of roundFunctionCalls) {
+          functionResultsText += `\n${call.name}() returned: ${JSON.stringify(call.result, null, 2)}\n`;
+        }
+        
+        conversationHistory.push({
+          role: 'user',
+          parts: [{
+            text: functionResultsText
+          }]
+        });
+        
+        console.log(`🔄 [ROUND ${roundCount}] Function results added as user message, continuing to next round...`);
+        continue; // Continue to next round
+      }
+      
+      // No function calls, conversation is complete
+      console.log(`✅ [ROUND ${roundCount}] No function calls, conversation complete`);
+      break;
+    }
+    
+    console.log('\n🎯 [ITERATIVE COMPLETE] All rounds finished');
+    console.log('💭 Total events:', allEvents.length);
+    console.log('💬 Total response length:', allResponseText.length);
+    console.log('🔧 Total function calls:', allEvents.filter(e => e.type === 'function_call').length);
+    console.log('🔄 Total rounds:', roundCount);
+    
+    return {
+      content: allResponseText,
+      events: allEvents
+    };
+
+  } catch (error) {
+    console.error('❌ [ITERATIVE ERROR]:', error);
+    throw error;
+  }
+}
+
+export async function chatWithGeminiFunctionsStreaming(options: GeminiFunctionChatOptions & {
+  conversationId?: string;
+  conversationGroupId?: string;
+}): Promise<{
+  content: string;
+  events: AIEvent[];
+}> {
+  try {
+    const { messages, contextObjects = [], conversationId, conversationGroupId } = options;
     
     // Build system instruction
     let systemInstruction = `You are an AI assistant for an advanced object and knowledge management system. You help users organize, search, and understand their objects, people, entities, issues, logs, and meetings.
@@ -874,7 +1213,19 @@ You have access to the following functions to help users:
 1. Start with searchObjects to get a comprehensive overview of relevant objects
 2. Review pagination results and explore multiple pages if needed
 3. Use getObjectDetails selectively to read full content of the most relevant objects
-4. Combine insights from multiple objects to provide comprehensive answers
+4. Call additional functions as you think through the problem - don't limit yourself to one function per response
+5. Combine insights from multiple objects to provide comprehensive answers
+
+**FUNCTION CALLING PRINCIPLES:**
+- You can call multiple functions in sequence during a single response
+- You can call functions WHILE THINKING - thinking and function calling can be interleaved
+- When analyzing a complex question, use functions during your thinking process to gather information
+- After each function call, continue thinking about the results and call additional functions if needed
+- Think → Call Function → Analyze Results → Think More → Call Another Function (if needed)
+- When a user asks for multiple function calls, execute them step by step
+- Provide output text between function calls to explain what you're doing
+- Continue the conversation naturally after each function call
+- Use function calls iteratively based on results from previous calls
 
 **IMPORTANT PRINCIPLES:**
 - DON'T be afraid of the context window - Gemini 2.5 Pro can handle very large contexts
@@ -882,6 +1233,11 @@ You have access to the following functions to help users:
 - ITERATE through multiple pages of results when relevant
 - READ full documents with getObjectDetails when you need complete information
 - COMBINE information from multiple sources for comprehensive responses
+- EXECUTE multiple function calls when requested by the user
+- INTEGRATE function calling into your thinking process - call functions as you analyze and reason
+
+**EXAMPLE WORKFLOW:**
+Think about the question → Call a function to gather data → Analyze the results → Think more → Call another function if needed → Provide final answer
 
 Use @mentions like @[person:習近平], @[document:項目計劃書], @[letter:感謝信], @[entity:公司名稱], @[issue:問題標題], @[log:日誌名稱], or @[meeting:會議名稱] when referring to specific entities.`;
 
@@ -913,140 +1269,171 @@ Use @mentions like @[person:習近平], @[document:項目計劃書], @[letter:�
       parts: [{ text: msg.content }]
     }));
 
-    const response = await generateContentWithRetry(ai, {
-      model: "gemini-2.5-pro",
-      config: {
-        systemInstruction,
-        tools: [{
-          functionDeclarations: Object.values(functions) as any[]
-        }],
-        thinkingConfig: {
-          includeThoughts: true,
-          thinkingBudget: -1  // Dynamic thinking - let model decide
-        }
-      },
-      contents: geminiMessages
-    });
-
-    // Track function calls and thinking for the response
-    const functionCalls: Array<{name: string; arguments: any; result?: any}> = [];
-    let finalResponse = '';
-    let thinkingSummary = '';
-
-    // Handle function calls with proper follow-up analysis
-    if (response.candidates?.[0]?.content?.parts) {
-      const parts = response.candidates[0].content.parts;
-      let hasTextResponse = false;
-      
-      // Process all parts to extract thinking, text, and function calls
-      for (const part of parts) {
-        if (part.text && part.thought) {
-          // This is thinking content
-          thinkingSummary += part.text;
-        } else if (part.text && !part.thought) {
-          // This is regular response text
-          hasTextResponse = true;
-          finalResponse += part.text;
-        }
-      }
-      
-      // Process function calls
-      for (const part of parts) {
-        if (part.functionCall) {
-          const { name: functionName, args } = part.functionCall;
-          console.log(`Calling function: ${functionName}`, args);
-          
-          // Record the function call
-          const functionCallRecord = {
-            name: functionName || '',
-            arguments: args || {},
-            result: undefined as any
-          };
-          
-          try {
-            const functionResult = await callFunction(functionName || "", args);
-            functionCallRecord.result = functionResult;
-            
-            // Make follow-up call with function result for analysis (with retry logic)
-            const followUpResponse = await generateContentWithRetry(ai, {
+    console.log('\n🤖 [GEMINI STREAMING] Starting streaming function calling request');
+    console.log('📝 System Instruction:', systemInstruction);
+    console.log('💬 Messages:', JSON.stringify(geminiMessages, null, 2));
+    console.log('🔧 Available Functions:', Object.keys(functions));
+    
+    // Use streaming API
+    const result = await ai.models.generateContentStream({
               model: "gemini-2.5-pro",
               config: { 
                 systemInstruction,
-                thinkingConfig: {
-                  includeThoughts: true,
-                  thinkingBudget: -1  // Dynamic thinking
-                }
-              },
-              contents: [
-                ...geminiMessages,
-                {
-                  role: "model",
-                  parts: [{ functionCall: part.functionCall }]
-                },
-                {
-                  role: "user",
-                  parts: [{
-                    functionResponse: {
-                      name: functionName,
-                      response: { result: functionResult }
-                    }
-                  }]
-                }
-              ]
-            }, functionResult);
+        tools: [{
+          functionDeclarations: Object.values(functions) as any[]
+        }]
+      },
+      contents: geminiMessages
+    });
+    
+    console.log('\n🌊 [STREAMING] Starting to process stream chunks...');
+
+    // Track events and response content
+    const events: AIEvent[] = [];
+    let finalResponse = '';
+    let accumulatedThinking = '';
+    let responseTextBuffer = '';
+    
+    // Process stream chunks in real-time
+    for await (const chunk of result) {
+      console.log('\n🌊 [CHUNK] Processing new chunk...');
+      
+      if (chunk.candidates?.[0]?.content?.parts) {
+        const parts = chunk.candidates[0].content.parts;
+        
+        for (let i = 0; i < parts.length; i++) {
+          const part = parts[i];
+          console.log(`📄 Chunk Part ${i + 1}:`, {
+            hasText: !!part.text,
+            hasThought: !!part.thought,
+            hasFunctionCall: !!part.functionCall,
+            textLength: part.text?.length || 0
+          });
+          
+          // Handle thinking content - save immediately
+          if (part.text && part.thought) {
+            console.log('💭 [THINKING CHUNK]:', part.text);
+            accumulatedThinking += part.text;
             
-            // Extract thinking and text from follow-up response
-            if (followUpResponse.candidates?.[0]?.content?.parts) {
-              const followUpParts = followUpResponse.candidates[0].content.parts;
-              let followUpContent = '';
-              let followUpThinking = '';
-              for (const followUpPart of followUpParts) {
-                if (followUpPart.text && followUpPart.thought) {
-                  followUpThinking += followUpPart.text;
-                } else if (followUpPart.text && !followUpPart.thought) {
-                  followUpContent += followUpPart.text;
-                }
-              }
-              if (followUpContent) {
-                finalResponse = followUpContent;
-              }
-              if (followUpThinking) {
-                thinkingSummary += '\n\n--- After Function Call Analysis ---\n' + followUpThinking;
-              }
+            // Save thinking immediately when chunk arrives
+            if (conversationId && conversationGroupId) {
+              console.log('💾 [IMMEDIATE SAVE] Saving thinking chunk...');
+              await storage.createMessage({
+                conversationId,
+                conversationGroupId,
+                role: "assistant",
+                type: "thinking",
+                content: { text: part.text }
+              });
+              console.log('✅ [SAVED THINKING CHUNK] Immediately saved to database');
             }
             
-            if (!finalResponse) {
-              finalResponse = followUpResponse.text || "I apologize, but I couldn't analyze the search results. Please try again.";
-            }
-          } catch (error) {
-            console.error(`Function call error for ${functionName}:`, error);
-            functionCallRecord.result = `Error: ${error}`;
-            finalResponse = `Error executing ${functionName}: ${error}`;
+            events.push({
+              type: 'thinking',
+              content: part.text,
+              stage: 'initial'
+            });
           }
           
-          functionCalls.push(functionCallRecord);
+          // Handle regular response text - save immediately
+          else if (part.text && !part.thought) {
+            console.log('💬 [RESPONSE CHUNK]:', part.text);
+            responseTextBuffer += part.text;
+            finalResponse += part.text;
+            
+            // Save response chunk immediately when it arrives
+            if (conversationId && conversationGroupId && part.text.trim()) {
+              console.log('💾 [IMMEDIATE SAVE] Saving response chunk...');
+              await storage.createMessage({
+                conversationId,
+                conversationGroupId,
+                role: "assistant",
+                type: "response",
+                content: { text: part.text }
+              });
+              console.log('✅ [SAVED RESPONSE CHUNK] Immediately saved to database');
+            }
+          }
+          
+          // Handle function calls - execute and save immediately
+          else if (part.functionCall) {
+            const { name: functionName, args } = part.functionCall;
+            console.log(`🔧 [FUNCTION CALL CHUNK] Executing: ${functionName}`);
+            
+            try {
+              const functionResult = await callFunction(functionName || "", args);
+              console.log('✅ [FUNCTION RESULT] Function completed successfully');
+              
+              // Save function call immediately when it completes
+              if (conversationId && conversationGroupId) {
+                console.log('💾 [IMMEDIATE SAVE] Saving function call result...');
+                await storage.createMessage({
+                  conversationId,
+                  conversationGroupId,
+                  role: "assistant",
+                  type: "function_call",
+                  content: {
+                    name: functionName || '',
+                    arguments: args || {},
+                    result: functionResult
+                  }
+                });
+                console.log('✅ [SAVED FUNCTION_CALL] Immediately saved to database');
+              }
+              
+              events.push({
+                type: 'function_call',
+                name: functionName || '',
+                arguments: args || {},
+                result: functionResult
+              });
+              
+          } catch (error) {
+              console.error(`❌ [FUNCTION ERROR] ${functionName}:`, error);
+              const errorResult = `Error: ${error}`;
+              
+              // Save function call error immediately
+              if (conversationId && conversationGroupId) {
+                await storage.createMessage({
+                  conversationId,
+                  conversationGroupId,
+                  role: "assistant",
+                  type: "function_call",
+                  content: {
+                    name: functionName || '',
+                    arguments: args || {},
+                    result: errorResult
+                  }
+                });
+              }
+              
+              events.push({
+                type: 'function_call',
+                name: functionName || '',
+                arguments: args || {},
+                result: errorResult
+              });
+            }
+          }
         }
       }
-      
-      // If there's text response but no function calls, use it
-      if (hasTextResponse && functionCalls.length === 0) {
-        finalResponse = response.text || "I apologize, but I couldn't generate a response. Please try again.";
-      }
-    } else {
-      finalResponse = response.text || "I apologize, but I couldn't generate a response. Please try again.";
     }
+    
+    console.log('\n🎯 [STREAMING COMPLETE] All chunks processed');
+    console.log('💭 Events count:', events.length);
+    console.log('💬 Final response length:', finalResponse.length);
+    console.log('🔧 Function calls count:', events.filter(e => e.type === 'function_call').length);
+    console.log('🧠 Thinking events count:', events.filter(e => e.type === 'thinking').length);
 
     return {
       content: finalResponse,
-      functionCalls,
-      thinking: thinkingSummary || undefined
+      events
     };
   } catch (error) {
-    console.error('Gemini function calling error:', error);
+    console.error('Gemini streaming function calling error:', error);
     return {
       content: `Error: ${error}`,
-      functionCalls: [],
-      thinking: undefined
+      events: []
     };
   }
 }

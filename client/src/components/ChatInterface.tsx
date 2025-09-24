@@ -361,8 +361,10 @@ function ThinkingDisplay({ thinking, functionCalls }: { thinking: string; functi
                         <div className="whitespace-pre-wrap bg-white dark:bg-blue-950/50 rounded p-2 mt-1">
                           {functionCall.result}
                         </div>
+
                       </div>
                     )}
+
                   </div>
                 ))}
               </div>
@@ -395,7 +397,7 @@ interface StreamMessage {
   role: 'user' | 'assistant' | 'system';
   type: 'prompt' | 'auto_retrieval_context_object' | 'mention_context_object' | 'response' | 'thinking' | 'function_call';
   conversationGroupId?: string;
-  timestamp: Date;
+  timestamp: string;
   isStreaming?: boolean;
 }
 
@@ -416,7 +418,7 @@ const convertDbMessageToStreamMessage = (dbMessage: any): StreamMessage => {
     role: dbMessage.role,
     type: dbMessage.type || 'prompt',
     conversationGroupId: dbMessage.conversationGroupId,
-    timestamp: new Date(dbMessage.createdAt),
+    timestamp: dbMessage.createdAt,
     isStreaming: false
   };
 };
@@ -501,10 +503,48 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
     
     // Sort by timestamp to maintain correct order
     return merged.sort((a, b) => {
-      const aTime = a.timestamp ? a.timestamp.getTime() : 0;
-      const bTime = b.timestamp ? b.timestamp.getTime() : 0;
-      return aTime - bTime;
+      return a.timestamp.localeCompare(b.timestamp);
     });
+  };
+
+  // Helper function to create grouped messages from consecutive messages of the same type
+  const createGroupedMessage = (group: StreamMessage[]): StreamMessage | null => {
+    if (group.length === 0) return null;
+    
+    const firstMsg = group[0];
+    const msgType = firstMsg.type;
+    const groupId = `grouped-${msgType}-${firstMsg.timestamp.replace(/[^0-9]/g, '')}`;
+    
+    if (msgType === 'thinking') {
+      // Combine thinking texts
+      const combinedText = group.map(m => m.content.text).join('');
+      return {
+        id: groupId,
+        content: { text: combinedText },
+        role: 'assistant',
+        type: 'thinking',
+        conversationGroupId: firstMsg.conversationGroupId,
+        timestamp: firstMsg.timestamp,
+        isStreaming: false
+      };
+    } else if (msgType === 'response') {
+      // Combine response texts
+      const combinedText = group.map(m => m.content.text).join('');
+      return {
+        id: groupId,
+        content: { text: combinedText },
+        role: 'assistant',
+        type: 'response',
+        conversationGroupId: firstMsg.conversationGroupId,
+        timestamp: firstMsg.timestamp,
+        isStreaming: false
+      };
+    } else if (msgType === 'function_call') {
+      // For function calls, return individual messages (don't combine)
+      return firstMsg;
+    }
+    
+    return null;
   };
 
   // Compute the final messages to display with grouped thinking and function calls
@@ -512,58 +552,52 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
     const convertedDbMessages = conversationMessages.map(convertDbMessageToStreamMessage);
     const allMessages = mergeMessages(convertedDbMessages, localMessages);
     
-    // Group thinking and function calls by conversationGroupId
+    // Group consecutive messages of the same type based on created_at order
     const groupedMessages: StreamMessage[] = [];
-    const processedGroupIds = new Set<string>();
+    let currentGroup: StreamMessage[] = [];
+    let currentType = '';
     
     for (const message of allMessages) {
-      if (message.conversationGroupId && 
-          (message.type === 'thinking' || message.type === 'function_call') &&
-          !processedGroupIds.has(message.conversationGroupId)) {
-        
-        // Find all related thinking and function call messages in this group
-        const groupMessages = allMessages.filter(m => 
-          m.conversationGroupId === message.conversationGroupId &&
-          (m.type === 'thinking' || m.type === 'function_call')
-        );
-        
-        // Sort by creation time to maintain chronological order
-        groupMessages.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
-        
-        // Create a combined message for display
-        const thinkingMessages = groupMessages.filter(m => m.type === 'thinking');
-        const functionCallMessages = groupMessages.filter(m => m.type === 'function_call');
-        
-        if (thinkingMessages.length > 0 || functionCallMessages.length > 0) {
-          const combinedMessage: StreamMessage = {
-            id: `grouped-${message.conversationGroupId}`,
-            content: {
-              text: thinkingMessages.map(m => m.content.text).join('\n\n--- After Function Call Analysis ---\n'),
-              functionCalls: functionCallMessages.map(m => ({
-                name: m.content.name || '',
-                arguments: m.content.arguments || {},
-                result: m.content.result
-              }))
-            },
-            role: 'assistant',
-            type: 'thinking',
-            conversationGroupId: message.conversationGroupId,
-            timestamp: message.timestamp,
-            isStreaming: false
-          };
-          
-          groupedMessages.push(combinedMessage);
-          processedGroupIds.add(message.conversationGroupId);
+      // Check if this message should be grouped (thinking, response, function_call)
+      if (message.type === 'thinking' || message.type === 'response' || message.type === 'function_call') {
+        if (message.type !== currentType) {
+          // Type changed, finish current group and start new one
+          if (currentGroup.length > 0) {
+            const groupedMessage = createGroupedMessage(currentGroup);
+            if (groupedMessage) {
+              groupedMessages.push(groupedMessage);
+            }
+          }
+          currentType = message.type;
+          currentGroup = [message];
+        } else {
+          // Same type, add to current group
+          currentGroup.push(message);
         }
-      } else if (!message.conversationGroupId || 
-                 !(message.type === 'thinking' || message.type === 'function_call') ||
-                 !processedGroupIds.has(message.conversationGroupId || '')) {
+      } else {
+        // Non-groupable message, finish current group and add message directly
+        if (currentGroup.length > 0) {
+          const groupedMessage = createGroupedMessage(currentGroup);
+          if (groupedMessage) {
+            groupedMessages.push(groupedMessage);
+          }
+          currentGroup = [];
+          currentType = '';
+        }
         groupedMessages.push(message);
       }
     }
     
+    // Process the last group
+    if (currentGroup.length > 0) {
+      const groupedMessage = createGroupedMessage(currentGroup);
+      if (groupedMessage) {
+        groupedMessages.push(groupedMessage);
+      }
+    }
+    
     return groupedMessages;
-  }, [conversationMessages, localMessages]);
+  }, [conversationMessages, localMessages, createGroupedMessage]);
 
   // Check if we should show the regenerate button
   const shouldShowRegenerateButton = useMemo(() => {
@@ -781,7 +815,7 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
         content: { text: '你好！我是AI Context Manager。我可以幫助你管理文件、處理PDF並進行智能對話。你可以使用@提及功能來引用你的文件。' },
         role: 'assistant',
         type: 'response',
-        timestamp: new Date(),
+        timestamp: new Date().toISOString(),
         isStreaming: false,
       }]);
     }
@@ -879,7 +913,7 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
       content: { text: input },
       role: 'user',
       type: 'prompt',
-      timestamp: new Date(),
+      timestamp: new Date().toISOString(),
     };
 
     // Immediately add user message to local messages for instant display
@@ -960,7 +994,7 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
         content: { text: '' },
         role: 'assistant',
         type: 'response',
-        timestamp: new Date(),
+        timestamp: new Date().toISOString(),
         isStreaming: true,
       };
       setLocalMessages(prev => [...prev, assistantMessage]);
@@ -1597,7 +1631,7 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
                         </div>
                         {message.timestamp && (
                           <div className="text-xs opacity-70 mt-2">
-                            {message.timestamp.toLocaleTimeString()}
+                            {new Date(message.timestamp).toLocaleTimeString('zh-TW', { hour12: true })}
                           </div>
                         )}
                       </>

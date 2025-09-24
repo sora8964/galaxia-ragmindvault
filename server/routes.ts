@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { storage, type RelationshipFilters } from "./storage";
 import { insertObjectSchema, updateObjectSchema, insertConversationSchema, insertMessageSchema, updateMessageSchema, parseMentionsSchema, updateAppConfigSchema, insertRelationshipSchema, updateRelationshipSchema, ObjectType, OBJECT_TYPE_CONFIG, getObjectTypeConfig, hasObjectTypeDateField, canObjectTypeUploadFile } from "@shared/schema";
 import { chatWithGemini, extractTextFromPDF, extractTextFromWord, generateTextEmbedding } from "./gemini-simple";
-import { chatWithGeminiFunctions } from "./gemini-functions";
+import { chatWithGeminiFunctionsStreaming, chatWithGeminiFunctionsIterative, type AIEvent } from "./gemini-functions";
 import { embeddingService } from "./embedding-service";
 import { chunkingService } from "./chunking-service";
 import { gcpStorageService } from "./gcp-storage";
@@ -634,7 +634,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         retrievalStrategy: autoContext.retrievalMetadata.strategy
       });
       
-      const response = await chatWithGeminiFunctions({
+      const response = await chatWithGeminiFunctionsStreaming({
         messages: enrichedMessages,
         contextObjects: contextObjects
       });
@@ -746,31 +746,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
           };
         }
 
+        // Generate conversation group ID for this response cycle
+        const conversationGroupId = `group-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        console.log('\n🔗 [CONVERSATION GROUP] Generated group ID:', conversationGroupId);
+        
         // For now, use the regular function calling and simulate streaming
-        const response = await chatWithGeminiFunctions({
-          messages: enrichedMessages,
-          contextObjects: contextObjects
-        });
+        console.log('\n🚀 [API REQUEST] Starting Gemini function calling...');
+        console.log('📊 Message count:', enrichedMessages.length);
+        console.log('🔍 Context objects:', contextObjects.length);
+        
+    const response = await chatWithGeminiFunctionsIterative({
+      messages: enrichedMessages,
+      contextObjects: contextObjects,
+      conversationId,
+      conversationGroupId
+    });
+        
+        console.log('✅ [API RESPONSE] Gemini function calling completed');
 
-        // Extract content and function calls from the response
+        // Extract content from the response
         const content = response.content || '';
-        const functionCallsData = response.functionCalls || [];
-        const thinkingData = response.thinking;
         
-        // Update the tracking variables
-        functionCalls = functionCallsData;
-        thinking = thinkingData || '';
+        // Extract final response content (events were already saved in real-time during streaming)
+        fullResponse = content;
         
-        // Stream content token by token
-        const words = content.split(' ');
-        for (let i = 0; i < words.length; i++) {
-          const token = (i === 0 ? '' : ' ') + words[i];
-          fullResponse += token;
-          res.write(`data: ${JSON.stringify({ type: 'token', content: token })}\n\n`);
-          
-          // Small delay to simulate streaming
-          await new Promise(resolve => setTimeout(resolve, 30));
-        }
+        // Update tracking variables for SSE completion
+        functionCalls = response.events?.filter(e => e.type === 'function_call').map(e => ({
+          name: e.name,
+          arguments: e.arguments,
+          result: e.result
+        })) || [];
+        thinking = response.events?.filter(e => e.type === 'thinking').map(e => e.content).join('\n\n--- After Function Call Analysis ---\n') || '';
+        
+        // Send final content (since streaming already happened in gemini-functions.ts)
+        res.write(`data: ${JSON.stringify({ type: 'token', content })}\n\n`);
 
         // Send context metadata for transparency
         res.write(`data: ${JSON.stringify({ 
@@ -780,50 +789,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           citations: autoContext.citations
         })}\n\n`);
 
-        // Save complete message if conversationId provided
-        if (conversationId) {
-          // Generate conversation group ID for this response
-          const conversationGroupId = `group-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-          
-          // Save thinking and function calls as separate messages in chronological order
-          if (thinking) {
-            await storage.createMessage({
-              conversationId,
-              conversationGroupId,
-              role: "assistant",
-              type: "thinking",
-              content: {
-                text: thinking
-              }
-            });
-          }
-          
-          // Save function call messages if present
-          for (const functionCall of functionCalls) {
-            await storage.createMessage({
-              conversationId,
-              conversationGroupId,
-              role: "assistant",
-              type: "function_call",
-              content: {
-                name: functionCall.name,
-                arguments: functionCall.arguments,
-                result: functionCall.result
-              }
-            });
-          }
-          
-          // Save the main response message
-          await storage.createMessage({
-            conversationId,
-            conversationGroupId,
-            role: "assistant",
-            type: "response",
-            content: {
-              text: fullResponse
-            }
-          });
-        }
+        // Response chunks were already saved in real-time during streaming
+        // No need for additional database operations here
+        console.log('ℹ️ [STREAMING COMPLETE] All events saved in real-time during streaming');
 
         res.write(`data: ${JSON.stringify({ type: 'complete' })}\n\n`);
       } catch (streamError) {
