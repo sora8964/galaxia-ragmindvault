@@ -1033,12 +1033,20 @@ async function mergeConsecutiveResponseMessages(conversationId: string, conversa
 export async function chatWithGeminiFunctionsIterative(options: GeminiFunctionChatOptions & {
   conversationId?: string;
   conversationGroupId?: string;
+  referencedObjects?: Array<{
+    id: string;
+    name: string;
+    type: string;
+    aliases: string[];
+    date?: string | null;
+    isReferenced: boolean;
+  }>;
 }): Promise<{
   content: string;
   events: AIEvent[];
 }> {
   try {
-    const { messages, contextObjects = [], conversationId, conversationGroupId } = options;
+    const { messages, contextObjects = [], referencedObjects = [], conversationId, conversationGroupId } = options;
     
     console.log('\n🚀 [ITERATIVE] Starting iterative function calling:', {
       messageCount: messages.length,
@@ -1108,8 +1116,8 @@ Think about the question → Call a function to gather data → Analyze the resu
 
 Use @mentions like @[person:習近平], @[document:項目計劃書], @[letter:感謝信], @[entity:公司名稱], @[issue:問題標題], @[log:日誌名稱], or @[meeting:會議名稱] when referring to specific entities.`;
 
-    if (contextObjects.length > 0) {
-      systemInstruction += `\n\nContext Objects (Currently available):`;
+    if (contextObjects.length > 0 || referencedObjects.length > 0) {
+      systemInstruction += `\n\nContext Objects:`;
       const getIcon = (type: string) => {
         switch (type) {
           case 'person': return '👤';
@@ -1117,17 +1125,38 @@ Use @mentions like @[person:習近平], @[document:項目計劃書], @[letter:�
           case 'entity': return '🏢';
           case 'issue': return '📋';
           case 'log': return '📝';
+          case 'meeting': return '🤝';
+          case 'letter': return '✉️';
           default: return '📄';
         }
       };
       
-      contextObjects.forEach((doc, index) => {
-        systemInstruction += `\n${index + 1}. ${getIcon(doc.type)} ${doc.name}`;
-        if (doc.aliases.length > 0) {
-          systemInstruction += ` (${doc.aliases.join(', ')})`;
-        }
-        systemInstruction += `\n   📝 ${doc.content.substring(0, 200)}${doc.content.length > 200 ? '...' : ''}`;
-      });
+      // Add new objects with full content
+      if (contextObjects.length > 0) {
+        systemInstruction += `\n\n**New Objects (Full Content Available):**`;
+        contextObjects.forEach((doc, index) => {
+          systemInstruction += `\n${index + 1}. ${getIcon(doc.type)} **${doc.name}**`;
+          if (doc.aliases.length > 0) {
+            systemInstruction += ` (${doc.aliases.join(', ')})`;
+          }
+          systemInstruction += `\n   📝 ${doc.content.substring(0, 200)}${doc.content.length > 200 ? '...' : ''}`;
+        });
+      }
+      
+      // Add previously referenced objects (metadata only)
+      if (referencedObjects.length > 0) {
+        systemInstruction += `\n\n**Previously Referenced Objects (Content Available via getObjectDetails):**`;
+        referencedObjects.forEach((obj, index) => {
+          systemInstruction += `\n${index + 1}. ${getIcon(obj.type)} **${obj.name}**`;
+          if (obj.aliases.length > 0) {
+            systemInstruction += ` (${obj.aliases.join(', ')})`;
+          }
+          if (obj.date) {
+            systemInstruction += ` - ${obj.date}`;
+          }
+          systemInstruction += `\n   ℹ️ This object was referenced earlier in this conversation. Use getObjectDetails to access its full content if needed.`;
+        });
+      }
     }
 
     // Initialize conversation history
@@ -1350,12 +1379,20 @@ Use @mentions like @[person:習近平], @[document:項目計劃書], @[letter:�
 export async function chatWithGeminiFunctionsStreaming(options: GeminiFunctionChatOptions & {
   conversationId?: string;
   conversationGroupId?: string;
+  referencedObjects?: Array<{
+    id: string;
+    name: string;
+    type: string;
+    aliases: string[];
+    date?: string | null;
+    isReferenced: boolean;
+  }>;
 }): Promise<{
   content: string;
   events: AIEvent[];
 }> {
   try {
-    const { messages, contextObjects = [], conversationId, conversationGroupId } = options;
+    const { messages, contextObjects = [], referencedObjects = [], conversationId, conversationGroupId } = options;
     
     // Build system instruction
     let systemInstruction = `You are an AI assistant for an advanced object and knowledge management system. You help users organize, search, and understand their objects, people, entities, issues, logs, and meetings.
@@ -1408,8 +1445,8 @@ Think about the question → Call a function to gather data → Analyze the resu
 
 Use @mentions like @[person:習近平], @[document:項目計劃書], @[letter:感謝信], @[entity:公司名稱], @[issue:問題標題], @[log:日誌名稱], or @[meeting:會議名稱] when referring to specific entities.`;
 
-    if (contextObjects.length > 0) {
-      systemInstruction += `\n\nContext Objects (Currently available):`;
+    if (contextObjects.length > 0 || referencedObjects.length > 0) {
+      systemInstruction += `\n\nContext Objects:`;
       const getIcon = (type: string) => {
         switch (type) {
           case 'person': return '👤';
@@ -1417,17 +1454,38 @@ Use @mentions like @[person:習近平], @[document:項目計劃書], @[letter:�
           case 'entity': return '🏢';
           case 'issue': return '📋';
           case 'log': return '📝';
+          case 'meeting': return '🤝';
+          case 'letter': return '✉️';
           default: return '📄';
         }
       };
       
-      contextObjects.forEach((doc, index) => {
-        systemInstruction += `\n${index + 1}. ${getIcon(doc.type)} ${doc.name}`;
-        if (doc.aliases.length > 0) {
-          systemInstruction += ` (${doc.aliases.join(', ')})`;
-        }
-        systemInstruction += `\n   📝 ${doc.content.substring(0, 200)}${doc.content.length > 200 ? '...' : ''}`;
-      });
+      // Add new objects with full content
+      if (contextObjects.length > 0) {
+        systemInstruction += `\n\n**New Objects (Full Content Available):**`;
+        contextObjects.forEach((doc, index) => {
+          systemInstruction += `\n${index + 1}. ${getIcon(doc.type)} **${doc.name}**`;
+          if (doc.aliases.length > 0) {
+            systemInstruction += ` (${doc.aliases.join(', ')})`;
+          }
+          systemInstruction += `\n   📝 ${doc.content.substring(0, 200)}${doc.content.length > 200 ? '...' : ''}`;
+        });
+      }
+      
+      // Add previously referenced objects (metadata only)
+      if (referencedObjects.length > 0) {
+        systemInstruction += `\n\n**Previously Referenced Objects (Content Available via getObjectDetails):**`;
+        referencedObjects.forEach((obj, index) => {
+          systemInstruction += `\n${index + 1}. ${getIcon(obj.type)} **${obj.name}**`;
+          if (obj.aliases.length > 0) {
+            systemInstruction += ` (${obj.aliases.join(', ')})`;
+          }
+          if (obj.date) {
+            systemInstruction += ` - ${obj.date}`;
+          }
+          systemInstruction += `\n   ℹ️ This object was referenced earlier in this conversation. Use getObjectDetails to access its full content if needed.`;
+        });
+      }
     }
 
     // Convert messages to Gemini format

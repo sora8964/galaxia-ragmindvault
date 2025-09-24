@@ -683,7 +683,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         mentions: mentionIds
       });
       
-      // Combine all context objects  
+      // For the first endpoint, we don't implement first-reference logic yet
+      // Just combine all context objects as before
       const allContextObjects = [
         ...explicitContextObjects,
         ...mentionObjects
@@ -698,6 +699,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       const contextObjects = allContextObjects;
+      const referencedObjects: Array<{
+        id: string;
+        name: string;
+        type: string;
+        aliases: string[];
+        date?: string | null;
+        isReferenced: boolean;
+      }> = []; // Empty for now
       
       // Add retrieved context to system instruction (immutable)
       const enrichedMessages = [...messages];
@@ -716,10 +725,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         retrievalStrategy: autoContext.retrievalMetadata.strategy
       });
       
-      const response = await chatWithGeminiFunctionsStreaming({
-        messages: enrichedMessages,
-        contextObjects: contextObjects
-      });
+        const response = await chatWithGeminiFunctionsStreaming({
+          messages: enrichedMessages,
+          contextObjects: contextObjects,
+          referencedObjects: referencedObjects
+        });
       
       res.json({ 
         response,
@@ -807,19 +817,81 @@ export async function registerRoutes(app: Express): Promise<Server> {
         };
       }
       
-      // Combine all context objects  
-      const allContextObjects = [
-        ...explicitContextObjects,
-        ...mentionObjects
-      ];
+      // Track objects that have been referenced in this conversation before
+      const referencedObjectIds = new Set<string>();
       
-      // Add full objects for auto-retrieved context
-      for (const contextObj of autoContext.usedDocs) {
-        const fullObj = await storage.getObject(contextObj.id);
-        if (fullObj && !allContextObjects.find(d => d.id === fullObj.id)) {
-          allContextObjects.push(fullObj);
+      // Check all previous messages in this conversation for referenced objects
+      for (const msg of conversationMessages) {
+        if (msg.type === 'mention_context_object' || msg.type === 'auto_retrieval_context_object') {
+          if (msg.content && typeof msg.content === 'object' && 'objects' in msg.content) {
+            const content = msg.content as { objects: string[] };
+            content.objects.forEach(id => referencedObjectIds.add(id));
+          }
         }
       }
+      
+      console.log('🔍 [FIRST-REFERENCE] Previously referenced objects:', Array.from(referencedObjectIds));
+      
+      // Combine all context objects with first-reference logic
+      const allContextObjects = [];
+      const referencedObjects = []; // Objects that have been referenced before (only metadata)
+      
+      // Process explicit context objects
+      for (const obj of explicitContextObjects) {
+        if (referencedObjectIds.has(obj.id)) {
+          referencedObjects.push({
+            id: obj.id,
+            name: obj.name,
+            type: obj.type,
+            aliases: obj.aliases,
+            date: obj.date,
+            isReferenced: true
+          });
+        } else {
+          allContextObjects.push(obj);
+          referencedObjectIds.add(obj.id); // Mark as referenced
+        }
+      }
+      
+      // Process mention objects
+      for (const obj of mentionObjects) {
+        if (referencedObjectIds.has(obj.id)) {
+          referencedObjects.push({
+            id: obj.id,
+            name: obj.name,
+            type: obj.type,
+            aliases: obj.aliases,
+            date: obj.date,
+            isReferenced: true
+          });
+        } else {
+          allContextObjects.push(obj);
+          referencedObjectIds.add(obj.id); // Mark as referenced
+        }
+      }
+      
+      // Process auto-retrieved context objects
+      for (const contextObj of autoContext.usedDocs) {
+        const fullObj = await storage.getObject(contextObj.id);
+        if (fullObj) {
+          if (referencedObjectIds.has(fullObj.id)) {
+            referencedObjects.push({
+              id: fullObj.id,
+              name: fullObj.name,
+              type: fullObj.type,
+              aliases: fullObj.aliases,
+              date: fullObj.date,
+              isReferenced: true
+            });
+          } else {
+            allContextObjects.push(fullObj);
+            referencedObjectIds.add(fullObj.id); // Mark as referenced
+          }
+        }
+      }
+      
+      console.log('📊 [FIRST-REFERENCE] New objects (full content):', allContextObjects.length);
+      console.log('📊 [FIRST-REFERENCE] Referenced objects (metadata only):', referencedObjects.length);
       
       const contextObjects = allContextObjects;
       
@@ -859,6 +931,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const response = await chatWithGeminiFunctionsIterative({
       messages: enrichedMessages,
       contextObjects: contextObjects,
+      referencedObjects: referencedObjects,
       conversationId,
       conversationGroupId
     });
