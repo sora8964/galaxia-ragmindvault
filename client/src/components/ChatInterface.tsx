@@ -195,10 +195,15 @@ function FunctionCallDisplay({ functionCall }: { functionCall: { name: string; a
         const id = String(fc.arguments?.documentId ?? fc.arguments?.id ?? fc.arguments?.objectId ?? '');
         // Extract readable name from id if it contains a colon (type:name format)
         const display = id.includes(':') ? id.split(':').slice(1).join(':') : (fc.arguments?.name ?? id);
-        const displayName = display || fc.result?.name || '未知文件';
+        const displayName = display || fc.result?.name || '未知物件';
+        
+        // Get object type from arguments or result
+        const objectType = fc.arguments?.type || fc.result?.type || 'document';
+        const typeName = getTypeName(objectType);
+        
         return {
-          icon: FileText,
-          text: `查看文件詳情：${displayName}`,
+          icon: getTypeIcon(objectType),
+          text: `查看${typeName}詳情：${displayName}`,
           color: "bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800"
         };
       case 'createObject':
