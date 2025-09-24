@@ -821,9 +821,12 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
     }
   }, [conversationMessages, currentConversationId, databaseMessages.length, localMessages.length]);
 
+  // Auto-scroll only during AI generation (streaming)
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+    if (isStreaming) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages, isStreaming]);
 
   // Cleanup abort controller on unmount
   useEffect(() => {

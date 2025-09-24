@@ -448,30 +448,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Bulk delete messages after specific message endpoint (for regenerate functionality)
   app.delete("/api/conversations/:conversationId/messages/:messageId/after", async (req, res) => {
+    console.log('🌐 [API DELETE] Received delete messages after request');
+    console.log('🌐 [API DELETE] Conversation ID:', req.params.conversationId);
+    console.log('🌐 [API DELETE] Message ID:', req.params.messageId);
+    
     try {
       // Check if conversation exists
       const conversation = await storage.getConversation(req.params.conversationId);
+      console.log('🌐 [API DELETE] Conversation exists:', !!conversation);
       if (!conversation) {
         return res.status(404).json({ error: "Conversation not found" });
       }
       
       // Validate that the message belongs to the specified conversation
       const messages = await storage.getMessagesByConversation(req.params.conversationId);
+      console.log('🌐 [API DELETE] Total messages in conversation:', messages.length);
       const messageExists = messages.some(msg => msg.id === req.params.messageId);
+      console.log('🌐 [API DELETE] Target message exists:', messageExists);
       
       if (!messageExists) {
         return res.status(404).json({ error: "Message not found in this conversation" });
       }
       
       // Delete all messages after the specified message
+      console.log('🌐 [API DELETE] Calling storage.deleteMessagesAfter...');
       const success = await storage.deleteMessagesAfter(req.params.conversationId, req.params.messageId);
+      console.log('🌐 [API DELETE] Delete result:', success);
       
       res.json({ 
         success,
         message: success ? "Messages deleted successfully" : "No messages were deleted" 
       });
     } catch (error) {
-      console.error('Error deleting messages after specified message:', error);
+      console.error('🌐 [API DELETE] Error deleting messages after specified message:', error);
       res.status(500).json({ error: "Failed to delete messages" });
     }
   });

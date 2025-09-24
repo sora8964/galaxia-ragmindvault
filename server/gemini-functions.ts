@@ -49,16 +49,35 @@ const functions = {
 
   getObjectDetails: {
     name: "getObjectDetails",
-    description: "Get the full content and details of a specific document, person, letter, entity, issue, log, or meeting. For issues, automatically includes all associated logs.",
+    description: "Get the full content and details of a specific document, person, letter, entity, issue, log, or meeting. For issues, automatically includes all associated logs. Supports two query methods: 1) By object ID, or 2) By object type and name.",
     parameters: {
-      type: "object",
-      properties: {
-        documentId: {
-          type: "string",
-          description: "The ID of the document to retrieve"
+      anyOf: [
+        {
+          type: "object",
+          properties: {
+            objectId: {
+              type: "string",
+              description: "The ID of the object to retrieve (preferred method)"
+            }
+          },
+          required: ["objectId"]
+        },
+        {
+          type: "object",
+          properties: {
+            type: {
+              type: "string",
+              description: "Object type (person, document, letter, entity, issue, log, meeting) - required when using name-based query",
+              enum: ["person", "document", "letter", "entity", "issue", "log", "meeting"]
+            },
+            name: {
+              type: "string",
+              description: "Object name - required when using name-based query"
+            }
+          },
+          required: ["type", "name"]
         }
-      },
-      required: ["documentId"]
+      ]
     }
   },
 
@@ -284,11 +303,34 @@ async function searchObjects(args: any): Promise<string> {
 
 async function getObjectDetails(args: any): Promise<string> {
   try {
-    const { documentId } = args;
+    const { objectId, type, name } = args;
     
-    const document = await storage.getObject(documentId);
-    if (!document) {
-      return `Document with ID "${documentId}" not found.`;
+    let document;
+    
+    // Method 1: Query by object ID (preferred)
+    if (objectId) {
+      document = await storage.getObject(objectId);
+      if (!document) {
+        return `Object with ID "${objectId}" not found.`;
+      }
+    }
+    // Method 2: Query by type and name
+    else if (type && name) {
+      // Find object by type and name using semantic search
+      const searchResult = await storage.searchObjects(name, type as any);
+      
+      if (!searchResult || !searchResult.objects || searchResult.objects.length === 0) {
+        return `No ${type} found with name "${name}".`;
+      }
+      
+      // Get the full object details using the found ID
+      document = await storage.getObject(searchResult.objects[0].id);
+      if (!document) {
+        return `${type} "${name}" found but could not retrieve details.`;
+      }
+    }
+    else {
+      return "Error: Either 'objectId' or both 'type' and 'name' must be provided.";
     }
     
     const getIcon = (type: string) => {
@@ -317,7 +359,7 @@ async function getObjectDetails(args: any): Promise<string> {
     if (document.type === 'issue') {
       try {
         const relationshipResults = await storage.findRelationships({
-          sourceId: documentId,
+          sourceId: document.id,
           targetType: 'log'
         });
         
@@ -915,7 +957,7 @@ You have access to the following functions to help users:
 
 **SEARCH & EXPLORATION FUNCTIONS (Use iteratively for comprehensive analysis):**
 - searchObjects: **POWERFUL SEMANTIC SEARCH** with pagination - Returns lightweight summaries (titles, snippets, relevance scores) of unlimited results. Use this extensively to explore the knowledge base with different queries and then selectively read full content with getObjectDetails. Perfect for comprehensive research and discovery.
-- getObjectDetails: Get full content of specific objects - use AFTER finding relevant IDs with searchObjects
+- getObjectDetails: Get full content of specific objects - supports two query methods: 1) By objectId (preferred), or 2) By type and name (e.g., {type: "meeting", name: "第18屆第2次業主委員會會議紀錄"})
 - findRelevantExcerpts: Find specific excerpts from objects using intelligent retrieval
 - getObjectTypes: List all available object types in the system
 
@@ -928,7 +970,7 @@ You have access to the following functions to help users:
 **ITERATIVE RESEARCH STRATEGY:**
 1. Start with searchObjects to get a comprehensive overview of relevant objects
 2. Review pagination results and explore multiple pages if needed
-3. Use getObjectDetails selectively to read full content of the most relevant objects
+3. Use getObjectDetails selectively to read full content - you can query by objectId or by {type, name} combination
 4. Call additional functions as you think through the problem - don't limit yourself to one function per response
 5. Combine insights from multiple objects to provide comprehensive answers
 
@@ -1199,7 +1241,7 @@ You have access to the following functions to help users:
 
 **SEARCH & EXPLORATION FUNCTIONS (Use iteratively for comprehensive analysis):**
 - searchObjects: **POWERFUL SEMANTIC SEARCH** with pagination - Returns lightweight summaries (titles, snippets, relevance scores) of unlimited results. Use this extensively to explore the knowledge base with different queries and then selectively read full content with getObjectDetails. Perfect for comprehensive research and discovery.
-- getObjectDetails: Get full content of specific objects - use AFTER finding relevant IDs with searchObjects
+- getObjectDetails: Get full content of specific objects - supports two query methods: 1) By objectId (preferred), or 2) By type and name (e.g., {type: "meeting", name: "第18屆第2次業主委員會會議紀錄"})
 - findRelevantExcerpts: Find specific excerpts from objects using intelligent retrieval
 - getObjectTypes: List all available object types in the system
 
@@ -1212,7 +1254,7 @@ You have access to the following functions to help users:
 **ITERATIVE RESEARCH STRATEGY:**
 1. Start with searchObjects to get a comprehensive overview of relevant objects
 2. Review pagination results and explore multiple pages if needed
-3. Use getObjectDetails selectively to read full content of the most relevant objects
+3. Use getObjectDetails selectively to read full content - you can query by objectId or by {type, name} combination
 4. Call additional functions as you think through the problem - don't limit yourself to one function per response
 5. Combine insights from multiple objects to provide comprehensive answers
 

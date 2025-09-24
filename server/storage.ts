@@ -21,7 +21,8 @@ import {
   type ParsedMention,
   type AppConfig,
   type InsertAppConfig,
-  type UpdateAppConfig
+  type UpdateAppConfig,
+  OBJECT_TYPES
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 
@@ -679,7 +680,7 @@ export class MemStorage implements IStorage {
   async parseMentions(text: string): Promise<ParsedMention[]> {
     const mentions: ParsedMention[] = [];
     // Regex to match @[type:name] or @[type:name|alias]
-    const mentionRegex = /@\[(person|document|entity|issue|log):([^|\]]+)(?:\|([^\]]+))?\]/g;
+    const mentionRegex = /@\[(person|document|letter|entity|issue|log|meeting):([^|\]]+)(?:\|([^\]]+))?\]/g;
     
     let match;
     while ((match = mentionRegex.exec(text)) !== null) {
@@ -1109,7 +1110,7 @@ export class MemStorage implements IStorage {
 
 import { db } from "./db";
 import { objects, conversations, messages, chunks, relationships, users, settings } from "@shared/schema";
-import { eq, ilike, or, desc, and, sql, isNotNull } from "drizzle-orm";
+import { eq, ilike, or, desc, and, sql, isNotNull, gt } from "drizzle-orm";
 
 // Database storage implementation that writes to PostgreSQL
 export class DatabaseStorage implements IStorage {
@@ -1477,25 +1478,99 @@ export class DatabaseStorage implements IStorage {
 
   // Add the missing deleteMessagesAfter method
   async deleteMessagesAfter(conversationId: string, messageId: string): Promise<boolean> {
+    console.log('🗑️ [DELETE MESSAGES AFTER] Starting deletion process...');
+    console.log('🗑️ [DELETE MESSAGES AFTER] Conversation ID:', conversationId);
+    console.log('🗑️ [DELETE MESSAGES AFTER] Message ID:', messageId);
+    
     // Get the timestamp of the message to delete after
     const messageResult = await db.select({ createdAt: messages.createdAt })
       .from(messages)
       .where(eq(messages.id, messageId));
     
+    console.log('🗑️ [DELETE MESSAGES AFTER] Target message query result:', messageResult);
+    
     if (messageResult.length === 0) {
+      console.log('❌ [DELETE MESSAGES AFTER] Target message not found!');
       return false;
     }
     
     const cutoffTime = messageResult[0].createdAt;
+    console.log('🗑️ [DELETE MESSAGES AFTER] Cutoff time:', cutoffTime);
+    console.log('🗑️ [DELETE MESSAGES AFTER] Cutoff time type:', typeof cutoffTime);
+    console.log('🗑️ [DELETE MESSAGES AFTER] Cutoff time ISO string:', cutoffTime.toISOString());
+    
+    // First, let's see what messages exist in this conversation
+    const allMessages = await db.select({ 
+      id: messages.id, 
+      role: messages.role, 
+      type: messages.type, 
+      createdAt: messages.createdAt 
+    })
+      .from(messages)
+      .where(eq(messages.conversationId, conversationId))
+      .orderBy(messages.createdAt);
+    
+    // Count messages that would be deleted (excluding the target message itself)
+    const messagesToDelete = allMessages.filter(msg => 
+      msg.id !== messageId && new Date(msg.createdAt).getTime() > new Date(cutoffTime).getTime()
+    );
+    console.log('🗑️ [DELETE MESSAGES AFTER] Total messages in conversation:', allMessages.length);
+    console.log('🗑️ [DELETE MESSAGES AFTER] Messages to be deleted:', messagesToDelete.length);
     
     // Delete all messages in the conversation that were created after this message
-    const result = await db.delete(messages)
+    // First, let's test the WHERE condition with a SELECT query
+    console.log('🗑️ [DELETE MESSAGES AFTER] Testing WHERE condition with SELECT...');
+    const testSelect = await db.select({ 
+      id: messages.id, 
+      createdAt: messages.createdAt 
+    })
+      .from(messages)
       .where(and(
         eq(messages.conversationId, conversationId),
-        sql`${messages.createdAt} > ${cutoffTime}`
+        gt(messages.createdAt, cutoffTime),
+        sql`${messages.id} != ${messageId}`
       ));
     
-    return (result.rowCount || 0) > 0;
+    console.log('🗑️ [DELETE MESSAGES AFTER] Test SELECT found messages to delete:', testSelect.length);
+    
+    console.log('🗑️ [DELETE MESSAGES AFTER] Executing delete query...');
+    console.log('🗑️ [DELETE MESSAGES AFTER] SQL condition: created_at >', cutoffTime.toISOString());
+    
+    let deletedCount = 0;
+    try {
+      // Delete messages created after the target message, but exclude the target message itself
+      const result = await db.delete(messages)
+        .where(and(
+          eq(messages.conversationId, conversationId),
+          gt(messages.createdAt, cutoffTime),
+          sql`${messages.id} != ${messageId}`
+        ));
+      
+      deletedCount = result.rowCount || 0;
+      console.log('🗑️ [DELETE MESSAGES AFTER] Deletion result - deleted count:', deletedCount);
+      console.log('🗑️ [DELETE MESSAGES AFTER] Full result object:', JSON.stringify(result, null, 2));
+      
+    } catch (sqlError: any) {
+      console.error('🗑️ [DELETE MESSAGES AFTER] SQL Error:', sqlError);
+      console.error('🗑️ [DELETE MESSAGES AFTER] SQL Error message:', sqlError?.message);
+      console.error('🗑️ [DELETE MESSAGES AFTER] SQL Error stack:', sqlError?.stack);
+      throw sqlError;
+    }
+    
+    // Verify what messages remain
+    const remainingMessages = await db.select({ 
+      id: messages.id, 
+      role: messages.role, 
+      type: messages.type, 
+      createdAt: messages.createdAt 
+    })
+      .from(messages)
+      .where(eq(messages.conversationId, conversationId))
+      .orderBy(messages.createdAt);
+    
+    console.log('🗑️ [DELETE MESSAGES AFTER] Remaining messages after deletion:', remainingMessages.length);
+    
+    return deletedCount > 0;
   }
 
   // Relationship operations (keep as stubs for now)
@@ -1755,8 +1830,9 @@ export class DatabaseStorage implements IStorage {
   // Add missing mention parsing methods
   async parseMentions(text: string): Promise<ParsedMention[]> {
     const mentions: ParsedMention[] = [];
-    // Regex to match @[type:name] or @[type:name|alias]
-    const mentionRegex = /@\[(person|document|entity|issue|log):([^|\]]+)(?:\|([^\]]+))?\]/g;
+    // Dynamically generate regex from OBJECT_TYPES - single source of truth
+    const objectTypes = OBJECT_TYPES.join('|');
+    const mentionRegex = new RegExp(`@\\[(${objectTypes}):([^|\\]]+)(?:\\|([^\\]]+))?\\]`, 'g');
     
     let match;
     while ((match = mentionRegex.exec(text)) !== null) {
@@ -1787,8 +1863,8 @@ export class DatabaseStorage implements IStorage {
           eq(objects.name, mention.name),
           and(
             isNotNull(objects.aliases),
-            sql`array_length(${objects.aliases}, 1) > 0`,
-            sql`${mention.name} = ANY(${objects.aliases})`
+            sql`json_array_length(${objects.aliases}) > 0`,
+            sql`${mention.name} = ANY(SELECT json_array_elements_text(${objects.aliases}))`
           )
         ))
         .limit(1);
