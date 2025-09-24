@@ -34,6 +34,129 @@ function preprocessObjectData(data: any) {
   };
 }
 
+// Helper function to process user message and create context messages
+async function processUserMessage({
+  conversationId,
+  content,
+  autoRetrievalEnabled = true,
+  explicitContextObjects = [],
+  isRegeneration = false
+}: {
+  conversationId: string;
+  content: string;
+  autoRetrievalEnabled?: boolean;
+  explicitContextObjects?: string[];
+  isRegeneration?: boolean;
+}) {
+  // Parse mentions from content and auto-populate contextObjects
+  const mentions = await storage.parseMentions(content);
+  const contextObjects = await storage.resolveMentionObjects(mentions);
+  
+  // Generate conversation group ID for this prompt-response cycle
+  const conversationGroupId = `group-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  
+  // Import retrieval service for auto-context on user messages
+  const { retrievalService } = await import('./retrieval-service');
+  
+  // Auto-retrieve relevant context using RAG for user messages (only if both global and local settings allow it)
+  let autoContext;
+  if (autoRetrievalEnabled) {
+    autoContext = await retrievalService.buildAutoContext({
+      conversationId,
+      userText: content,
+      explicitContextIds: explicitContextObjects,
+      mentions: contextObjects
+    });
+  } else {
+    // Return empty context if auto-retrieval is disabled locally
+    autoContext = {
+      contextText: "",
+      citations: [],
+      usedDocs: [],
+      retrievalMetadata: {
+        totalDocs: 0,
+        totalChunks: 0,
+        strategy: 'disabled-locally',
+        estimatedTokens: 0,
+        processingTimeMs: 0
+      }
+    };
+  }
+  
+  // Combine all context objects including auto-retrieved ones (deduplicated)
+  const allContextObjects = Array.from(new Set([
+    ...explicitContextObjects, 
+    ...contextObjects,
+    ...autoContext.usedDocs.map(d => d.id)
+  ]));
+  
+  // Create the main prompt message (skip if regeneration)
+  let promptMessage = null;
+  if (!isRegeneration) {
+    promptMessage = await storage.createMessage({
+      conversationId,
+      conversationGroupId,
+      role: 'user',
+      type: 'prompt',
+      content: { text: content }
+    });
+  }
+  
+  // Create auto-retrieval context message if there are retrieved docs
+  let autoRetrievalMessage = null;
+  if (autoContext.usedDocs.length > 0) {
+    autoRetrievalMessage = await storage.createMessage({
+      conversationId,
+      conversationGroupId,
+      role: 'user',
+      type: 'auto_retrieval_context_object',
+      content: {
+        objects: allContextObjects,
+        metadata: {
+          usedDocs: autoContext.usedDocs,
+          retrievalMetadata: autoContext.retrievalMetadata,
+          citations: autoContext.citations
+        }
+      }
+    });
+  }
+  
+  // Create mention context message if there are explicit mentions
+  let mentionMessage = null;
+  if (mentions.length > 0) {
+    mentionMessage = await storage.createMessage({
+      conversationId,
+      conversationGroupId,
+      role: 'user',
+      type: 'mention_context_object',
+      content: {
+        objects: contextObjects,
+        mentions: mentions.map(m => ({
+          id: m.objectId,
+          name: m.name,
+          alias: m.alias,
+          type: m.type
+        }))
+      }
+    });
+  }
+  
+  return {
+    promptMessage,
+    conversationGroupId,
+    parsedMentions: mentions,
+    autoContext: {
+      usedDocs: autoContext.usedDocs,
+      retrievalMetadata: autoContext.retrievalMetadata,
+      citations: autoContext.citations
+    },
+    contextMessages: {
+      autoRetrieval: autoRetrievalMessage,
+      mention: mentionMessage
+    }
+  };
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
   
   // Object routes
@@ -250,113 +373,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/conversations/:id/messages", async (req, res) => {
     try {
-      // Parse mentions from content and auto-populate contextObjects
       const content = typeof req.body.content === 'string' 
         ? req.body.content 
         : req.body.content?.text || '';
       const autoRetrievalEnabled = req.body.autoRetrievalEnabled !== false; // Default to true for backward compatibility
-      const mentions = await storage.parseMentions(content);
-      const contextObjects = await storage.resolveMentionObjects(mentions);
       
-      // Generate conversation group ID for this prompt-response cycle
-      const conversationGroupId = `group-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-      
-      // Import retrieval service for auto-context on user messages
-      const { retrievalService } = await import('./retrieval-service');
-      
-      // Auto-retrieve relevant context using RAG for user messages (only if both global and local settings allow it)
-      let autoContext;
-      if (autoRetrievalEnabled) {
-        autoContext = await retrievalService.buildAutoContext({
-          conversationId: req.params.id,
-          userText: content,
-          explicitContextIds: req.body.contextObjects || [],
-          mentions: contextObjects
-        });
-      } else {
-        // Return empty context if auto-retrieval is disabled locally
-        autoContext = {
-          contextText: "",
-          citations: [],
-          usedDocs: [],
-          retrievalMetadata: {
-            totalDocs: 0,
-            totalChunks: 0,
-            strategy: 'disabled-locally',
-            estimatedTokens: 0,
-            processingTimeMs: 0
-          }
-        };
-      }
-      
-      // Combine all context objects including auto-retrieved ones (deduplicated)
-      const allContextObjects = Array.from(new Set([
-        ...(req.body.contextObjects || []), 
-        ...contextObjects,
-        ...autoContext.usedDocs.map(d => d.id)
-      ]));
-      
-      // Create the main prompt message
-      const promptMessage = await storage.createMessage({
+      const result = await processUserMessage({
         conversationId: req.params.id,
-        conversationGroupId,
-        role: 'user',
-        type: 'prompt',
-        content: req.body.content
+        content,
+        autoRetrievalEnabled,
+        explicitContextObjects: req.body.contextObjects || []
       });
       
-      // Create auto-retrieval context message if there are retrieved docs
-      let autoRetrievalMessage = null;
-      if (autoContext.usedDocs.length > 0) {
-        autoRetrievalMessage = await storage.createMessage({
-          conversationId: req.params.id,
-          conversationGroupId,
-          role: 'user',
-          type: 'auto_retrieval_context_object',
-          content: {
-            objects: allContextObjects,
-            metadata: {
-          usedDocs: autoContext.usedDocs,
-          retrievalMetadata: autoContext.retrievalMetadata,
-          citations: autoContext.citations
-            }
-          }
-        });
-      }
-      
-      // Create mention context message if there are explicit mentions
-      let mentionMessage = null;
-      if (mentions.length > 0) {
-        mentionMessage = await storage.createMessage({
-        conversationId: req.params.id,
-          conversationGroupId,
-          role: 'user',
-          type: 'mention_context_object',
-          content: {
-            objects: contextObjects,
-            mentions: mentions.map(m => ({
-              id: m.objectId,
-              name: m.name,
-              alias: m.alias,
-              type: m.type
-            }))
-          }
-        });
-      }
-      
       res.status(201).json({
-        message: promptMessage,
-        conversationGroupId,
-        parsedMentions: mentions,
-        autoContext: {
-          usedDocs: autoContext.usedDocs,
-          retrievalMetadata: autoContext.retrievalMetadata,
-          citations: autoContext.citations
-        },
-        contextMessages: {
-          autoRetrieval: autoRetrievalMessage,
-          mention: mentionMessage
-        }
+        message: result.promptMessage,
+        conversationGroupId: result.conversationGroupId,
+        parsedMentions: result.parsedMentions,
+        autoContext: result.autoContext,
+        contextMessages: result.contextMessages
       });
     } catch (error) {
       console.error('Error creating message:', error);
@@ -377,6 +411,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error deleting message:', error);
       res.status(500).json({ error: "Failed to delete message" });
+    }
+  });
+
+  // Endpoint to reprocess a user message for regeneration
+  app.post("/api/conversations/:id/reprocess-message", async (req, res) => {
+    try {
+      const { messageId, autoRetrievalEnabled = true } = req.body;
+      
+      // Get the original user message
+      const messages = await storage.getMessagesByConversation(req.params.id);
+      const userMessage = messages.find(msg => msg.id === messageId && msg.role === 'user' && msg.type === 'prompt');
+      
+      if (!userMessage) {
+        return res.status(404).json({ error: "User message not found" });
+      }
+      
+      const content = typeof userMessage.content === 'string' 
+        ? userMessage.content 
+        : (userMessage.content as { text?: string })?.text || '';
+      
+      // Process the user message to recreate context messages (skip creating new prompt message)
+      const result = await processUserMessage({
+        conversationId: req.params.id,
+        content,
+        autoRetrievalEnabled,
+        explicitContextObjects: [],
+        isRegeneration: true
+      });
+      
+      res.status(200).json({
+        message: result.promptMessage,
+        conversationGroupId: result.conversationGroupId,
+        parsedMentions: result.parsedMentions,
+        autoContext: result.autoContext,
+        contextMessages: result.contextMessages
+      });
+    } catch (error) {
+      console.error('Error reprocessing message:', error);
+      res.status(500).json({ error: "Failed to reprocess message" });
     }
   });
 

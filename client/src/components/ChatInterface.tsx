@@ -1386,6 +1386,17 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
         queryKey: ['/api/conversations', currentConversationId, 'messages'] 
       });
       
+      // Reprocess the user message to recreate context messages (mention_context_object, etc.)
+      await apiRequest("POST", `/api/conversations/${currentConversationId}/reprocess-message`, {
+        messageId,
+        autoRetrievalEnabled: autoRetrievalEnabled && (appConfig?.retrieval?.autoRag === true)
+      });
+      
+      // Wait for the cache to update again to include the new context messages
+      await queryClient.invalidateQueries({ 
+        queryKey: ['/api/conversations', currentConversationId, 'messages'] 
+      });
+      
       // Get updated messages and regenerate
       const updatedMessages = await queryClient.fetchQuery({
         queryKey: ['/api/conversations', currentConversationId, 'messages']
@@ -1393,9 +1404,9 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
       
       const formattedMessages: StreamMessage[] = (updatedMessages as Message[]).map(convertDbMessageToStreamMessage);
       
-        // Extract context objects from the user message
-        // For now, we don't extract context objects in the new structure
-        const contextObjectIds: string[] = [];
+      // Extract context objects from the user message
+      // For now, we don't extract context objects in the new structure
+      const contextObjectIds: string[] = [];
       
       // Regenerate AI response - apply dual control mechanism
       const success = await startAssistantStream({
