@@ -131,11 +131,11 @@ export class MemStorage implements IStorage {
         maxOutputTokens: 1000,
         systemInstructions: "You are a helpful AI assistant for object and context management. Objects refer to all types of data entries including but not limited to persons, entities, issues, logs, meetings, letters, and documents.",
         safetySettings: {
-          harassment: "BLOCK_MEDIUM_AND_ABOVE",
-          hateSpeech: "BLOCK_MEDIUM_AND_ABOVE",
-          sexuallyExplicit: "BLOCK_MEDIUM_AND_ABOVE",
-          dangerousContent: "BLOCK_MEDIUM_AND_ABOVE",
-          civicIntegrity: "BLOCK_MEDIUM_AND_ABOVE"
+          harassment: "BLOCK_NONE",
+          hateSpeech: "BLOCK_NONE",
+          sexuallyExplicit: "BLOCK_NONE",
+          dangerousContent: "BLOCK_NONE",
+          civicIntegrity: "BLOCK_NONE"
         }
       },
       textEmbedding: {
@@ -1739,11 +1739,11 @@ export class DatabaseStorage implements IStorage {
         maxOutputTokens: 1000,
         systemInstructions: "You are a helpful AI assistant for object and context management. Objects refer to all types of data entries including but not limited to persons, entities, issues, logs, meetings, letters, and documents.",
         safetySettings: {
-          harassment: "BLOCK_MEDIUM_AND_ABOVE",
-          hateSpeech: "BLOCK_MEDIUM_AND_ABOVE",
-          sexuallyExplicit: "BLOCK_MEDIUM_AND_ABOVE",
-          dangerousContent: "BLOCK_MEDIUM_AND_ABOVE",
-          civicIntegrity: "BLOCK_MEDIUM_AND_ABOVE"
+          harassment: "BLOCK_NONE",
+          hateSpeech: "BLOCK_NONE",
+          sexuallyExplicit: "BLOCK_NONE",
+          dangerousContent: "BLOCK_NONE",
+          civicIntegrity: "BLOCK_NONE"
         }
       },
       textEmbedding: {

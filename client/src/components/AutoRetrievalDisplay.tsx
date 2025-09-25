@@ -4,6 +4,18 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
 import { Link } from "wouter";
+import type { ObjectTypeKey } from "@shared/schema";
+import { getObjectTypeLucideIcon, getObjectTypeRoute } from "@shared/schema";
+
+// 圖標組件映射 - 將 schema 中的圖標名稱映射到實際的 React 組件
+const iconComponents = {
+  User: Users,           // 人員
+  FileText: FileText,   // 文件、信件
+  Building: Building,   // 實體
+  AlertTriangle: AlertCircle,  // 問題
+  BookOpen: ClipboardList,     // 日誌
+  Users: Calendar       // 會議
+} as const;
 
 export interface AutoRetrievalInfo {
   usedDocs: Array<{
@@ -32,44 +44,15 @@ interface AutoRetrievalDisplayProps {
   className?: string;
 }
 
-function getTypeIcon(type: string) {
-  switch (type) {
-    case 'person': return Users;
-    case 'document': return FileText;
-    case 'letter': return FileText;
-    case 'entity': return Building;
-    case 'issue': return AlertCircle;
-    case 'log': return ClipboardList;
-    case 'meeting': return Calendar;
-    default: return Briefcase;
-  }
-}
+// 使用 schema 中的單一事實來源
+const getTypeIcon = (type: string) => {
+  const iconName = getObjectTypeLucideIcon(type as ObjectTypeKey);
+  return iconComponents[iconName as keyof typeof iconComponents] || Briefcase;
+};
 
-function getTypeName(type: string) {
-  const typeNames = {
-    'person': '人員',
-    'document': '文件',
-    'letter': '信件',
-    'entity': '實體',
-    'issue': '問題',
-    'log': '記錄',
-    'meeting': '會議'
-  };
-  return typeNames[type as keyof typeof typeNames] || type;
-}
-
-function getDetailPath(type: string): string {
-  const typeMap: Record<string, string> = {
-    'person': '/people',
-    'document': '/documents',
-    'letter': '/letters',
-    'entity': '/entities',
-    'issue': '/issues',
-    'log': '/logs',
-    'meeting': '/meetings'
-  };
-  return typeMap[type] || '/objects';
-}
+const getDetailPath = (type: string): string => {
+  return getObjectTypeRoute(type as ObjectTypeKey);
+};
 
 export function AutoRetrievalDisplay({ autoRetrieved, className }: AutoRetrievalDisplayProps) {
   const docCount = autoRetrieved?.usedDocs?.length || 0;

@@ -48,7 +48,8 @@ export const OBJECT_TYPE_CONFIG = {
     canUploadFile: false,
     hasDateField: false,
     icon: "👤",
-    description: "個人或組織成員"
+    description: "個人或組織成員",
+    route: "/people"
   },
   document: {
     chineseName: "文件",
@@ -58,7 +59,8 @@ export const OBJECT_TYPE_CONFIG = {
     canUploadFile: true,
     hasDateField: true,
     icon: "📄",
-    description: "各種類型的文件檔案"
+    description: "各種類型的文件檔案",
+    route: "/documents"
   },
   letter: {
     chineseName: "信件",
@@ -68,7 +70,8 @@ export const OBJECT_TYPE_CONFIG = {
     canUploadFile: true,
     hasDateField: true,
     icon: "✉️",
-    description: "書信往來記錄"
+    description: "書信往來記錄",
+    route: "/letters"
   },
   entity: {
     chineseName: "實體",
@@ -78,7 +81,8 @@ export const OBJECT_TYPE_CONFIG = {
     canUploadFile: false,
     hasDateField: false,
     icon: "🏢",
-    description: "組織、公司、機構等實體"
+    description: "組織、公司、機構等實體",
+    route: "/entities"
   },
   issue: {
     chineseName: "議題",
@@ -88,7 +92,8 @@ export const OBJECT_TYPE_CONFIG = {
     canUploadFile: false,
     hasDateField: true,
     icon: "📋",
-    description: "需要討論或解決的問題"
+    description: "需要討論或解決的問題",
+    route: "/issues"
   },
   log: {
     chineseName: "日誌",
@@ -98,7 +103,8 @@ export const OBJECT_TYPE_CONFIG = {
     canUploadFile: false,
     hasDateField: true,
     icon: "📝",
-    description: "活動記錄或日誌"
+    description: "活動記錄或日誌",
+    route: "/logs"
   },
   meeting: {
     chineseName: "會議記錄",
@@ -108,7 +114,8 @@ export const OBJECT_TYPE_CONFIG = {
     canUploadFile: true,
     hasDateField: true,
     icon: "🤝",
-    description: "會議記錄和相關文件"
+    description: "會議記錄和相關文件",
+    route: "/meetings"
   }
 } as const;
 
@@ -509,72 +516,237 @@ export const parseMentionsSchema = z.object({
   text: z.string()
 });
 
-// Settings Configuration Schema
+// ============================================================================
+// 設定配置常數 - 單一事實來源
+// ============================================================================
+
+/**
+ * 安全設定選項 - 單一事實來源
+ */
+export const SAFETY_SETTING_LEVELS = [
+  "BLOCK_NONE",
+  "BLOCK_LOW_AND_ABOVE", 
+  "BLOCK_MEDIUM_AND_ABOVE",
+  "BLOCK_HIGH_AND_ABOVE"
+] as const;
+
+export type SafetySettingLevel = typeof SAFETY_SETTING_LEVELS[number];
+
+/**
+ * 安全設定類型 - 單一事實來源
+ */
+export const SAFETY_SETTING_TYPES = [
+  "harassment",
+  "hateSpeech", 
+  "sexuallyExplicit",
+  "dangerousContent",
+  "civicIntegrity"
+] as const;
+
+export type SafetySettingType = typeof SAFETY_SETTING_TYPES[number];
+
+/**
+ * Gemini 模型選項 - 單一事實來源
+ */
+export const GEMINI_MODELS = [
+  "gemini-2.5-flash", 
+  "gemini-2.5-pro"
+] as const;
+
+export type GeminiModel = typeof GEMINI_MODELS[number];
+
+/**
+ * 嵌入任務類型選項 - 單一事實來源
+ */
+export const EMBEDDING_TASK_TYPES = [
+  "TASK_TYPE_UNSPECIFIED",
+  "RETRIEVAL_QUERY",
+  "RETRIEVAL_DOCUMENT", 
+  "SEMANTIC_SIMILARITY",
+  "CLASSIFICATION",
+  "CLUSTERING",
+  "QUESTION_ANSWERING",
+  "FACT_VERIFICATION",
+  "CODE_RETRIEVAL_QUERY"
+] as const;
+
+export type EmbeddingTaskType = typeof EMBEDDING_TASK_TYPES[number];
+
+/**
+ * 檢索策略選項 - 單一事實來源
+ */
+export const RETRIEVAL_STRATEGIES = [
+  'balanced', 
+  'aggressive', 
+  'conservative'
+] as const;
+
+export type RetrievalStrategy = typeof RETRIEVAL_STRATEGIES[number];
+
+/**
+ * 數值範圍常數 - 單一事實來源
+ */
+export const NUMERIC_RANGES = {
+  // Gemini API 範圍
+  temperature: { min: 0, max: 2, default: 0.7 },
+  topP: { min: 0, max: 1, default: 0.94 },
+  topK: { min: 1, max: 40, default: 32 },
+  maxOutputTokens: { min: 1, max: 8192, default: 1000 },
+  
+  // 嵌入配置範圍
+  outputDimensionality: { min: 1, max: 3072, default: 2000 },
+  batchSize: { min: 1, max: 100, default: 10 },
+  
+  // 檢索配置範圍
+  docTopK: { min: 1, max: 100, default: 30 },
+  chunkTopK: { min: 1, max: 200, default: 90 },
+  perDocChunkCap: { min: 1, max: 20, default: 6 },
+  contextWindow: { min: 0, max: 2, default: 1 },
+  minDocSim: { min: 0, max: 1, default: 0.15 },
+  minChunkSim: { min: 0, max: 1, default: 0.30 },
+  budgetTokens: { min: 1000, max: 50000, default: 12000 },
+  semanticSearchLimit: { min: 100, max: 5000, default: 1000 },
+  contentTruncateLength: { min: 100, max: 10000, default: 1000 },
+  
+  // 函數調用配置範圍
+  maxPageSize: { min: 1, max: 50, default: 50 },
+  defaultPageSize: { min: 1, max: 50, default: 20 },
+  maxIterations: { min: 1, max: 10, default: 5 },
+  
+  // 分塊配置範圍
+  chunkSize: { min: 256, max: 8000, default: 2000 },
+  overlap: { min: 0, max: 2000, default: 200 }
+} as const;
+
+/**
+ * 預設值常數 - 單一事實來源
+ */
+export const DEFAULT_VALUES = {
+  systemInstructions: "You are a helpful AI assistant for object and context management. Objects refer to all types of data entries including but not limited to persons, entities, issues, logs, meetings, letters, and documents.",
+  autoEmbedding: true,
+  autoTruncate: true,
+  autoRag: true,
+  addCitations: true,
+  enabled: true,
+  enablePagination: true
+} as const;
+
+// ============================================================================
+// Zod Schema 定義 - 使用上述常數
+// ============================================================================
+
 export const geminiApiConfigSchema = z.object({
-  model: z.enum([
-    "gemini-2.5-flash", 
-    "gemini-2.5-pro"
-  ]).default("gemini-2.5-flash"),
-  temperature: z.number().min(0).max(2).default(0.7),
-  topP: z.number().min(0).max(1).default(0.94),
-  topK: z.number().int().min(1).max(40).default(32),
-  maxOutputTokens: z.number().int().min(1).max(8192).default(1000),
-  systemInstructions: z.string().default("You are a helpful AI assistant for object and context management. Objects refer to all types of data entries including but not limited to persons, entities, issues, logs, meetings, letters, and documents."),
+  model: z.enum(GEMINI_MODELS).default(GEMINI_MODELS[0]),
+  temperature: z.number()
+    .min(NUMERIC_RANGES.temperature.min)
+    .max(NUMERIC_RANGES.temperature.max)
+    .default(NUMERIC_RANGES.temperature.default),
+  topP: z.number()
+    .min(NUMERIC_RANGES.topP.min)
+    .max(NUMERIC_RANGES.topP.max)
+    .default(NUMERIC_RANGES.topP.default),
+  topK: z.number().int()
+    .min(NUMERIC_RANGES.topK.min)
+    .max(NUMERIC_RANGES.topK.max)
+    .default(NUMERIC_RANGES.topK.default),
+  maxOutputTokens: z.number().int()
+    .min(NUMERIC_RANGES.maxOutputTokens.min)
+    .max(NUMERIC_RANGES.maxOutputTokens.max)
+    .default(NUMERIC_RANGES.maxOutputTokens.default),
+  systemInstructions: z.string().default(DEFAULT_VALUES.systemInstructions),
   safetySettings: z.object({
-    harassment: z.enum(["BLOCK_NONE", "BLOCK_LOW_AND_ABOVE", "BLOCK_MEDIUM_AND_ABOVE", "BLOCK_HIGH_AND_ABOVE"]).default("BLOCK_MEDIUM_AND_ABOVE"),
-    hateSpeech: z.enum(["BLOCK_NONE", "BLOCK_LOW_AND_ABOVE", "BLOCK_MEDIUM_AND_ABOVE", "BLOCK_HIGH_AND_ABOVE"]).default("BLOCK_MEDIUM_AND_ABOVE"),
-    sexuallyExplicit: z.enum(["BLOCK_NONE", "BLOCK_LOW_AND_ABOVE", "BLOCK_MEDIUM_AND_ABOVE", "BLOCK_HIGH_AND_ABOVE"]).default("BLOCK_MEDIUM_AND_ABOVE"),
-    dangerousContent: z.enum(["BLOCK_NONE", "BLOCK_LOW_AND_ABOVE", "BLOCK_MEDIUM_AND_ABOVE", "BLOCK_HIGH_AND_ABOVE"]).default("BLOCK_MEDIUM_AND_ABOVE"),
-    civicIntegrity: z.enum(["BLOCK_NONE", "BLOCK_LOW_AND_ABOVE", "BLOCK_MEDIUM_AND_ABOVE", "BLOCK_HIGH_AND_ABOVE"]).default("BLOCK_MEDIUM_AND_ABOVE")
+    harassment: z.enum(SAFETY_SETTING_LEVELS).default(SAFETY_SETTING_LEVELS[0]),
+    hateSpeech: z.enum(SAFETY_SETTING_LEVELS).default(SAFETY_SETTING_LEVELS[0]),
+    sexuallyExplicit: z.enum(SAFETY_SETTING_LEVELS).default(SAFETY_SETTING_LEVELS[0]),
+    dangerousContent: z.enum(SAFETY_SETTING_LEVELS).default(SAFETY_SETTING_LEVELS[0]),
+    civicIntegrity: z.enum(SAFETY_SETTING_LEVELS).default(SAFETY_SETTING_LEVELS[0])
   }).default({}),
 });
 
 export const textEmbeddingConfigSchema = z.object({
   model: z.enum(["gemini-embedding-001"]).default("gemini-embedding-001"),
-  taskType: z.enum([
-    "TASK_TYPE_UNSPECIFIED",
-    "RETRIEVAL_QUERY",
-    "RETRIEVAL_DOCUMENT", 
-    "SEMANTIC_SIMILARITY",
-    "CLASSIFICATION",
-    "CLUSTERING",
-    "QUESTION_ANSWERING",
-    "FACT_VERIFICATION",
-    "CODE_RETRIEVAL_QUERY"
-  ]).default("RETRIEVAL_DOCUMENT"),
-  outputDimensionality: z.number().int().min(1).max(3072).default(2000),
-  autoEmbedding: z.boolean().default(true),
-  autoTruncate: z.boolean().default(true),
-  batchSize: z.number().int().min(1).max(100).default(10),
+  taskType: z.enum(EMBEDDING_TASK_TYPES).default(EMBEDDING_TASK_TYPES[2]), // RETRIEVAL_DOCUMENT
+  outputDimensionality: z.number().int()
+    .min(NUMERIC_RANGES.outputDimensionality.min)
+    .max(NUMERIC_RANGES.outputDimensionality.max)
+    .default(NUMERIC_RANGES.outputDimensionality.default),
+  autoEmbedding: z.boolean().default(DEFAULT_VALUES.autoEmbedding),
+  autoTruncate: z.boolean().default(DEFAULT_VALUES.autoTruncate),
+  batchSize: z.number().int()
+    .min(NUMERIC_RANGES.batchSize.min)
+    .max(NUMERIC_RANGES.batchSize.max)
+    .default(NUMERIC_RANGES.batchSize.default),
 });
 
 export const retrievalConfigSchema = z.object({
-  autoRag: z.boolean().default(true),
-  docTopK: z.number().default(30), // Updated default from 6 to 30 for better context
-  chunkTopK: z.number().default(90), // Updated default from 24 to 90
-  perDocChunkCap: z.number().default(6),
-  contextWindow: z.number().default(1),
-  minDocSim: z.number().default(0.15), // Lowered from 0.25 to 0.15 for more inclusive results
-  minChunkSim: z.number().default(0.30),
-  budgetTokens: z.number().default(12000), // Updated default from 6000 to 12000
-  strategy: z.enum(['balanced', 'aggressive', 'conservative']).default('balanced'),
-  addCitations: z.boolean().default(true),
-  semanticSearchLimit: z.number().int().min(100).max(5000).default(1000), // Maximum results for semantic search
-  contentTruncateLength: z.number().int().min(100).max(10000).default(1000) // Maximum content length for display
+  autoRag: z.boolean().default(DEFAULT_VALUES.autoRag),
+  docTopK: z.number()
+    .min(NUMERIC_RANGES.docTopK.min)
+    .max(NUMERIC_RANGES.docTopK.max)
+    .default(NUMERIC_RANGES.docTopK.default),
+  chunkTopK: z.number()
+    .min(NUMERIC_RANGES.chunkTopK.min)
+    .max(NUMERIC_RANGES.chunkTopK.max)
+    .default(NUMERIC_RANGES.chunkTopK.default),
+  perDocChunkCap: z.number()
+    .min(NUMERIC_RANGES.perDocChunkCap.min)
+    .max(NUMERIC_RANGES.perDocChunkCap.max)
+    .default(NUMERIC_RANGES.perDocChunkCap.default),
+  contextWindow: z.number()
+    .min(NUMERIC_RANGES.contextWindow.min)
+    .max(NUMERIC_RANGES.contextWindow.max)
+    .default(NUMERIC_RANGES.contextWindow.default),
+  minDocSim: z.number()
+    .min(NUMERIC_RANGES.minDocSim.min)
+    .max(NUMERIC_RANGES.minDocSim.max)
+    .default(NUMERIC_RANGES.minDocSim.default),
+  minChunkSim: z.number()
+    .min(NUMERIC_RANGES.minChunkSim.min)
+    .max(NUMERIC_RANGES.minChunkSim.max)
+    .default(NUMERIC_RANGES.minChunkSim.default),
+  budgetTokens: z.number()
+    .min(NUMERIC_RANGES.budgetTokens.min)
+    .max(NUMERIC_RANGES.budgetTokens.max)
+    .default(NUMERIC_RANGES.budgetTokens.default),
+  strategy: z.enum(RETRIEVAL_STRATEGIES).default(RETRIEVAL_STRATEGIES[0]), // balanced
+  addCitations: z.boolean().default(DEFAULT_VALUES.addCitations),
+  semanticSearchLimit: z.number().int()
+    .min(NUMERIC_RANGES.semanticSearchLimit.min)
+    .max(NUMERIC_RANGES.semanticSearchLimit.max)
+    .default(NUMERIC_RANGES.semanticSearchLimit.default),
+  contentTruncateLength: z.number().int()
+    .min(NUMERIC_RANGES.contentTruncateLength.min)
+    .max(NUMERIC_RANGES.contentTruncateLength.max)
+    .default(NUMERIC_RANGES.contentTruncateLength.default)
 });
 
 export const functionCallingConfigSchema = z.object({
-  enabled: z.boolean().default(true),
-  maxPageSize: z.number().int().min(1).max(50).default(50),
-  defaultPageSize: z.number().int().min(1).max(50).default(20), // Increased from 10 to 20 for better results
-  maxIterations: z.number().int().min(1).max(10).default(5),
-  enablePagination: z.boolean().default(true)
+  enabled: z.boolean().default(DEFAULT_VALUES.enabled),
+  maxPageSize: z.number().int()
+    .min(NUMERIC_RANGES.maxPageSize.min)
+    .max(NUMERIC_RANGES.maxPageSize.max)
+    .default(NUMERIC_RANGES.maxPageSize.default),
+  defaultPageSize: z.number().int()
+    .min(NUMERIC_RANGES.defaultPageSize.min)
+    .max(NUMERIC_RANGES.defaultPageSize.max)
+    .default(NUMERIC_RANGES.defaultPageSize.default),
+  maxIterations: z.number().int()
+    .min(NUMERIC_RANGES.maxIterations.min)
+    .max(NUMERIC_RANGES.maxIterations.max)
+    .default(NUMERIC_RANGES.maxIterations.default),
+  enablePagination: z.boolean().default(DEFAULT_VALUES.enablePagination)
 });
 
 export const chunkingConfigSchema = z.object({
-  chunkSize: z.number().int().min(256).max(8000).default(2000), // Characters per chunk
-  overlap: z.number().int().min(0).max(2000).default(200), // Overlap characters between chunks
-  enabled: z.boolean().default(true) // Whether chunking is enabled
+  chunkSize: z.number().int()
+    .min(NUMERIC_RANGES.chunkSize.min)
+    .max(NUMERIC_RANGES.chunkSize.max)
+    .default(NUMERIC_RANGES.chunkSize.default),
+  overlap: z.number().int()
+    .min(NUMERIC_RANGES.overlap.min)
+    .max(NUMERIC_RANGES.overlap.max)
+    .default(NUMERIC_RANGES.overlap.default),
+  enabled: z.boolean().default(DEFAULT_VALUES.enabled)
 });
 
 export const appConfigSchema = z.object({
@@ -596,6 +768,68 @@ export type AppConfig = z.infer<typeof appConfigSchema>;
 
 export const insertAppConfigSchema = appConfigSchema.omit({ updatedAt: true });
 export const updateAppConfigSchema = insertAppConfigSchema.partial();
+
+// ============================================================================
+// 輔助函數 - 讓前端更容易使用配置常數
+// ============================================================================
+
+/**
+ * 獲取指定欄位的數值範圍
+ * @param field 欄位名稱
+ * @returns 數值範圍配置
+ */
+export function getNumericRange(field: keyof typeof NUMERIC_RANGES) {
+  return NUMERIC_RANGES[field];
+}
+
+/**
+ * 獲取所有安全設定級別
+ * @returns 安全設定級別陣列
+ */
+export function getSafetySettingLevels() {
+  return SAFETY_SETTING_LEVELS;
+}
+
+/**
+ * 獲取所有安全設定類型
+ * @returns 安全設定類型陣列
+ */
+export function getSafetySettingTypes() {
+  return SAFETY_SETTING_TYPES;
+}
+
+/**
+ * 獲取所有 Gemini 模型選項
+ * @returns Gemini 模型陣列
+ */
+export function getGeminiModels() {
+  return GEMINI_MODELS;
+}
+
+/**
+ * 獲取所有嵌入任務類型
+ * @returns 嵌入任務類型陣列
+ */
+export function getEmbeddingTaskTypes() {
+  return EMBEDDING_TASK_TYPES;
+}
+
+/**
+ * 獲取所有檢索策略選項
+ * @returns 檢索策略陣列
+ */
+export function getRetrievalStrategies() {
+  return RETRIEVAL_STRATEGIES;
+}
+
+/**
+ * 獲取預設值
+ * @param key 預設值鍵值
+ * @returns 預設值
+ */
+export function getDefaultValue(key: keyof typeof DEFAULT_VALUES) {
+  return DEFAULT_VALUES[key];
+}
 
 export type InsertAppConfig = z.infer<typeof insertAppConfigSchema>;
 export type UpdateAppConfig = z.infer<typeof updateAppConfigSchema>;
@@ -628,17 +862,16 @@ export function getObjectTypeLucideIcon(type: ObjectTypeKey): string {
 }
 
 /**
- * 路由路徑映射配置 - 將物件類型映射到對應的列表頁面路徑
- * 這個映射確保導航連結的一致性
+ * 圖標組件映射配置 - 將圖標名稱映射到實際的 React 組件
+ * 這個映射需要在每個使用圖標的組件中定義，因為 React 組件不能跨模組共享
  */
-export const OBJECT_TYPE_ROUTE_MAPPING = {
-  person: '/people',
-  document: '/documents',
-  letter: '/letters',
-  entity: '/entities',
-  issue: '/issues',
-  log: '/logs',
-  meeting: '/meetings'
+export const LUCIDE_ICON_COMPONENT_NAMES = {
+  'User': 'User',
+  'FileText': 'FileText', 
+  'Building': 'Building',
+  'AlertTriangle': 'AlertTriangle',
+  'BookOpen': 'BookOpen',
+  'Users': 'Users'
 } as const;
 
 /**
@@ -647,5 +880,5 @@ export const OBJECT_TYPE_ROUTE_MAPPING = {
  * @returns 列表頁面路徑
  */
 export function getObjectTypeRoute(type: ObjectTypeKey): string {
-  return OBJECT_TYPE_ROUTE_MAPPING[type] || '/objects';
+  return OBJECT_TYPE_CONFIG[type].route || '/objects';
 }
