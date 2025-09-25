@@ -4,8 +4,6 @@ import { vector } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
-// Object types constants
-export const OBJECT_TYPES = ["person", "document", "letter", "entity", "issue", "log", "meeting"] as const;
 
 /**
  * Object type configuration - single source of truth
@@ -49,7 +47,8 @@ export const OBJECT_TYPE_CONFIG = {
     hasDateField: false,
     icon: "👤",
     description: "個人或組織成員",
-    route: "/people"
+    route: "/persons",
+    createRoute: "/persons/new"
   },
   document: {
     chineseName: "文件",
@@ -60,7 +59,8 @@ export const OBJECT_TYPE_CONFIG = {
     hasDateField: true,
     icon: "📄",
     description: "各種類型的文件檔案",
-    route: "/documents"
+    route: "/documents",
+    createRoute: "/documents/new"
   },
   letter: {
     chineseName: "信件",
@@ -71,7 +71,8 @@ export const OBJECT_TYPE_CONFIG = {
     hasDateField: true,
     icon: "✉️",
     description: "書信往來記錄",
-    route: "/letters"
+    route: "/letters",
+    createRoute: "/letters/new"
   },
   entity: {
     chineseName: "實體",
@@ -82,7 +83,8 @@ export const OBJECT_TYPE_CONFIG = {
     hasDateField: false,
     icon: "🏢",
     description: "組織、公司、機構等實體",
-    route: "/entities"
+    route: "/entities",
+    createRoute: "/entities/new"
   },
   issue: {
     chineseName: "議題",
@@ -93,7 +95,8 @@ export const OBJECT_TYPE_CONFIG = {
     hasDateField: true,
     icon: "📋",
     description: "需要討論或解決的問題",
-    route: "/issues"
+    route: "/issues",
+    createRoute: "/issues/new"
   },
   log: {
     chineseName: "日誌",
@@ -104,7 +107,8 @@ export const OBJECT_TYPE_CONFIG = {
     hasDateField: true,
     icon: "📝",
     description: "活動記錄或日誌",
-    route: "/logs"
+    route: "/logs",
+    createRoute: "/logs/new"
   },
   meeting: {
     chineseName: "會議記錄",
@@ -115,9 +119,13 @@ export const OBJECT_TYPE_CONFIG = {
     hasDateField: true,
     icon: "🤝",
     description: "會議記錄和相關文件",
-    route: "/meetings"
+    route: "/meetings",
+    createRoute: "/meetings/new"
   }
 } as const;
+
+// 從 OBJECT_TYPE_CONFIG 派生的常數 - 單一事實來源
+export const OBJECT_TYPES = Object.keys(OBJECT_TYPE_CONFIG) as readonly (keyof typeof OBJECT_TYPE_CONFIG)[];
 
 // Type definitions for object type configuration
 export type ObjectTypeKey = keyof typeof OBJECT_TYPE_CONFIG;
@@ -863,4 +871,13 @@ export const LUCIDE_ICON_COMPONENT_NAMES = {
  */
 export function getObjectTypeRoute(type: ObjectTypeKey): string {
   return OBJECT_TYPE_CONFIG[type].route || '/objects';
+}
+
+/**
+ * 獲取指定 Object 類型對應的創建頁面路徑
+ * @param type Object 類型鍵值
+ * @returns 創建頁面路徑
+ */
+export function getObjectTypeCreateRoute(type: ObjectTypeKey): string {
+  return OBJECT_TYPE_CONFIG[type].createRoute || '/';
 }

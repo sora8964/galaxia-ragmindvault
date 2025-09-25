@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'wouter';
 import { useQuery } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
-import { ObjectType } from '@shared/schema';
+import { ObjectType, getObjectTypeRoute, getObjectTypeCreateRoute, OBJECT_TYPES } from '@shared/schema';
 
 // @mention 代碼的正則表達式
 // 匹配格式：@[type:name] 或 @[type:name|displayName]
@@ -97,36 +97,17 @@ function MentionLink({ mention, className, isAIResponse }: MentionLinkProps) {
 
 // 獲取創建頁面的路徑
 function getCreatePath(type: ObjectType): string {
-  const typeMap: Record<ObjectType, string> = {
-    person: '/person/new',
-    document: '/document/new',
-    letter: '/letter/new',
-    entity: '/entity/new',
-    issue: '/issue/new',
-    log: '/log/new',
-    meeting: '/meeting/new'
-  };
-  return typeMap[type] || '/';
+  return getObjectTypeCreateRoute(type);
 }
 
 // 獲取詳細頁面的路徑（複數形式）
 function getDetailPath(type: ObjectType): string {
-  const typeMap: Record<ObjectType, string> = {
-    person: '/people',
-    document: '/documents',
-    letter: '/letters',
-    entity: '/entities',
-    issue: '/issues',
-    log: '/logs',
-    meeting: '/meetings'
-  };
-  return typeMap[type] || '/';
+  return getObjectTypeRoute(type);
 }
 
 // 驗證文檔類型
 function isValidObjectType(type: string): type is ObjectType {
-  const validTypes: ObjectType[] = ['person', 'document', 'letter', 'entity', 'issue', 'log', 'meeting'];
-  return validTypes.includes(type as ObjectType);
+  return OBJECT_TYPES.includes(type as ObjectType);
 }
 
 // 解析文本中的 @mention 代碼
