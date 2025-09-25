@@ -549,8 +549,8 @@ export type SafetySettingType = typeof SAFETY_SETTING_TYPES[number];
  * Gemini 模型選項 - 單一事實來源
  */
 export const GEMINI_MODELS = [
-  "gemini-2.5-flash", 
-  "gemini-2.5-pro"
+    "gemini-2.5-flash", 
+    "gemini-2.5-pro"
 ] as const;
 
 export type GeminiModel = typeof GEMINI_MODELS[number];
@@ -559,29 +559,19 @@ export type GeminiModel = typeof GEMINI_MODELS[number];
  * 嵌入任務類型選項 - 單一事實來源
  */
 export const EMBEDDING_TASK_TYPES = [
-  "TASK_TYPE_UNSPECIFIED",
-  "RETRIEVAL_QUERY",
-  "RETRIEVAL_DOCUMENT", 
-  "SEMANTIC_SIMILARITY",
-  "CLASSIFICATION",
-  "CLUSTERING",
-  "QUESTION_ANSWERING",
-  "FACT_VERIFICATION",
-  "CODE_RETRIEVAL_QUERY"
+    "TASK_TYPE_UNSPECIFIED",
+    "RETRIEVAL_QUERY",
+    "RETRIEVAL_DOCUMENT", 
+    "SEMANTIC_SIMILARITY",
+    "CLASSIFICATION",
+    "CLUSTERING",
+    "QUESTION_ANSWERING",
+    "FACT_VERIFICATION",
+    "CODE_RETRIEVAL_QUERY"
 ] as const;
 
 export type EmbeddingTaskType = typeof EMBEDDING_TASK_TYPES[number];
 
-/**
- * 檢索策略選項 - 單一事實來源
- */
-export const RETRIEVAL_STRATEGIES = [
-  'balanced', 
-  'aggressive', 
-  'conservative'
-] as const;
-
-export type RetrievalStrategy = typeof RETRIEVAL_STRATEGIES[number];
 
 /**
  * 數值範圍常數 - 單一事實來源
@@ -708,7 +698,6 @@ export const retrievalConfigSchema = z.object({
     .min(NUMERIC_RANGES.budgetTokens.min)
     .max(NUMERIC_RANGES.budgetTokens.max)
     .default(NUMERIC_RANGES.budgetTokens.default),
-  strategy: z.enum(RETRIEVAL_STRATEGIES).default(RETRIEVAL_STRATEGIES[0]), // balanced
   addCitations: z.boolean().default(DEFAULT_VALUES.addCitations),
   semanticSearchLimit: z.number().int()
     .min(NUMERIC_RANGES.semanticSearchLimit.min)
@@ -814,13 +803,6 @@ export function getEmbeddingTaskTypes() {
   return EMBEDDING_TASK_TYPES;
 }
 
-/**
- * 獲取所有檢索策略選項
- * @returns 檢索策略陣列
- */
-export function getRetrievalStrategies() {
-  return RETRIEVAL_STRATEGIES;
-}
 
 /**
  * 獲取預設值

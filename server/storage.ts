@@ -155,7 +155,6 @@ export class MemStorage implements IStorage {
         minDocSim: 0.25,
         minChunkSim: 0.30,
         budgetTokens: 12000,  // Increased token budget for larger context
-        strategy: 'balanced' as const,
         addCitations: true
       },
       chunking: {
@@ -1721,7 +1720,6 @@ export class DatabaseStorage implements IStorage {
         minDocSim: 0.25,
         minChunkSim: 0.30,
         budgetTokens: 12000, // Updated default from 6000 to 12000
-        strategy: "balanced",
         addCitations: true
       },
       functionCalling: {

@@ -81,7 +81,6 @@ const settingsFormSchema = z.object({
     minDocSim: z.number().min(0).max(1),
     minChunkSim: z.number().min(0).max(1),
     budgetTokens: z.number().min(1000).max(50000),
-    strategy: z.enum(['balanced', 'aggressive', 'conservative']),
     addCitations: z.boolean(),
     semanticSearchLimit: z.number().int().min(100).max(5000),
     contentTruncateLength: z.number().int().min(100).max(10000),
@@ -181,7 +180,6 @@ export function Settings() {
         minDocSim: 0.25,
         minChunkSim: 0.30,
         budgetTokens: 12000,
-        strategy: 'balanced',
         addCitations: true,
         semanticSearchLimit: 1000,
         contentTruncateLength: 1000,
@@ -740,29 +738,6 @@ export function Settings() {
                     )}
                   />
 
-                  <FormField
-                    control={form.control}
-                    name="retrieval.strategy"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>檢索策略</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value}>
-                          <FormControl>
-                            <SelectTrigger data-testid="select-retrieval-strategy">
-                              <SelectValue />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="balanced">平衡</SelectItem>
-                            <SelectItem value="aggressive">積極</SelectItem>
-                            <SelectItem value="conservative">保守</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <FormDescription>選擇檢索策略的積極程度</FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
 
                   <FormField
                     control={form.control}

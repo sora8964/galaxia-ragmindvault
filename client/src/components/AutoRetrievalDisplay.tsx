@@ -26,7 +26,6 @@ export interface AutoRetrievalInfo {
   retrievalMetadata: {
     totalDocs: number;
     totalChunks: number;
-    strategy: string;
     estimatedTokens: number;
     processingTimeMs?: number;
   };

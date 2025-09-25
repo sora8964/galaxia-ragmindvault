@@ -39,7 +39,6 @@ export interface ContextDocument {
 export interface RetrievalMetadata {
   totalDocs: number;
   totalChunks: number;
-  strategy: string;
   estimatedTokens: number;
   processingTimeMs: number;
 }
@@ -82,7 +81,6 @@ export class RetrievalService {
         retrievalMetadata: {
           totalDocs: 0,
           totalChunks: 0,
-          strategy: 'disabled',
           estimatedTokens: 0,
           processingTimeMs: Date.now() - startTime
         }
@@ -98,7 +96,6 @@ export class RetrievalService {
         retrievalMetadata: {
           totalDocs: 0,
           totalChunks: 0,
-          strategy: 'skipped_short',
           estimatedTokens: 0,
           processingTimeMs: Date.now() - startTime
         }
@@ -134,7 +131,6 @@ export class RetrievalService {
           retrievalMetadata: {
             totalDocs: 0,
             totalChunks: 0,
-            strategy: 'no_docs_found',
             estimatedTokens: 0,
             processingTimeMs: Date.now() - startTime
           }
@@ -171,7 +167,6 @@ export class RetrievalService {
         retrievalMetadata: {
           totalDocs: 0,
           totalChunks: 0,
-          strategy: 'error',
           estimatedTokens: 0,
           processingTimeMs: Date.now() - startTime
         }
@@ -393,7 +388,6 @@ export class RetrievalService {
       retrievalMetadata: {
         totalDocs: docs.length,
         totalChunks,
-        strategy: 'balanced',
         estimatedTokens
       }
     };

@@ -76,7 +76,6 @@ async function processUserMessage({
       retrievalMetadata: {
         totalDocs: 0,
         totalChunks: 0,
-        strategy: 'disabled-locally',
         estimatedTokens: 0,
         processingTimeMs: 0
       }
@@ -722,7 +721,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         messageCount: messages?.length, 
         contextObjectIds: contextObjectIds.length,
         autoRetrievedDocs: autoContext.usedDocs.length,
-        retrievalStrategy: autoContext.retrievalMetadata.strategy
       });
       
         const response = await chatWithGeminiFunctionsStreaming({
@@ -810,7 +808,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           retrievalMetadata: {
             totalDocs: 0,
             totalChunks: 0,
-            strategy: 'disabled-locally',
             estimatedTokens: 0,
             processingTimeMs: 0
           }
