@@ -107,7 +107,9 @@ export async function generateTextEmbedding(
       contents: {
         parts: [{ text }],
         ...(title && { title })
-      }
+      },
+      taskType: "RETRIEVAL_DOCUMENT",
+      autoTruncate: false
     });
 
     const embedding = response.embeddings?.[0]?.values || [];
@@ -400,39 +402,49 @@ When users mention objects or people using @mentions (like @[person:習近平|�
               console.log('🔧 [FUNCTION CALL]', part.functionCall.name, part.functionCall.args);
               
               try {
-                const functionResult = await callFunction(part.functionCall.name || '', part.functionCall.args || {});
+                const functionResult = await callFunction(part.functionCall.name, part.functionCall.args);
                 roundFunctionCalls.push({
-                  name: part.functionCall.name || '',
-                  arguments: part.functionCall.args || {},
+                  name: part.functionCall.name,
+                  arguments: part.functionCall.args,
                   result: functionResult
                 });
                 
                 // Add function call event
                 allEvents.push({
                   type: 'function_call',
-                  name: part.functionCall.name || '',
-                  arguments: part.functionCall.args || {},
+                  name: part.functionCall.name,
+                  arguments: part.functionCall.args,
                   result: functionResult
                 });
                 
                 // Add function response to conversation
                 conversationHistory.push({
                   role: 'model',
-                  parts: [{ text: `Function ${part.functionCall.name || ''} result: ${functionResult}` }]
+                  parts: [{
+                    functionResponse: {
+                      name: part.functionCall.name,
+                      response: { result: functionResult }
+                    }
+                  }]
                 });
                 
               } catch (error) {
                 console.error('Function call error:', error);
-                const errorResult = `Error calling function ${part.functionCall.name || ''}: ${error}`;
+                const errorResult = `Error calling function ${part.functionCall.name}: ${error}`;
                 roundFunctionCalls.push({
-                  name: part.functionCall.name || '',
-                  arguments: part.functionCall.args || {},
+                  name: part.functionCall.name,
+                  arguments: part.functionCall.args,
                   result: errorResult
                 });
                 
                 conversationHistory.push({
                   role: 'model',
-                  parts: [{ text: `Function ${part.functionCall.name || ''} error: ${errorResult}` }]
+                  parts: [{
+                    functionResponse: {
+                      name: part.functionCall.name,
+                      response: { result: errorResult }
+                    }
+                  }]
                 });
               }
             }
@@ -457,7 +469,7 @@ When users mention objects or people using @mentions (like @[person:習近平|�
     // Add response text to conversation history
     if (roundResponseText) {
       conversationHistory.push({
-        role: 'model',
+        role: 'user',
         parts: [{ text: roundResponseText }]
       });
       allResponseText += roundResponseText;
@@ -605,24 +617,24 @@ When users mention objects or people using @mentions (like @[person:習近平|�
             console.log('🔧 [FUNCTION CALL]', part.functionCall.name, part.functionCall.args);
             
             try {
-              const functionResult = await callFunction(part.functionCall.name || '', part.functionCall.args || {});
+              const functionResult = await callFunction(part.functionCall.name, part.functionCall.args);
               
               // Add function call event
               events.push({
                 type: 'function_call',
-                name: part.functionCall.name || '',
-                arguments: part.functionCall.args || {},
+                name: part.functionCall.name,
+                arguments: part.functionCall.args,
                 result: functionResult
               });
               
             } catch (error) {
               console.error('Function call error:', error);
-              const errorResult = `Error calling function ${part.functionCall.name || ''}: ${error}`;
+              const errorResult = `Error calling function ${part.functionCall.name}: ${error}`;
               
               events.push({
                 type: 'function_call',
-                name: part.functionCall.name || '',
-                arguments: part.functionCall.args || {},
+                name: part.functionCall.name,
+                arguments: part.functionCall.args,
                 result: errorResult
               });
             }
