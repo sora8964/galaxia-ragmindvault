@@ -1442,17 +1442,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Legacy Relationship API endpoints (maintained for backward compatibility)
-  app.get("/api/relationships/:sourceId", async (req, res) => {
-    try {
-      const { sourceId } = req.params;
-      const relationships = await storage.getRelationshipsBySource(sourceId);
-      res.json(relationships);
-    } catch (error) {
-      console.error('Error fetching relationships:', error);
-      res.status(500).json({ error: "Failed to fetch relationships" });
-    }
-  });
 
   app.post("/api/relationships", async (req, res) => {
     try {
@@ -1500,127 +1489,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Object-issue relationship endpoints
-  app.get("/api/objects/:id/related-issues", async (req, res) => {
-    try {
-      const { id } = req.params;
-      
-      // Verify object exists
-      const object = await storage.getObject(id);
-      if (!object) {
-        return res.status(404).json({ error: "Object not found" });
-      }
-      
-      // Get relationships where this object is the source and target is an issue
-      const relationships = await storage.getRelationshipsBySource(id);
-      
-      // Get the related issue objects
-      const relatedIssues = [];
-      for (const rel of relationships) {
-        const issue = await storage.getObject(rel.targetId);
-        if (issue && issue.type === "issue") {
-          relatedIssues.push({
-            relationship: rel,
-            issue: issue
-          });
-        }
-      }
-      
-      res.json({
-        object,
-        relatedIssues,
-        total: relatedIssues.length
-      });
-    } catch (error) {
-      console.error('Error fetching related issues:', error);
-      res.status(500).json({ error: "Failed to fetch related issues" });
-    }
-  });
-
-  app.post("/api/objects/:id/relate-to-issue", async (req, res) => {
-    try {
-      const { id } = req.params;
-      const { issueId } = req.body;
-      
-      if (!issueId) {
-        return res.status(400).json({ error: "Issue ID is required" });
-      }
-      
-      // Verify both objects exist
-      const sourceObject = await storage.getObject(id);
-      if (!sourceObject) {
-        return res.status(404).json({ error: "Source object not found" });
-      }
-      
-      const targetObject = await storage.getObject(issueId);
-      if (!targetObject) {
-        return res.status(404).json({ error: "Target object not found" });
-      }
-      
-      // Check if relationship already exists
-      const existingRelationships = await storage.getRelationshipBetween(id, issueId);
-      const existingRel = existingRelationships[0]; // Get first existing relationship
-      
-      if (existingRel) {
-        return res.status(409).json({ error: "Relationship already exists", relationship: existingRel });
-      }
-      
-      // Create the relationship
-      const relationship = await storage.createRelationship({
-        sourceId: id,
-        targetId: issueId,
-        sourceType: sourceObject.type,
-        targetType: targetObject.type,
-      });
-      
-      res.status(201).json({
-        relationship,
-        source: sourceObject,
-        target: targetObject
-      });
-    } catch (error) {
-      console.error('Error creating object relationship:', error);
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: "Invalid relationship data", details: error.errors });
-      }
-      res.status(500).json({ error: "Failed to create relationship" });
-    }
-  });
-
-  app.delete("/api/objects/:objectId/relationships/:issueId", async (req, res) => {
-    try {
-      const { objectId, issueId } = req.params;
-      
-      // Verify both objects exist
-      const sourceObject = await storage.getObject(objectId);
-      if (!sourceObject) {
-        return res.status(404).json({ error: "Source object not found" });
-      }
-      
-      const targetObject = await storage.getObject(issueId);
-      if (!targetObject) {
-        return res.status(404).json({ error: "Target object not found" });
-      }
-      
-      // Find and delete the relationship
-      const relationships = await storage.getRelationshipBetween(objectId, issueId);
-      const targetRel = relationships[0]; // Get first relationship
-      
-      if (!targetRel) {
-        return res.status(404).json({ error: "Relationship not found" });
-      }
-      
-      const success = await storage.deleteRelationship(targetRel.id);
-      if (!success) {
-        return res.status(500).json({ error: "Failed to delete relationship" });
-      }
-      
-      res.status(204).send();
-    } catch (error) {
-      console.error('Error deleting object relationship:', error);
-      res.status(500).json({ error: "Failed to delete relationship" });
-    }
-  });
 
   // Settings API endpoints
   app.get("/api/settings", async (req, res) => {
@@ -1698,9 +1566,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/objects/:id", (req, res, next) => { req.url = `/api/objects/${req.params.id}`; next(); });
   app.put("/api/objects/:id", (req, res, next) => { req.url = `/api/objects/${req.params.id}`; next(); });
   app.delete("/api/objects/:id", (req, res, next) => { req.url = `/api/objects/${req.params.id}`; next(); });
-  app.get("/api/objects/:id/relationships", (req, res, next) => { req.url = `/api/objects/${req.params.id}/relationships`; next(); });
-  app.post("/api/objects/:objectId/relationships/:issueId", (req, res, next) => { req.url = `/api/objects/${req.params.objectId}/relationships/${req.params.issueId}`; next(); });
-  app.delete("/api/objects/:objectId/relationships/:issueId", (req, res, next) => { req.url = `/api/objects/${req.params.objectId}/relationships/${req.params.issueId}`; next(); });
+  
+
 
   /**
    * 獲取 Object 類型配置
