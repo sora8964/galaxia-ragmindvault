@@ -17,6 +17,20 @@ function generateObjectTypesList(): string {
   return typeNames.join(', ');
 }
 
+// Helper function to get icon for object types
+function getIcon(type: string): string {
+  switch (type) {
+    case 'person': return '👤';
+    case 'document': return '📄';
+    case 'entity': return '🏢';
+    case 'issue': return '📋';
+    case 'log': return '📝';
+    case 'meeting': return '🤝';
+    case 'letter': return '✉️';
+    default: return '📄';
+  }
+}
+
 // Basic chat interfaces
 export interface ChatMessage {
   role: "user" | "assistant";
@@ -176,11 +190,14 @@ async function generateContentWithRetry(ai: any, params: any, functionResult?: s
   try {
     return await ai.models.generateContent(params);
   } catch (error: any) {
+    // If it's an INTERNAL 500 error and we have function result, try with shortened result
     if (error?.status === 500 && functionResult) {
       console.warn('Gemini API returned 500, retrying with shortened function result');
       try {
+        // Shorten function result by 50%
         const shortenedResult = functionResult.substring(0, Math.floor(functionResult.length * 0.5)) + '\n\n[Result truncated due to size limits]';
         
+        // Update the function response in params
         const retryParams = { ...params };
         if (retryParams.contents && retryParams.contents.length > 0) {
           const lastContent = retryParams.contents[retryParams.contents.length - 1];
@@ -192,6 +209,7 @@ async function generateContentWithRetry(ai: any, params: any, functionResult?: s
         return await ai.models.generateContent(retryParams);
       } catch (retryError) {
         console.error('Retry with shortened result also failed:', retryError);
+        // Return a minimal fallback response
         return {
           text: 'I found relevant information but encountered processing limits. Please try a more specific query or break your request into smaller parts.'
         };
@@ -201,11 +219,70 @@ async function generateContentWithRetry(ai: any, params: any, functionResult?: s
   }
 }
 
+// Helper function to check if response is complete based on finishReason and content
+function isResponseComplete(finishReason: string, responseText: string): boolean {
+  if (finishReason === 'STOP') {
+    return true;
+  }
+  
+  if (finishReason === 'MAX_TOKENS') {
+    // Check for incomplete sentences or obvious truncation
+    const hasIncompleteSentence = /[，。！？]$/.test(responseText.trim());
+    const hasContinuationIntent = /接下來|我將|繼續|下一步|然後|接著/.test(responseText);
+    
+    return !hasIncompleteSentence && !hasContinuationIntent;
+  }
+  
+  if (finishReason === 'SAFETY' || finishReason === 'RECITATION') {
+    // These are complete responses, just blocked
+    return true;
+  }
+  
+  // For unknown or other reasons, assume incomplete
+  return false;
+}
+
+// Helper function to check if conversation should continue
+function shouldContinueConversation(
+  finishReason: string, 
+  hasFunctionCalls: boolean, 
+  responseText: string, 
+  thinkingText: string
+): boolean {
+  // If there are function calls, always continue
+  if (hasFunctionCalls) {
+    return true;
+  }
+  
+  // Check finishReason
+  if (finishReason === 'STOP') {
+    // Completely trust Gemini's STOP output - no continuation intent checking
+    return false;
+  }
+  
+  if (finishReason === 'MAX_TOKENS') {
+    // Response was truncated, likely needs continuation
+    const hasIncompleteSentence = /[，。！？]$/.test(responseText.trim());
+    const hasContinuationIntent = /接下來|我將|繼續|下一步|然後|接著/.test(responseText);
+    
+    return hasIncompleteSentence || hasContinuationIntent;
+  }
+  
+  if (finishReason === 'SAFETY' || finishReason === 'RECITATION') {
+    // These are complete responses, just blocked
+    return false;
+  }
+  
+  // For unknown or other reasons, be conservative and continue
+  return true;
+}
+
 // Helper function to merge consecutive response messages
 async function mergeConsecutiveResponseMessages(conversationId: string, conversationGroupId: string): Promise<void> {
   try {
     console.log('🔄 [MERGE RESPONSES] Starting merge for conversation group:', conversationGroupId);
     
+    // Get all messages for this conversation group, ordered by created_at
     const allMessages = await storage.getMessagesByConversation(conversationId);
     const groupMessages = allMessages
       .filter(msg => msg.conversationGroupId === conversationGroupId)
@@ -213,6 +290,7 @@ async function mergeConsecutiveResponseMessages(conversationId: string, conversa
     
     console.log('📊 [MERGE RESPONSES] Found', groupMessages.length, 'messages in group');
     
+    // Find consecutive response sequences
     const sequences: Array<{start: number, end: number, messages: any[]}> = [];
     let currentSequence: any[] = [];
     
@@ -222,6 +300,7 @@ async function mergeConsecutiveResponseMessages(conversationId: string, conversa
       if (msg.role === 'assistant' && msg.type === 'response') {
         currentSequence.push({...msg, index: i});
       } else {
+        // Non-response message, end current sequence if it exists
         if (currentSequence.length > 1) {
           sequences.push({
             start: currentSequence[0].index,
@@ -233,6 +312,7 @@ async function mergeConsecutiveResponseMessages(conversationId: string, conversa
       }
     }
     
+    // Check if there's a sequence at the end
     if (currentSequence.length > 1) {
       sequences.push({
         start: currentSequence[0].index,
@@ -243,35 +323,40 @@ async function mergeConsecutiveResponseMessages(conversationId: string, conversa
     
     console.log('🔍 [MERGE RESPONSES] Found', sequences.length, 'consecutive response sequences');
     
-    for (const sequence of sequences) {
-      console.log(`🔄 [MERGE RESPONSES] Processing sequence: ${sequence.start}-${sequence.end} (${sequence.messages.length} messages)`);
+    // Merge each sequence (process in reverse order to maintain indices)
+    for (let seqIndex = sequences.length - 1; seqIndex >= 0; seqIndex--) {
+      const sequence = sequences[seqIndex];
       
-      const firstMessage = sequence.messages[0];
-      const lastMessage = sequence.messages[sequence.messages.length - 1];
+      if (sequence.messages.length <= 1) continue;
+      
+      console.log('🔄 [MERGE RESPONSES] Merging sequence with', sequence.messages.length, 'messages');
       
       // Combine all response texts
       const combinedText = sequence.messages
         .map(msg => msg.content?.text || '')
         .join('');
       
-      const mergedMessage = {
-        ...firstMessage,
-        content: { text: combinedText },
-        updatedAt: lastMessage.updatedAt
-      };
+      console.log('📄 [MERGE RESPONSES] Combined text length:', combinedText.length);
+      console.log('📄 [MERGE RESPONSES] Text preview:', combinedText.substring(0, 100) + '...');
       
-      await storage.updateMessage(firstMessage.id, mergedMessage);
+      // Use the timestamp of the last message in the sequence
+      const lastMessage = sequence.messages[sequence.messages.length - 1];
       
-      for (let i = 1; i < sequence.messages.length; i++) {
-        await storage.deleteMessage(sequence.messages[i].id);
+      // Update the last message with merged content
+      await storage.updateMessage(lastMessage.id, { content: { text: combinedText } });
+      console.log('✅ [MERGE RESPONSES] Updated message:', lastMessage.id, 'with merged content');
+      
+      // Delete all messages in the sequence except the last one
+      const messagesToDelete = sequence.messages.slice(0, -1);
+      for (const msg of messagesToDelete) {
+        await storage.deleteMessage(msg.id);
       }
-      
-      console.log(`✅ [MERGE RESPONSES] Merged ${sequence.messages.length} messages into one`);
     }
     
-    console.log('✅ [MERGE RESPONSES] Merge completed');
+    console.log('✅ [MERGE RESPONSES] Merge completed successfully');
+    
   } catch (error) {
-    console.error('❌ [MERGE RESPONSES] Error merging messages:', error);
+    console.error('❌ [MERGE RESPONSES] Error merging consecutive response messages:', error);
   }
 }
 
@@ -291,8 +376,25 @@ export async function chatWithGeminiFunctionsIterative(options: GeminiFunctionCh
   content: string;
   events: AIEvent[];
 }> {
-  
-  const { messages, contextObjects = [], conversationId, conversationGroupId, referencedObjects = [] } = options;
+  try {
+    const { messages, contextObjects = [], referencedObjects = [], conversationId, conversationGroupId } = options;
+    
+    console.log('\n🚀 [ITERATIVE] Starting iterative function calling:', {
+      messageCount: messages.length,
+      contextObjectCount: contextObjects.length,
+      conversationId: conversationId ? 'provided' : 'none',
+      conversationGroupId: conversationGroupId ? 'provided' : 'none'
+    });
+    
+    if (contextObjects.length > 0) {
+      console.log('📦 [CONTEXT OBJECTS] Available context objects:');
+      contextObjects.forEach((obj, index) => {
+        console.log(`  ${index + 1}. ${obj.type}: ${obj.name} (ID: ${obj.id})`);
+        console.log(`     Content preview: ${obj.content.substring(0, 100)}...`);
+      });
+    } else {
+      console.log('📦 [CONTEXT OBJECTS] No context objects available');
+    }
   
   // Build system instruction
   const objectTypesList = generateObjectTypesList();
@@ -598,6 +700,11 @@ When users mention objects or people using @mentions (like @[person:習近平|�
     content: allResponseText,
     events: allEvents
   };
+
+  } catch (error) {
+    console.error('❌ [ITERATIVE ERROR]:', error);
+    throw error;
+  }
 }
 
 // Function calling with streaming
@@ -616,8 +723,8 @@ export async function chatWithGeminiFunctionsStreaming(options: GeminiFunctionCh
   content: string;
   events: AIEvent[];
 }> {
-  
-  const { messages, contextObjects = [], conversationId, conversationGroupId, referencedObjects = [] } = options;
+  try {
+    const { messages, contextObjects = [], referencedObjects = [], conversationId, conversationGroupId } = options;
   
   // Build system instruction
   const objectTypesList = generateObjectTypesList();
@@ -764,4 +871,11 @@ When users mention objects or people using @mentions (like @[person:習近平|�
     content: finalResponse,
     events: events
   };
+  } catch (error) {
+    console.error('Gemini streaming function calling error:', error);
+    return {
+      content: `Error: ${error}`,
+      events: []
+    };
+  }
 }
