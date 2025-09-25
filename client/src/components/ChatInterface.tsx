@@ -775,18 +775,8 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
   useEffect(() => {
     if (conversationMessages.length > 0) {
       setDatabaseMessages(conversationMessages.map(convertDbMessageToStreamMessage));
-    } else if (currentConversationId && databaseMessages.length === 0 && localMessages.length === 0) {
-      // Add welcome message for new conversations only if no messages exist
-      setDatabaseMessages([{
-        id: 'welcome',
-        content: { text: '你好！我是AI Context Manager。我可以幫助你管理文件、處理PDF並進行智能對話。你可以使用@提及功能來引用你的文件。' },
-        role: 'assistant',
-        type: 'response',
-        timestamp: new Date().toISOString(),
-        isStreaming: false,
-      }]);
     }
-  }, [conversationMessages, currentConversationId, databaseMessages.length, localMessages.length]);
+  }, [conversationMessages]);
 
   // Auto-scroll only during AI generation (streaming)
   useEffect(() => {
