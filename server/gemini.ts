@@ -4,9 +4,18 @@ import { storage } from "./storage";
 import { embeddingService } from "./embedding-service";
 import { functions, callFunction } from "./functions";
 import type { Object, MentionItem, SearchResult, ObjectType } from "@shared/schema";
-import { OBJECT_TYPES } from "@shared/schema";
+import { OBJECT_TYPES, OBJECT_TYPE_CONFIG, getObjectTypeChineseName, getObjectTypeIcon } from "@shared/schema";
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
+
+// Helper function to generate dynamic object types list
+function generateObjectTypesList(): string {
+  const typeNames = Object.keys(OBJECT_TYPE_CONFIG).map(type => {
+    const config = OBJECT_TYPE_CONFIG[type as keyof typeof OBJECT_TYPE_CONFIG];
+    return `${config.icon} ${config.chineseName} (${config.englishSingular})`;
+  });
+  return typeNames.join(', ');
+}
 
 // Basic chat interfaces
 export interface ChatMessage {
@@ -49,9 +58,10 @@ export async function chatWithGemini(options: GeminiChatOptions): Promise<string
     const { messages, contextObjects = [] } = options;
     
     // Build system instruction with context
+    const objectTypesList = generateObjectTypesList();
     let systemInstruction = `You are an AI assistant for an advanced object and knowledge management system. You help users organize, search, and understand their objects, people, entities, issues, logs, and meetings.
 
-Objects refer to all types of data entries including but not limited to persons, entities, issues, logs, meetings, letters, and documents.
+Objects refer to all types of data entries including but not limited to: ${objectTypesList}.
 
 You can help users with:
 - Understanding and analyzing objects
@@ -286,9 +296,10 @@ export async function chatWithGeminiFunctionsIterative(options: GeminiFunctionCh
   const { messages, contextObjects = [], conversationId, conversationGroupId, referencedObjects = [] } = options;
   
   // Build system instruction
+  const objectTypesList = generateObjectTypesList();
   let systemInstruction = `You are an AI assistant for an advanced object and knowledge management system. You help users organize, search, and understand their objects, people, entities, issues, logs, and meetings.
 
-Objects refer to all types of data entries including but not limited to persons, entities, issues, logs, meetings, letters, and documents. You can use the getObjectTypes function to see all available object types.
+Objects refer to all types of data entries including but not limited to: ${objectTypesList}. You can use the getObjectTypes function to see all available object types.
 
 You have access to the following functions to help users:
 
@@ -500,9 +511,10 @@ export async function chatWithGeminiFunctionsStreaming(options: GeminiFunctionCh
   const { messages, contextObjects = [], conversationId, conversationGroupId, referencedObjects = [] } = options;
   
   // Build system instruction
+  const objectTypesList = generateObjectTypesList();
   let systemInstruction = `You are an AI assistant for an advanced object and knowledge management system. You help users organize, search, and understand their objects, people, entities, issues, logs, and meetings.
 
-Objects refer to all types of data entries including but not limited to persons, entities, issues, logs, meetings, letters, and documents. You can use the getObjectTypes function to see all available object types.
+Objects refer to all types of data entries including but not limited to: ${objectTypesList}. You can use the getObjectTypes function to see all available object types.
 
 You have access to the following functions to help users:
 
