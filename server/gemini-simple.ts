@@ -70,22 +70,25 @@ When users mention objects or people using @mentions (like @[person:習近平|�
 export async function generateTextEmbedding(
   text: string, 
   outputDimensionality: number = 3072,
-  autoTruncate: boolean = true
+  title?: string
 ): Promise<number[]> {
   try {
     const response = await ai.models.embedContent({
       model: "gemini-embedding-001",
-      contents: [{
-        parts: [{ text }]
-      }]
+      contents: {
+        parts: [{ text }],
+        ...(title && { title })
+      },
+      taskType: "RETRIEVAL_DOCUMENT",
+      autoTruncate: false // 讓 Gemini 自行處理長度超限，不進行截斷
     });
 
     const embedding = response.embeddings?.[0]?.values || [];
     
-    // Apply dimensionality truncation if needed
-    if (autoTruncate && embedding.length > outputDimensionality) {
-      console.log(`Truncating embedding from ${embedding.length} to ${outputDimensionality} dimensions`);
-      return embedding.slice(0, outputDimensionality);
+    // 讓 Gemini 自行處理長度超限，不進行截斷
+    // 如果超過預期維度，記錄警告但不截斷
+    if (embedding.length > outputDimensionality) {
+      console.warn(`Warning: Embedding dimension ${embedding.length} exceeds requested ${outputDimensionality}, keeping original dimension`);
     }
     
     return embedding;

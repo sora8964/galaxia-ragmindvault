@@ -225,8 +225,8 @@ async function searchObjects(args: any): Promise<string> {
     // Generate embedding for semantic search
     const queryEmbedding = await generateTextEmbedding(
       query,
-      appConfig.textEmbedding?.outputDimensionality || 3072,
-      appConfig.textEmbedding?.autoTruncate !== false
+      appConfig.textEmbedding?.outputDimensionality || 3072
+      // 查詢不需要 title
     );
     if (queryEmbedding.length === 0) {
       return JSON.stringify({
@@ -500,6 +500,7 @@ async function findSimilarDocuments(args: any): Promise<string> {
       text,
       appConfig.textEmbedding?.outputDimensionality || 3072,
       appConfig.textEmbedding?.autoTruncate !== false
+      // 查詢不需要 title
     );
     if (queryEmbedding.length === 0) {
       return "Unable to generate embedding for the query text.";

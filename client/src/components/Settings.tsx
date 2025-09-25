@@ -56,20 +56,8 @@ const settingsFormSchema = z.object({
   }),
   textEmbedding: z.object({
     model: z.enum(['gemini-embedding-001']),
-    taskType: z.enum([
-      'TASK_TYPE_UNSPECIFIED',
-      'RETRIEVAL_QUERY',
-      'RETRIEVAL_DOCUMENT',
-      'SEMANTIC_SIMILARITY',
-      'CLASSIFICATION',
-      'CLUSTERING',
-      'QUESTION_ANSWERING',
-      'FACT_VERIFICATION',
-      'CODE_RETRIEVAL_QUERY',
-    ]),
+    taskType: z.enum(['RETRIEVAL_DOCUMENT']).default('RETRIEVAL_DOCUMENT'),
     outputDimensionality: z.number().int().min(1).max(3072),
-    autoEmbedding: z.boolean(),
-    autoTruncate: z.boolean(),
     batchSize: z.number().int().min(1).max(100),
   }),
   retrieval: z.object({
@@ -167,8 +155,6 @@ export function Settings() {
         model: 'gemini-embedding-001',
         taskType: 'RETRIEVAL_DOCUMENT',
         outputDimensionality: 3072,
-        autoEmbedding: true,
-        autoTruncate: true,
         batchSize: 10,
       },
       retrieval: {
@@ -202,7 +188,15 @@ export function Settings() {
   // Reset form when config loads
   useEffect(() => {
     if (config) {
-      form.reset(config);
+      // 轉換後端 config 為前端表單格式
+      const formData = {
+        ...config,
+        textEmbedding: {
+          ...config.textEmbedding,
+          taskType: 'RETRIEVAL_DOCUMENT' as const // 強制轉換為前端允許的值
+        }
+      };
+      form.reset(formData);
       setHasUnsavedChanges(false);
     }
   }, [config, form]);
@@ -215,7 +209,7 @@ export function Settings() {
       }
     });
     return () => subscription.unsubscribe();
-  }, [form, config]);
+  }, [form]);
 
   const onSubmit = (data: SettingsFormData) => {
     updateSettingsMutation.mutate(data);
@@ -223,7 +217,15 @@ export function Settings() {
 
   const resetToDefaults = () => {
     if (config) {
-      form.reset(config);
+      // 轉換後端 config 為前端表單格式
+      const formData = {
+        ...config,
+        textEmbedding: {
+          ...config.textEmbedding,
+          taskType: 'RETRIEVAL_DOCUMENT' as const // 強制轉換為前端允許的值
+        }
+      };
+      form.reset(formData);
       setHasUnsavedChanges(false);
     }
   };
@@ -512,35 +514,6 @@ export function Settings() {
                     )}
                   />
 
-                  <FormField
-                    control={form.control}
-                    name="textEmbedding.taskType"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Task Type</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value}>
-                          <FormControl>
-                            <SelectTrigger data-testid="select-task-type">
-                              <SelectValue />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="TASK_TYPE_UNSPECIFIED">Unspecified</SelectItem>
-                            <SelectItem value="RETRIEVAL_QUERY">Retrieval Query</SelectItem>
-                            <SelectItem value="RETRIEVAL_DOCUMENT">Retrieval Object</SelectItem>
-                            <SelectItem value="SEMANTIC_SIMILARITY">Semantic Similarity</SelectItem>
-                            <SelectItem value="CLASSIFICATION">Classification</SelectItem>
-                            <SelectItem value="CLUSTERING">Clustering</SelectItem>
-                            <SelectItem value="QUESTION_ANSWERING">Question Answering</SelectItem>
-                            <SelectItem value="FACT_VERIFICATION">Fact Verification</SelectItem>
-                            <SelectItem value="CODE_RETRIEVAL_QUERY">Code Retrieval Query</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <FormDescription>Embedding task optimization</FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
 
                   <FormField
                     control={form.control}
@@ -590,49 +563,7 @@ export function Settings() {
                 </div>
 
                 <div className="space-y-4">
-                  <FormField
-                    control={form.control}
-                    name="textEmbedding.autoEmbedding"
-                    render={({ field }) => (
-                      <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                        <div className="space-y-0.5">
-                          <FormLabel className="text-base">Auto Embedding</FormLabel>
-                          <FormDescription>
-                            Automatically generate embeddings for new objects
-                          </FormDescription>
-                        </div>
-                        <FormControl>
-                          <Switch
-                            checked={field.value}
-                            onCheckedChange={field.onChange}
-                            data-testid="switch-auto-embedding"
-                          />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
 
-                  <FormField
-                    control={form.control}
-                    name="textEmbedding.autoTruncate"
-                    render={({ field }) => (
-                      <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                        <div className="space-y-0.5">
-                          <FormLabel className="text-base">Auto Truncate</FormLabel>
-                          <FormDescription>
-                            Automatically truncate text that exceeds model limits
-                          </FormDescription>
-                        </div>
-                        <FormControl>
-                          <Switch
-                            checked={field.value}
-                            onCheckedChange={field.onChange}
-                            data-testid="switch-auto-truncate"
-                          />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
                 </div>
               </CardContent>
             </Card>

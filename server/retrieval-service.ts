@@ -108,8 +108,8 @@ export class RetrievalService {
       const appConfig = await storage.getAppConfig();
       const queryEmbedding = await generateTextEmbedding(
         userText,
-        appConfig.textEmbedding?.outputDimensionality || 3072,
-        appConfig.textEmbedding?.autoTruncate !== false
+        appConfig.textEmbedding?.outputDimensionality || 3072
+        // 查詢不需要 title
       );
       console.log(`🔍 [AUTO-RETRIEVAL] Query embedding generated, length: ${queryEmbedding.length}`);
       

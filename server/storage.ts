@@ -142,8 +142,6 @@ export class MemStorage implements IStorage {
         model: "gemini-embedding-001",
         taskType: "RETRIEVAL_DOCUMENT",
         outputDimensionality: 3072,
-        autoEmbedding: true,
-        autoTruncate: true,
         batchSize: 10
       },
       retrieval: {
@@ -1284,7 +1282,15 @@ export class DatabaseStorage implements IStorage {
   async getObjectsNeedingEmbedding(): Promise<Object[]> {
     const result = await db.select().from(objects)
       .where(eq(objects.needsEmbedding, true));
-    return result;
+    
+    // Filter out OCR objects that haven't been edited yet
+    return result.filter((doc: any) => {
+      // For OCR objects, wait until they've been edited
+      if (doc.isFromOCR && !doc.hasBeenEdited) return false;
+      
+      // For other objects, embed immediately
+      return true;
+    });
   }
 
   // Chunk operations (keep as stubs)
@@ -1748,8 +1754,6 @@ export class DatabaseStorage implements IStorage {
         model: "gemini-embedding-001",
         taskType: "RETRIEVAL_DOCUMENT",
         outputDimensionality: 3072,
-        autoEmbedding: true,
-        autoTruncate: true,
         batchSize: 10
       },
       chunking: {
