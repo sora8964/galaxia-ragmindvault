@@ -57,12 +57,12 @@ const getDetailPath = (type: string): string => {
 };
 
 // Search Objects Results Display Component
-function SearchObjectsResultsDisplay({ result }: { result: string }) {
+function SearchObjectsResultsDisplay({ result }: { result: any }) {
   const [isExpanded, setIsExpanded] = useState(false);
   
   try {
-    const parsedResult = JSON.parse(result);
-    const { results = [], pagination, message } = parsedResult;
+    // Expect result to be a JSON object (not string)
+    const { results = [], pagination } = result;
     const resultCount = results.length;
     
     if (resultCount === 0) {

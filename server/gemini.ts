@@ -249,13 +249,14 @@ async function mergeConsecutiveResponseMessages(conversationId: string, conversa
       const firstMessage = sequence.messages[0];
       const lastMessage = sequence.messages[sequence.messages.length - 1];
       
-      const mergedContent = sequence.messages
-        .map(msg => msg.content)
-        .join('\n\n');
+      // Combine all response texts
+      const combinedText = sequence.messages
+        .map(msg => msg.content?.text || '')
+        .join('');
       
       const mergedMessage = {
         ...firstMessage,
-        content: mergedContent,
+        content: { text: combinedText },
         updatedAt: lastMessage.updatedAt
       };
       
@@ -402,6 +403,23 @@ When users mention objects or people using @mentions (like @[person:習近平|�
           for (const part of candidate.content.parts) {
             if (part.text) {
               roundResponseText += part.text;
+              
+              // Save response chunk immediately when it arrives
+              if (conversationId && conversationGroupId && part.text.trim()) {
+                try {
+                  console.log('💾 [IMMEDIATE SAVE] Saving response chunk...');
+                  await storage.createMessage({
+                    conversationId,
+                    conversationGroupId,
+                    role: "assistant",
+                    type: "response",
+                    content: { text: part.text }
+                  });
+                  console.log('✅ [SAVED RESPONSE CHUNK] Immediately saved to database');
+                } catch (error) {
+                  console.error('❌ [SAVE ERROR] Failed to save response chunk:', error);
+                }
+              }
             }
             
             if (part.functionCall) {
@@ -416,6 +434,39 @@ When users mention objects or people using @mentions (like @[person:習近平|�
                   result: functionResult
                 });
                 
+                // Save function call immediately when it completes
+                if (conversationId && conversationGroupId) {
+                  try {
+                    console.log('💾 [IMMEDIATE SAVE] Saving function call result...');
+                    
+                    // For searchObjects, parse the JSON result to store as object
+                    let resultToStore = functionResult;
+                    if (part.functionCall.name === 'searchObjects') {
+                      try {
+                        resultToStore = JSON.parse(functionResult);
+                        console.log('📦 [FUNCTION_CALL] Parsed searchObjects result as JSON object');
+                      } catch (parseError) {
+                        console.log('⚠️ [FUNCTION_CALL] Failed to parse searchObjects result, storing as string');
+                      }
+                    }
+                    
+                    await storage.createMessage({
+                      conversationId,
+                      conversationGroupId,
+                      role: "assistant",
+                      type: "function_call",
+                      content: {
+                        name: part.functionCall.name || '',
+                        arguments: part.functionCall.args || {},
+                        result: resultToStore
+                      }
+                    });
+                    console.log('✅ [SAVED FUNCTION_CALL] Immediately saved to database');
+                  } catch (error) {
+                    console.error('❌ [SAVE ERROR] Failed to save function call:', error);
+                  }
+                }
+                
                 // Add function call event
                 allEvents.push({
                   type: 'function_call',
@@ -424,11 +475,7 @@ When users mention objects or people using @mentions (like @[person:習近平|�
                   result: functionResult
                 });
                 
-                // Add function response to conversation
-                conversationHistory.push({
-                  role: 'model',
-                  parts: [{ text: `Function ${part.functionCall.name || ''} result: ${functionResult}` }]
-                });
+                // Function result is handled internally, no need to add to conversation history
                 
               } catch (error) {
                 console.error('Function call error:', error);
@@ -439,10 +486,40 @@ When users mention objects or people using @mentions (like @[person:習近平|�
                   result: errorResult
                 });
                 
-                conversationHistory.push({
-                  role: 'model',
-                  parts: [{ text: `Function ${part.functionCall.name || ''} error: ${errorResult}` }]
-                });
+                // Save function call error immediately
+                if (conversationId && conversationGroupId) {
+                  try {
+                    console.log('💾 [IMMEDIATE SAVE] Saving function call error...');
+                    
+                    // For searchObjects errors, try to parse if it's JSON, otherwise store as string
+                    let errorToStore = errorResult;
+                    if (part.functionCall.name === 'searchObjects') {
+                      try {
+                        errorToStore = JSON.parse(errorResult);
+                        console.log('📦 [FUNCTION_CALL] Parsed searchObjects error as JSON object');
+                      } catch (parseError) {
+                        console.log('⚠️ [FUNCTION_CALL] Storing searchObjects error as string');
+                      }
+                    }
+                    
+                    await storage.createMessage({
+                      conversationId,
+                      conversationGroupId,
+                      role: "assistant",
+                      type: "function_call",
+                      content: {
+                        name: part.functionCall.name || '',
+                        arguments: part.functionCall.args || {},
+                        result: errorToStore
+                      }
+                    });
+                    console.log('✅ [SAVED FUNCTION_CALL ERROR] Immediately saved to database');
+                  } catch (saveError) {
+                    console.error('❌ [SAVE ERROR] Failed to save function call error:', saveError);
+                  }
+                }
+                
+                // Function error is handled internally, no need to add to conversation history
               }
             }
           }
@@ -473,15 +550,49 @@ When users mention objects or people using @mentions (like @[person:習近平|�
     }
     
     // Check if we should continue
-    if (finalResponseObj?.finishReason === 'STOP' || !hasFunctionCalls) {
-      console.log('🏁 [ITERATIVE] Conversation complete - no more function calls needed');
+    // Only stop if we got a STOP finish reason AND no function calls were made this round
+    if (finalResponseObj?.finishReason === 'STOP' && !hasFunctionCalls) {
+      console.log('🏁 [ITERATIVE] Conversation complete - AI indicated STOP and no function calls needed');
       break;
+    }
+    
+    // If we had function calls, continue to next round to let AI process the results
+    if (hasFunctionCalls) {
+      console.log(`🔄 [ITERATIVE] Function calls completed, continuing to next round for AI analysis`);
     }
     
     console.log(`✅ [ROUND ${roundCount}] Completed with ${roundFunctionCalls.length} function calls`);
   }
   
   console.log(`🎯 [ITERATIVE] Final response: ${allResponseText.substring(0, 200)}...`);
+  console.log('ℹ️ [ITERATIVE] All messages have been saved in real-time during streaming');
+  
+  // Merge consecutive response messages after completion (if enabled)
+  console.log('🔍 [MERGE CHECK] conversationId:', conversationId);
+  console.log('🔍 [MERGE CHECK] conversationGroupId:', conversationGroupId);
+  if (conversationId && conversationGroupId) {
+    try {
+      // Get app config to check if merging is enabled
+      const appConfig = await storage.getAppConfig();
+      const shouldMerge = appConfig.geminiApi.mergeResponses ?? true; // Default to true for backward compatibility
+      
+      console.log('🔍 [MERGE CHECK] Merge responses setting:', shouldMerge);
+      
+      if (shouldMerge) {
+        console.log('🚀 [MERGE CHECK] Starting merge process...');
+        await mergeConsecutiveResponseMessages(conversationId, conversationGroupId);
+      } else {
+        console.log('⚠️ [MERGE CHECK] Response merging is disabled in settings, skipping merge');
+      }
+    } catch (error) {
+      console.error('❌ [MERGE CHECK] Error checking merge setting:', error);
+      // Fallback to merging if there's an error reading config
+      console.log('🚀 [MERGE CHECK] Fallback: Starting merge process...');
+      await mergeConsecutiveResponseMessages(conversationId, conversationGroupId);
+    }
+  } else {
+    console.log('❌ [MERGE CHECK] Missing conversationId or conversationGroupId, skipping merge');
+  }
   
   return {
     content: allResponseText,

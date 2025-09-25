@@ -626,7 +626,8 @@ export const DEFAULT_VALUES = {
   autoRag: true,
   addCitations: true,
   enabled: true,
-  enablePagination: true
+  enablePagination: true,
+  mergeResponses: true
 } as const;
 
 // ============================================================================
@@ -659,6 +660,7 @@ export const geminiApiConfigSchema = z.object({
     dangerousContent: z.enum(SAFETY_SETTING_LEVELS).default(SAFETY_SETTING_LEVELS[0]),
     civicIntegrity: z.enum(SAFETY_SETTING_LEVELS).default(SAFETY_SETTING_LEVELS[0])
   }).default({}),
+  mergeResponses: z.boolean().default(DEFAULT_VALUES.mergeResponses),
 });
 
 export const textEmbeddingConfigSchema = z.object({

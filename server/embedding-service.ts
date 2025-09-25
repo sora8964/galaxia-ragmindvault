@@ -105,6 +105,45 @@ export class EmbeddingService {
       await this.queueDocumentForEmbedding(documentId);
     }
   }
+
+  // Search for similar chunks using vector similarity
+  async searchSimilarChunks(
+    queryEmbedding: number[],
+    type?: string,
+    limit: number = 10,
+    offset: number = 0
+  ): Promise<any[]> {
+    try {
+      console.log(`🔍 [EMBEDDING-SERVICE] Searching similar chunks with vector length: ${queryEmbedding.length}, limit: ${limit}, offset: ${offset}`);
+      
+      // Use storage method to search chunks by vector
+      const allResults = await storage.searchChunksByVector(queryEmbedding, limit + offset);
+      
+      // Apply offset and limit
+      const paginatedResults = allResults.slice(offset, offset + limit);
+      
+      // Filter by type if specified
+      const filteredResults = type 
+        ? paginatedResults.filter(result => result.object.type === type)
+        : paginatedResults;
+      
+      // Format results for function calling interface
+      const formattedResults = filteredResults.map(result => ({
+        objectId: result.object.id,
+        objectName: result.object.name,
+        objectType: result.object.type,
+        content: result.content,
+        relevanceScore: result.similarity,
+        chunkIndex: result.chunkIndex
+      }));
+      
+      console.log(`🔍 [EMBEDDING-SERVICE] Found ${formattedResults.length} similar chunks`);
+      return formattedResults;
+    } catch (error) {
+      console.error('Error in searchSimilarChunks:', error);
+      return [];
+    }
+  }
 }
 
 export const embeddingService = new EmbeddingService();

@@ -53,6 +53,7 @@ const settingsFormSchema = z.object({
       dangerousContent: z.enum(['BLOCK_NONE', 'BLOCK_LOW_AND_ABOVE', 'BLOCK_MEDIUM_AND_ABOVE', 'BLOCK_HIGH_AND_ABOVE']),
       civicIntegrity: z.enum(['BLOCK_NONE', 'BLOCK_LOW_AND_ABOVE', 'BLOCK_MEDIUM_AND_ABOVE', 'BLOCK_HIGH_AND_ABOVE']),
     }),
+    mergeResponses: z.boolean(),
   }),
   textEmbedding: z.object({
     model: z.enum(['gemini-embedding-001']),
@@ -150,6 +151,7 @@ export function Settings() {
           dangerousContent: 'BLOCK_NONE',
           civicIntegrity: 'BLOCK_NONE',
         },
+        mergeResponses: true,
       },
       textEmbedding: {
         model: 'gemini-embedding-001',
@@ -478,6 +480,35 @@ export function Settings() {
                       />
                     ))}
                   </div>
+                </div>
+
+                <Separator />
+
+                <div>
+                  <h4 className="font-medium mb-3">Response Settings</h4>
+                  <FormField
+                    control={form.control}
+                    name="geminiApi.mergeResponses"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                        <div className="space-y-0.5">
+                          <FormLabel className="text-base">
+                            Merge Responses
+                          </FormLabel>
+                          <FormDescription>
+                            自動合併連續的 AI 回應片段為完整消息，減少資料庫中的零散記錄
+                          </FormDescription>
+                        </div>
+                        <FormControl>
+                          <Switch
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                            data-testid="switch-merge-responses"
+                          />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
                 </div>
               </CardContent>
             </Card>
