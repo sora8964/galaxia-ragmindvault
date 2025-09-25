@@ -1,5 +1,5 @@
 import { storage } from './storage';
-import { generateTextEmbedding } from './gemini-simple';
+import { generateTextEmbedding } from './gemini';
 import { AppObject } from '@shared/schema';
 
 // Interfaces for auto-context and retrieval

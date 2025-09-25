@@ -1,6 +1,6 @@
 // Reference: javascript_gemini blueprint integration
 import { storage } from "./storage";
-import { generateTextEmbedding } from "./gemini-simple";
+import { generateTextEmbedding } from "./gemini";
 import { chunkingService } from "./chunking-service";
 
 export class EmbeddingService {

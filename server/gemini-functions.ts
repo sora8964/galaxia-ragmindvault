@@ -2,7 +2,7 @@
 import { GoogleGenAI } from "@google/genai";
 import { storage } from "./storage";
 import { embeddingService } from "./embedding-service";
-import { generateTextEmbedding } from "./gemini-simple";
+import { generateTextEmbedding } from "./gemini";
 import type { Object, MentionItem, SearchResult, ObjectType } from "@shared/schema";
 import { OBJECT_TYPES } from "@shared/schema";
 

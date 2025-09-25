@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage, type RelationshipFilters } from "./storage";
 import { insertObjectSchema, updateObjectSchema, insertConversationSchema, insertMessageSchema, updateMessageSchema, parseMentionsSchema, updateAppConfigSchema, insertRelationshipSchema, updateRelationshipSchema, ObjectType, OBJECT_TYPE_CONFIG, getObjectTypeConfig, hasObjectTypeDateField, canObjectTypeUploadFile } from "@shared/schema";
-import { chatWithGemini, extractTextFromPDF, extractTextFromWord, generateTextEmbedding } from "./gemini-simple";
+import { chatWithGemini, extractTextFromPDF, extractTextFromWord, generateTextEmbedding } from "./gemini";
 import { chatWithGeminiFunctionsStreaming, chatWithGeminiFunctionsIterative, type AIEvent } from "./gemini-functions";
 import { embeddingService } from "./embedding-service";
 import { chunkingService } from "./chunking-service";
