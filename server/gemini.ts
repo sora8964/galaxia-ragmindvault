@@ -108,15 +108,13 @@ When users mention objects or people using @mentions (like @[person:習近平|�
 // Text Embedding function
 export async function generateTextEmbedding(
   text: string, 
-  outputDimensionality: number = 3072,
-  title?: string
+  outputDimensionality: number = 3072
 ): Promise<number[]> {
   try {
     const response = await ai.models.embedContent({
       model: "gemini-embedding-001",
       contents: {
         parts: [{ text }],
-        ...(title && { title })
       }
     });
 

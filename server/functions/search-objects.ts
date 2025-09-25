@@ -13,7 +13,6 @@ export async function searchObjects(args: any): Promise<string> {
     const queryEmbedding = await generateTextEmbedding(
       query,
       3072,
-      `Search query: ${query}`
     );
     
     // Perform semantic search

@@ -31,7 +31,6 @@ export async function createObject(args: any): Promise<string> {
     const embedding = await generateTextEmbedding(
       `${name} ${content}`,
       3072,
-      name
     );
     
     // Update object with embedding

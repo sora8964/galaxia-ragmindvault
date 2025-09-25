@@ -17,7 +17,6 @@ export function registerEmbeddingRoutes(app: Express) {
       const embedding = await generateTextEmbedding(
         text,
         appConfig.textEmbedding?.outputDimensionality || 3072
-        // 手動嵌入不需要 title
       );
       
       res.json({
@@ -50,7 +49,6 @@ export function registerEmbeddingRoutes(app: Express) {
       const queryEmbedding = await generateTextEmbedding(
         query,
         appConfig.textEmbedding?.outputDimensionality || 3072
-        // 查詢不需要 title
       );
       console.log(`🔍 [DEBUG] Generated embedding length: ${queryEmbedding.length}`);
       
@@ -95,7 +93,6 @@ export function registerEmbeddingRoutes(app: Express) {
       const queryEmbedding = await generateTextEmbedding(
         query,
         appConfig.textEmbedding?.outputDimensionality || 3072
-        // 查詢不需要 title
       );
       
       // Search for similar objects

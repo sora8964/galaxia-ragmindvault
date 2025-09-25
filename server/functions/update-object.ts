@@ -30,7 +30,6 @@ export async function updateObject(args: any): Promise<string> {
       const embedding = await generateTextEmbedding(
         `${updatedObject.name} ${updatedObject.content}`,
         3072,
-        updatedObject.name
       );
       
       await storage.updateObject(objectId, { embedding });

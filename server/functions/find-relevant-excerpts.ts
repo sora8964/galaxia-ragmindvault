@@ -13,7 +13,6 @@ export async function findRelevantExcerpts(args: any): Promise<string> {
     const queryEmbedding = await generateTextEmbedding(
       query,
       3072,
-      `Excerpt search: ${query}`
     );
     
     // Search for relevant excerpts

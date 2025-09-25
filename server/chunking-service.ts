@@ -127,7 +127,6 @@ export class ChunkingService {
       const objectEmbedding = await generateTextEmbedding(
         embeddingText,
         appConfig.textEmbedding?.outputDimensionality || 3072,
-        object.name
       );
       await storage.updateObjectEmbedding(object.id, objectEmbedding);
       
@@ -158,7 +157,6 @@ export class ChunkingService {
         const chunkEmbedding = await generateTextEmbedding(
           chunkData.content,
           appConfig.textEmbedding?.outputDimensionality || 3072,
-          `${object.name} - Chunk ${chunkData.chunkIndex + 1}`
         );
         await storage.updateChunkEmbedding(chunk.id, chunkEmbedding);
         

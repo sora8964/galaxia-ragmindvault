@@ -21,7 +21,6 @@ export async function findSimilarObjects(args: any): Promise<string> {
       queryEmbedding = await generateTextEmbedding(
         `${sourceObject.name} ${sourceObject.content}`,
         3072,
-        sourceObject.name
       );
     }
     
